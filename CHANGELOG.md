@@ -1,6 +1,6 @@
 # 更新记录
 
-## 15.8.1
+## 15.8.1 · 2026-11-25
 
 [发布日志及下载](https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1) · [多语言介绍页](https://whwitpohe.github.io/wSearch/#changes)
 
@@ -11,3 +11,12 @@
 - **性能**。文本翻译按需载入语言识别模型，连续屏幕翻译等待上一轮结束后再刷新，录屏提示减少了重复的进程间通信。
 
 Windows 安装程序使用独立的 wSearch 应用标识，首次使用时可以沿用已有的 eSearch 配置。发布页按平台列出本版本可下载的文件和 SHA-256 校验值。
+
+### 2026-11-26 · 补充平台安装包
+
+| 系统 | 架构 | 包格式 |
+| --- | --- | --- |
+| macOS | Apple Silicon（ARM64）、Intel（x64） | DMG、ZIP |
+| Linux | x64、ARM64 | AppImage、DEB、RPM、tar.gz |
+
+两个 Mac 架构的 ZIP 和两个 Linux 架构的 tar.gz 均已从公开发布页下载，并在对应的原生运行器上解包、启动和确认版本号。macOS 包未经过 Apple Developer ID 签名或公证。[构建记录](https://github.com/Whwitpohe/wSearch/actions/runs/45661625688) · [启动验证](https://github.com/Whwitpohe/wSearch/actions/runs/45663261734) · [全部安装包 SHA-256](https://github.com/Whwitpohe/wSearch/releases/download/15.8.1/SHA256SUMS.txt)

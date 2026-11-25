@@ -90,6 +90,12 @@ function renderPackages(moveFocus = false) {
     row.append(links);
     rows.push(row);
   }
+  if (rows.length) {
+    const note = element("p", "install-note", t[system + "Install"]);
+    const sums = element("a", "checksum", t.checksums);
+    sums.href = `https://github.com/Whwitpohe/wSearch/releases/download/${release.version}/SHA256SUMS.txt`;
+    rows.push(note, sums);
+  }
   container.replaceChildren(
     controls,
     ...(rows.length ? rows : [element("p", "", t.pending)]),

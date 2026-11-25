@@ -827,3 +827,15 @@ footer {
     transition: none !important;
   }
 }
+
+.releases .install-note {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.checksum {
+  color: var(--blue);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

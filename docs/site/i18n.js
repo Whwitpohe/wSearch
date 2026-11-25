@@ -51,6 +51,12 @@ const messages = {
     platform: "操作系统",
     pending: "此版本暂未发布该平台的安装包。",
     translatedFraction: "译图占比",
+    r4: "新增 macOS Intel、Apple Silicon 和 Linux x64、ARM64 安装包。",
+    win32Install: "运行 EXE 安装程序。此版本未做 Windows 代码签名。",
+    darwinInstall:
+      "DMG 用于安装，ZIP 用于解压。此版本未使用 Apple Developer ID 签名，也未公证。",
+    linuxInstall: "按发行版选择 DEB 或 RPM，也可使用 AppImage 或 tar.gz。",
+    checksums: "校验文件",
   },
   "zh-TW": {
     skip: "跳到主要內容",
@@ -105,6 +111,12 @@ const messages = {
     platform: "作業系統",
     pending: "此版本尚未提供此平台的安裝檔。",
     translatedFraction: "譯圖比例",
+    r4: "新增 macOS Intel、Apple Silicon 及 Linux x64、ARM64 安裝檔。",
+    win32Install: "執行 EXE 安裝程式。此版本未使用 Windows 程式碼簽章。",
+    darwinInstall:
+      "可使用 DMG 安裝或解壓縮 ZIP。此版本未使用 Apple Developer ID 簽章，也未經公證。",
+    linuxInstall: "依發行版選擇 DEB 或 RPM，亦可使用 AppImage 或 tar.gz。",
+    checksums: "校驗檔案",
   },
   en: {
     skip: "Skip to content",
@@ -161,6 +173,13 @@ const messages = {
     platform: "Operating system",
     pending: "No package for this platform is published for this release yet.",
     translatedFraction: "Translation shown",
+    r4: "Packages are now available for Intel and Apple Silicon Macs, and for x64 and ARM64 Linux.",
+    win32Install: "Run the EXE installer. This Windows build is unsigned.",
+    darwinInstall:
+      "Install from the DMG or extract the ZIP. This release has no Apple Developer ID signature or notarization.",
+    linuxInstall:
+      "Choose DEB or RPM for your distribution, or use AppImage or tar.gz.",
+    checksums: "SHA-256 checksums",
   },
   es: {
     skip: "Saltar al contenido",
@@ -218,6 +237,14 @@ const messages = {
     platform: "Sistema operativo",
     pending: "Esta versión aún no ofrece un paquete para esta plataforma.",
     translatedFraction: "Traducción visible",
+    r4: "Paquetes para Mac Intel y Apple Silicon, y para Linux x64 y ARM64.",
+    win32Install:
+      "Ejecuta el instalador EXE. Esta versión de Windows no está firmada.",
+    darwinInstall:
+      "Instala desde el DMG o extrae el ZIP. Esta versión no tiene firma de Apple Developer ID ni notarización.",
+    linuxInstall:
+      "Elige DEB o RPM según tu distribución, o utiliza AppImage o tar.gz.",
+    checksums: "Sumas SHA-256",
   },
   fr: {
     skip: "Aller au contenu",
@@ -275,6 +302,14 @@ const messages = {
     pending:
       "Aucun paquet pour cette plateforme dans cette version pour le moment.",
     translatedFraction: "Traduction visible",
+    r4: "Des paquets sont disponibles pour Mac Intel et Apple Silicon ainsi que pour Linux x64 et ARM64.",
+    win32Install:
+      "Exécutez le programme EXE. Cette version Windows n’est pas signée.",
+    darwinInstall:
+      "Installez le DMG ou décompressez le ZIP. Cette version n’est ni signée avec un Developer ID Apple ni notariée.",
+    linuxInstall:
+      "Choisissez DEB ou RPM pour votre distribution, ou utilisez AppImage ou tar.gz.",
+    checksums: "Sommes SHA-256",
   },
   ru: {
     skip: "К содержимому",
@@ -331,6 +366,13 @@ const messages = {
     platform: "Операционная система",
     pending: "Для этой платформы пока нет пакета в данном выпуске.",
     translatedFraction: "Доля перевода",
+    r4: "Добавлены пакеты для Mac с Intel и Apple Silicon, а также для Linux x64 и ARM64.",
+    win32Install: "Запустите установщик EXE. Версия для Windows не подписана.",
+    darwinInstall:
+      "Установите приложение из DMG или распакуйте ZIP. В этом выпуске нет подписи Apple Developer ID и нотариального заверения.",
+    linuxInstall:
+      "Выберите DEB или RPM для своего дистрибутива либо используйте AppImage или tar.gz.",
+    checksums: "Контрольные суммы SHA-256",
   },
   ar: {
     skip: "انتقل إلى المحتوى",
@@ -386,6 +428,12 @@ const messages = {
     platform: "نظام التشغيل",
     pending: "لم تُنشر بعد حزمة لهذه المنصة ضمن هذا الإصدار.",
     translatedFraction: "نسبة الترجمة الظاهرة",
+    r4: "تتوفر حزم لأجهزة Mac بمعالجات Intel وApple Silicon ولنظام Linux بمعماريتي x64 وARM64.",
+    win32Install: "شغّل مثبّت EXE. إصدار Windows هذا غير موقّع.",
+    darwinInstall:
+      "ثبّت التطبيق من DMG أو فك ضغط ZIP. لم يُوقّع هذا الإصدار بشهادة Apple Developer ID ولم يخضع لتوثيق Apple.",
+    linuxInstall: "اختر DEB أو RPM حسب توزيعتك، أو استخدم AppImage أو tar.gz.",
+    checksums: "بصمات SHA-256",
   },
   eo: {
     skip: "Iri al la enhavo",
@@ -443,5 +491,13 @@ const messages = {
     pending:
       "Pakaĵo por ĉi tiu platformo ankoraŭ ne estas publikigita por ĉi tiu eldono.",
     translatedFraction: "Videbla traduko",
+    r4: "Pakaĵoj nun haveblas por Mac kun Intel aŭ Apple Silicon kaj por Linukso kun x64 aŭ ARM64.",
+    win32Install:
+      "Rulu la instalilon EXE. Ĉi tiu vindoza versio ne havas kodsubskribon.",
+    darwinInstall:
+      "Instalu el DMG aŭ elpaku la ZIP-arĥivon. Ĉi tiu eldono havas nek subskribon de Apple Developer ID nek notarian ateston de Apple.",
+    linuxInstall:
+      "Elektu DEB aŭ RPM laŭ via distribuo, aŭ uzu AppImage aŭ tar.gz.",
+    checksums: "SHA-256-kontrolsumoj",
   },
 };
