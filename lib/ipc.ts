@@ -4,7 +4,6 @@ const { ipcRenderer, ipcMain } =
 import type {
     Display,
     MessageBoxSyncOptions,
-    NativeTheme,
     OpenDialogOptions,
 } from "electron";
 import type {
@@ -158,7 +157,11 @@ type Message = {
               key: string,
           ) => boolean)
         | ((type: "快捷键2", name: 功能, key: string) => boolean);
-    reloadMainFromSetting: () => void;
+    getStartupSettings: () => {
+        "语言.语言": setting["语言"]["语言"];
+        dev: boolean;
+        硬件加速: boolean;
+    };
     getDefaultSetting: () => setting;
     reload: () => void;
     exit: () => void;
@@ -167,7 +170,6 @@ type Message = {
     move_user_data: (target: string) => void;
     getAutoStart: () => boolean;
     setAutoStart: (value: boolean) => void;
-    theme: (t: NativeTheme["themeSource"]) => void;
     dingIgnore: (ignore: boolean) => void;
     recordStop: () => void;
     recordTime: (time: string) => void;

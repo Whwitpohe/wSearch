@@ -157,20 +157,14 @@ export function getWindowInfos(
     });
 }
 
-let _command: string | undefined;
-let commandSavePath = "/dev/shm/esearch-img.png";
-let _useXDGDesktopProtal = false;
-
 function init(
     command: { c: string; path?: string },
     feedback?: (m: string) => string,
     t?: (t: string) => string,
-    useXDGDesktopProtal?: boolean,
+    useXDGDesktopPortal = false,
 ) {
-    _command = command.c;
-    if (command.path) commandSavePath = command.path;
     if (t) _t = t;
-    if (!_command)
+    if (!command.c)
         try {
             Screenshots = require("node-screenshots");
         } catch (error) {
@@ -216,11 +210,13 @@ function init(
                 }
             }
         }
-    if (useXDGDesktopProtal) _useXDGDesktopProtal = true;
-    return dispaly2screen;
+    return (displays?: Electron.Display[], imgBuffer?: Buffer) =>
+        displayToScreen(command, useXDGDesktopPortal, displays, imgBuffer);
 }
 
-async function dispaly2screen(
+async function displayToScreen(
+    command: { c: string; path?: string },
+    useXDGDesktopPortal: boolean,
     displays?: Electron.Display[],
     imgBuffer?: Buffer,
 ): Promise<{
@@ -230,7 +226,7 @@ async function dispaly2screen(
 }> {
     let buffer = imgBuffer;
 
-    if (!buffer && _command) {
+    if (!buffer && command.c) {
         const fs = require("node:fs") as typeof import("node:fs");
         const { execSync } =
             require("node:child_process") as typeof import("node:child_process");
@@ -245,11 +241,10 @@ async function dispaly2screen(
             scaleFactor: displays?.[0]?.scaleFactor ?? 1,
             id: displays?.[0]?.id ?? -1,
             capture: async () => {
-                const command = _command as string;
                 try {
-                    const path = commandSavePath;
+                    const path = command.path || "/dev/shm/esearch-img.png";
                     fs.rm(path, () => {});
-                    execSync(command, {});
+                    execSync(command.c, {});
                     buffer = fs.readFileSync(path);
                     fs.rm(path, () => {});
                 } catch (error) {
@@ -300,7 +295,7 @@ async function dispaly2screen(
         };
     }
 
-    if (process.platform === "linux" && _useXDGDesktopProtal) {
+    if (process.platform === "linux" && useXDGDesktopPortal) {
         const fs =
             require("node:fs/promises") as typeof import("node:fs/promises");
         const c = await waylandShotInit(

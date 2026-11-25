@@ -55,6 +55,7 @@ import { githubMirrorList } from "../../lib/github_mirror";
 import type { RecordRect } from "../../lib/ipc";
 import { mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
 import { selectionShortcuts } from "../../lib/selectionShortcuts";
+import type { SettingPath } from "../../lib/store/renderStore";
 import Store from "../../lib/store/store";
 import time_format from "../../lib/time_format";
 import { lan, t } from "../../lib/translate/translate";
@@ -172,12 +173,14 @@ ipcMain.on("store", (e, x) => {
         e.returnValue = store.get(x.path);
     } else if (x.type === "set") {
         store.set(x.path, x.value);
+        applySettingChange(x.path);
     } else if (x.type === "path") {
         e.returnValue = store.path();
     } else if (x.type === "getAll") {
         e.returnValue = store.getAll();
     } else if (x.type === "setAll") {
         store.setAll(x.value);
+        applySettingChange();
     }
 });
 
@@ -216,20 +219,26 @@ const logs: {
     lineCount: number;
 }[] = [];
 
-const screenShotArgs = [
-    { c: store.get("额外截屏器.命令"), path: store.get("额外截屏器.位置") },
-    (m: string) =>
-        feedbackUrl({
-            title: "截屏库调用错误",
-            main: "截屏库调用错误",
-            steps: "截屏",
-            more: m,
-        }),
-    t,
-    store.get("使用XDGDesktopPortal"),
-] as const;
+function getScreenShots() {
+    return initScreenShots(
+        { c: store.get("额外截屏器.命令"), path: store.get("额外截屏器.位置") },
+        (m) =>
+            feedbackUrl({
+                title: "截屏库调用错误",
+                main: "截屏库调用错误",
+                steps: "截屏",
+                more: m,
+            }),
+        t,
+        store.get("使用XDGDesktopPortal"),
+    );
+}
 
-const keepClip = store.get("保留截屏窗口");
+const startupSettings = {
+    "语言.语言": store.get("语言.语言"),
+    dev: store.get("dev"),
+    硬件加速: store.get("硬件加速"),
+};
 
 function mainUrl(fileName: string) {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -245,13 +254,13 @@ function rendererPath(
     fileName: string,
     q?: Electron.LoadFileOptions,
 ) {
-    rendererPath2(window.webContents, fileName, q ?? {});
     window.webContents.on("will-navigate", (event) => {
         event.preventDefault();
     });
     window.webContents.setWindowOpenHandler(() => {
         return { action: "deny" };
     });
+    return rendererPath2(window.webContents, fileName, q ?? {});
 }
 function rendererPath2(
     window: Electron.WebContents,
@@ -269,9 +278,9 @@ function rendererPath2(
             }
             if (q.hash) x.hash = q.hash;
         }
-        window.loadURL(x.toString());
+        return window.loadURL(x.toString());
     } else {
-        window.loadFile(mainUrl(fileName), q);
+        return window.loadFile(mainUrl(fileName), q);
     }
 }
 
@@ -581,7 +590,7 @@ async function argRun(c: string[], first?: boolean) {
     async function getImg() {
         let img: NativeImage | undefined;
         if (!path) {
-            const screenShots = initScreenShots(...screenShotArgs);
+            const screenShots = getScreenShots();
             await sleep(argNumber(argv, "delay") ?? 0);
             img = (
                 await (await screenShots()).screen[0].capture()
@@ -628,7 +637,7 @@ async function argRun(c: string[], first?: boolean) {
             try {
                 mkdirSync(sp, { recursive: true });
             } catch (error) {}
-            const screenShots = initScreenShots(...screenShotArgs);
+            const screenShots = getScreenShots();
             for (let i = 0; i < n; i++) {
                 setTimeout(async () => {
                     const image = (
@@ -841,16 +850,67 @@ app.whenReady().then(() => {
         process.exitCode = 1;
     });
 
-    if (store.get("托盘") !== "无") {
-        // 托盘
-        try {
-            tray = new Tray(trayIcons.color);
-        } catch (e) {
-            console.error(`托盘创建失败：${e}`);
-        }
+    // 启动时提示
+    if (store.get("启动提示"))
+        new Notification({
+            title: app.name,
+            body: `${app.name} ${t("已经在后台启动")}`,
+            icon: notifyIcon,
+        }).show();
 
+    const 快捷键 = store.get("快捷键");
+    for (const [k, m] of typedEntries(快捷键)) {
+        if (!m.key) continue;
+        if (
+            !globalShortcut.register(m.key, () => {
+                runShortcut(m.key!, 快捷键函数[k]);
+            })
+        ) {
+            console.error(`快捷键注册失败：${k} = ${m.key}`);
+        } else activeHotkeys.set(`快捷键.${k}.key`, m.key);
+    }
+    postSelectionKeys.apply(store.get("全局工具快捷键"), { startup: true });
+
+    // tmp目录
+    if (!existsSync(tmpDir)) mkdir(tmpDir, () => {});
+    if (store.get("保留截屏窗口") && !clipWindow) prepareClipWindow();
+
+    nativeTheme.themeSource = store.get("全局.深色模式");
+
+    // 菜单栏设置
+    setMenu();
+
+    updateTray();
+});
+
+function updateTray(rebuildMenu = false) {
+    if (store.get("托盘") === "无") {
+        tray?.destroy();
+        tray = null;
+        contextMenu = null;
+        return;
+    }
+    if (!tray || rebuildMenu) {
+        if (!tray) {
+            try {
+                tray = new Tray(trayIcons.color);
+            } catch (e) {
+                console.error(`托盘创建失败：${e}`);
+                return;
+            }
+            tray.setToolTip(app.getName());
+            tray.on("click", () => {
+                if (store.get("点击托盘自动截图")) showPhoto();
+            });
+            tray.on("right-click", () => {
+                if (store.get("点击托盘自动截图") && contextMenu)
+                    tray?.popUpContextMenu(contextMenu);
+            });
+        }
         function update() {
-            tray?.setContextMenu(contextMenu);
+            tray?.setContextMenu(
+                store.get("点击托盘自动截图") ? null : contextMenu,
+            );
         }
 
         contextMenu = Menu.buildFromTemplate([
@@ -1036,55 +1096,10 @@ app.whenReady().then(() => {
                 },
             },
         ]);
-        tray?.setToolTip(app.getName());
-        if (store.get("点击托盘自动截图")) {
-            tray?.on("click", () => {
-                showPhoto();
-            });
-            tray?.on("right-click", () => {
-                if (contextMenu) tray?.popUpContextMenu(contextMenu);
-            });
-        } else {
-            if (contextMenu) tray?.setContextMenu(contextMenu);
-        }
+        update();
     }
-
-    // 启动时提示
-    if (store.get("启动提示"))
-        new Notification({
-            title: app.name,
-            body: `${app.name} ${t("已经在后台启动")}`,
-            icon: notifyIcon,
-        }).show();
-
-    const 快捷键 = store.get("快捷键");
-    for (const [k, m] of typedEntries(快捷键)) {
-        if (!m.key) continue;
-        if (
-            !globalShortcut.register(m.key, () => {
-                runShortcut(m.key!, 快捷键函数[k]);
-            })
-        ) {
-            console.error(`快捷键注册失败：${k} = ${m.key}`);
-        } else activeHotkeys.set(`快捷键.${k}.key`, m.key);
-    }
-    postSelectionKeys.apply(store.get("全局工具快捷键"), { startup: true });
-
-    // tmp目录
-    if (!existsSync(tmpDir)) mkdir(tmpDir, () => {});
-    if (keepClip) {
-        clipWindow = createClipWindow();
-    } else {
-        new BrowserWindow({ show: false });
-    }
-
-    nativeTheme.themeSource = store.get("全局.深色模式");
-
-    // 菜单栏设置
-    setMenu();
-
     setTray();
-});
+}
 
 function setTray() {
     if (!tray) return;
@@ -1210,7 +1225,10 @@ function setMenu() {
     Menu.setApplicationMenu(menu);
 }
 
+// 没有预加载窗口时，托盘和全局快捷键仍要在后台工作。
+app.on("window-all-closed", () => {});
 app.on("will-quit", () => {
+    clearTimeout(clipPreloadTimer);
     globalShortcut.unregisterAll();
     rmR(tmpDir);
 });
@@ -1333,20 +1351,26 @@ function pushLog(op: (typeof logs)[0]) {
 
 // 截屏窗口
 let clipWindow: BrowserWindow | null = null;
-let clipWindowLoaded = false;
-const getClipWin = async () => {
-    if (clipWindowLoaded && !clipWindow?.isDestroyed())
-        return clipWindow as BrowserWindow;
-    if (!clipWindow || clipWindow.isDestroyed())
-        clipWindow = createClipWindow();
+let clipReady: Promise<void>;
+let clipPreloadTimer: NodeJS.Timeout | undefined;
+// 紧凑长截屏和保存对话框都会临时隐藏正在使用的截屏窗口。
+let clipInUse = false;
 
-    return new Promise((re: (v: BrowserWindow) => void) => {
-        clipWindow?.webContents.once("did-finish-load", () => {
-            clipWindowLoaded = true;
-            return re(clipWindow as BrowserWindow);
-        });
+function prepareClipWindow() {
+    const win = clipWindow ?? createClipWindow();
+    if (clipWindow) win.webContents.setZoomFactor(store.get("全局.缩放") || 1);
+    const load = clipWindow
+        ? rendererPath2(win.webContents, "capture.html", {})
+        : rendererPath(win, "capture.html");
+    clipWindow = win;
+    const ready: Promise<void> = load.catch((error) => {
+        if (win.isDestroyed() || ready !== clipReady) return;
+        console.error(error);
+        win.destroy();
     });
-};
+    clipReady = ready;
+    return win;
+}
 /** 初始化截屏后台窗口 */
 function createClipWindow() {
     const _clipWindow = new BrowserWindow({
@@ -1374,8 +1398,6 @@ function createClipWindow() {
 
     if (!dev) _clipWindow.setAlwaysOnTop(true, "screen-saver");
 
-    rendererPath(_clipWindow, "capture.html");
-
     if (dev) _clipWindow.webContents.openDevTools();
 
     _clipWindow.webContents.on("render-process-gone", (_e, d) => {
@@ -1388,11 +1410,11 @@ function createClipWindow() {
             cancelId: 1,
             detail: JSON.stringify(d),
         });
-        if (id === 0) exitFullScreen();
+        if (id === 0) {
+            _clipWindow.destroy();
+            if (store.get("保留截屏窗口")) prepareClipWindow();
+        }
         if (id === 1) app.exit();
-    });
-    _clipWindow.webContents.once("did-finish-load", () => {
-        clipWindowLoaded = true;
     });
     _clipWindow.webContents.on("console-message", (d) => {
         if (d.level !== "debug")
@@ -1404,6 +1426,9 @@ function createClipWindow() {
             });
     });
     _clipWindow.on("closed", () => {
+        if (clipWindow !== _clipWindow) return;
+        clipWindow = null;
+        clipInUse = false;
         closeLongControl();
     });
     return _clipWindow;
@@ -1847,11 +1872,11 @@ mainOn("long_control_stop", () => {
     requestLongControlStop();
 });
 
-mainOn("long_compact_end", async () => {
+mainOn("long_compact_end", () => {
     if (!longCompactActive) return;
     const displayId = longControlInfo?.displayId;
     closeLongControl();
-    await fullScreen(displayId);
+    fullScreen(displayId);
 });
 
 mainOn("clip_show", () => {
@@ -1950,13 +1975,14 @@ function showPhoto(imgPath?: string) {
     }
 }
 
-async function fullScreen(displayId?: number) {
+function fullScreen(displayId?: number) {
+    const win = clipWindow;
+    if (!win || !clipInUse) return;
     const nearestScreen =
         (displayId !== undefined
             ? screen.getAllDisplays().find((d) => d.id === displayId)
             : undefined) ??
         screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    const win = await getClipWin();
     win.setBounds({
         x: nearestScreen.bounds.x,
         y: nearestScreen.bounds.y,
@@ -1967,7 +1993,12 @@ async function fullScreen(displayId?: number) {
 }
 
 async function sendCaptureEvent(data?: Buffer, type?: SelectionAction) {
-    mainSend((await getClipWin())?.webContents, "clip_init", [
+    const win = clipWindow ?? prepareClipWindow();
+    clipInUse = true;
+    const ready = clipReady;
+    await ready;
+    if (win !== clipWindow || ready !== clipReady || !clipInUse) return;
+    mainSend(win.webContents, "clip_init", [
         screen.getAllDisplays(),
         data,
         screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id,
@@ -1978,17 +2009,14 @@ async function sendCaptureEvent(data?: Buffer, type?: SelectionAction) {
 
 /** 关闭或隐藏截屏 */
 function exitFullScreen() {
+    if (!clipInUse || !clipWindow) return;
     closeLongControl();
-    if (keepClip) {
-        clipWindow?.setSimpleFullScreen(false);
-        clipWindow?.hide();
-        try {
-            clipWindow?.reload();
-        } catch {}
+    clipInUse = false;
+    if (store.get("保留截屏窗口")) {
+        hideClip();
+        prepareClipWindow();
     } else {
-        clipWindow?.close();
-        clipWindow = null;
-        clipWindowLoaded = false;
+        clipWindow.destroy();
     }
 }
 
@@ -2000,7 +2028,7 @@ function hideClip() {
 
 /** 快速截屏 */
 async function quickClip() {
-    const screenShots = initScreenShots(...screenShotArgs);
+    const screenShots = getScreenShots();
     for (const c of (await screenShots()).screen) {
         const image: NativeImage = (await c.capture()).toNativeImage();
         if (store.get("快速截屏.模式") === "clip") {
@@ -2032,7 +2060,7 @@ function checkFile(name: string, baseName = name, n = 1) {
 function lianPai(d = store.get("连拍.间隔"), maxN = store.get("连拍.数")) {
     const basePath = store.getString("快速截屏.路径");
     if (!basePath) return;
-    const screenShots = initScreenShots(...screenShotArgs);
+    const screenShots = getScreenShots();
     const dirPath = checkFile(join(basePath, getFileName()));
     mkdirSync(dirPath, { recursive: true });
     for (let i = 0; i < maxN; i++) {
@@ -2137,18 +2165,70 @@ function createSuperRecorderWindow(fixed?: RecordRect) {
         });
     });
 }
-mainOn("reloadMainFromSetting", () => {
-    if (clipWindow && !clipWindow.isDestroyed() && !clipWindow.isVisible())
-        clipWindow.reload();
-    if (contextMenu && tray) {
-        const browserItem = contextMenu.items.find(
-            (i) => i.label === t("浏览器打开"),
-        );
-        if (browserItem) browserItem.checked = store.get("浏览器中打开");
-        tray.popUpContextMenu(contextMenu);
-        tray.closeContextMenu();
+const cachedClipSettings: SettingPath[] = [
+    "工具栏跟随",
+    "工具栏",
+    "图像编辑.编辑栏",
+    "鼠标跟随栏",
+    "取色器",
+    "框选.颜色",
+    "框选.记忆",
+    "框选.参考线",
+    "框选.识别窗口",
+    "显示四角坐标",
+    "框选后默认操作",
+    "工具快捷键",
+    "截屏编辑快捷键",
+    "大小栏快捷键",
+    "其他快捷键",
+    "全局.缩放",
+    "全局.主题",
+    "全局.模糊",
+    "全局.不透明度",
+    "字体.主要字体",
+    "字体.等宽字体",
+    "额外截屏器",
+    "使用XDGDesktopPortal",
+    "广截屏.方向",
+    "录屏.模式",
+    "屏幕翻译.type",
+    "离线OCR",
+    "AI.在线模型",
+    "OCR.类型",
+    "以图搜图.引擎",
+];
+
+function applySettingChange(path?: SettingPath) {
+    const affects = (key: SettingPath) =>
+        !path ||
+        path === key ||
+        path.startsWith(`${key}.`) ||
+        key.startsWith(`${path}.`);
+    if (affects("全局.深色模式"))
+        nativeTheme.themeSource = store.get("全局.深色模式");
+    if (
+        affects("点击托盘自动截图") ||
+        affects("浏览器中打开") ||
+        affects("主页面.模式") ||
+        affects("主页面.复用")
+    )
+        updateTray(true);
+    else if (affects("托盘")) updateTray();
+    if (
+        clipInUse ||
+        !(affects("保留截屏窗口") || cachedClipSettings.some(affects))
+    )
+        return;
+    clearTimeout(clipPreloadTimer);
+    clipWindow?.destroy();
+    if (store.get("保留截屏窗口")) {
+        clipPreloadTimer = setTimeout(() => {
+            if (!clipWindow && store.get("保留截屏窗口")) prepareClipWindow();
+        }, 300);
     }
-});
+}
+
+mainOn("getStartupSettings", () => startupSettings);
 mainOn("getDefaultSetting", async () => {
     return defaultSetting;
 });
@@ -2216,11 +2296,6 @@ mainOn("setAutoStart", ([arg1]) => {
         app.setLoginItemSettings({ openAtLogin: arg1 });
     }
 });
-mainOn("theme", ([arg1]) => {
-    nativeTheme.themeSource = arg1;
-    store.set("全局.深色模式", arg1);
-});
-
 mainOn("selectionShortcutStatus", () => postSelectionKeys.actions());
 mainOn("selectionShortcuts", ([rules, retry], e) => {
     if (

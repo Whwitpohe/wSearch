@@ -10,7 +10,7 @@
 
 然后在`main`中添加进设置的key
 
-可以通过`bind`添加修改某些项后触发其他项页面更新，或者`bindF`触发具体函数。`bindF2`规定哪些项更新后触发重启app提示等。
+可以通过`bind`添加修改某些项后触发其他项页面更新，或者`bindF`触发具体函数。主进程在 `applySettingChange` 中处理运行期间的设置变更。截屏窗口初始化时缓存的选项列在 `cachedClipSettings`，修改后下次截屏自动生效。只有需要重启应用的选项才加入 `startupSettings`。
 
 如果要获取某个设置项，是用`getSet`而不是`store.get`，尽量不设置其他设置项，必要时使用`setSet`设置
 

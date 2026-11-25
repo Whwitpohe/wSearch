@@ -110,7 +110,7 @@ import {
 } from "../../../lib/key.js";
 import { xget, xset } from "../../../lib/store/parse";
 import time_format from "../../../lib/time_format";
-import { safeJSONParse, tryD, tryx } from "../../../lib/utils";
+import { safeJSONParse, tryD, tryx, typedEntries } from "../../../lib/utils";
 import type { IconType, RawIconType } from "../../iconTypes";
 import { runAI } from "../lib/ai";
 import { isDeepStrictEqual } from "../lib/isDeepStrictEqual";
@@ -2538,78 +2538,11 @@ const bindF: { [k in SettingPath]?: (v: GetValue<setting, k>) => void } = {
             "--d-icon-color": theme.dark.iconColor,
         });
     },
-    "全局.深色模式": (v) => renderSend("theme", [v]),
     "全局.模糊": (v) => setProperty("--blur", `blur(${v}px)`),
     "全局.不透明度": (v) => setProperty("--alpha", String(v)),
     "字体.主要字体": (v) => setProperty("--main-font", v),
     "字体.等宽字体": (v) => setProperty("--monospace", v || monoFont.join(",")),
 };
-
-const bindF2: { f: (has: boolean) => void; keys: SettingPath[] }[] = [
-    {
-        f: (h) => {
-            console.log("截屏更新");
-            reloadScreenShot.clear();
-            if (h)
-                reloadScreenShot
-                    .add(
-                        button("重启截屏以生效").on("click", () => {
-                            renderSend("reloadMainFromSetting", []);
-                        }),
-                    )
-                    .style({ display: "" });
-            else reloadScreenShot.style({ display: "none" });
-        },
-        keys: [
-            "工具栏跟随",
-            "工具栏",
-            "图像编辑.编辑栏",
-            "鼠标跟随栏",
-            "取色器",
-            "框选",
-            "显示四角坐标",
-            "框选后默认操作",
-            "快速截屏",
-            "工具快捷键",
-            "截屏编辑快捷键",
-            "大小栏快捷键",
-            "其他快捷键",
-            "全局",
-            "字体",
-            "额外截屏器",
-            "使用XDGDesktopPortal",
-            "广截屏",
-            "离线OCR",
-            "OCR.类型",
-            "以图搜图.引擎",
-            "鼠标快捷键",
-        ],
-    },
-    {
-        f: (h) => {
-            console.log("应用重启");
-            reloadEl.clear();
-            if (h)
-                reloadEl
-                    .add(
-                        button("重启软件以生效").on("click", () => {
-                            renderSend("reload", []);
-                        }),
-                    )
-                    .style({ display: "" });
-            else reloadEl.style({ display: "none" });
-        },
-        keys: [
-            "语言",
-            "托盘",
-            "保留截屏窗口",
-            "dev",
-            "硬件加速",
-            "额外截屏器",
-            "更新.频率",
-        ],
-    },
-];
 
 function getSettingMem() {
     const xs: SettingPath[] = [
@@ -2705,11 +2638,10 @@ function setSet<t extends SettingPath>(
     ) as unknown as ElType<HTMLElement>;
     if (el) setEidtedItem(el, !isSame);
 
-    bindRun(k, v);
-    bindRun2();
-
     xset(nowStore as unknown as Record<string, unknown>, k, v);
     if (k !== "全局工具快捷键") store.set(k, v);
+    bindRun(k, v);
+    if (Object.hasOwn(startupSettings, k)) updateRestartPrompt();
     if (k === "OCR.类型" || k === "AI.在线模型")
         document
             .getElementById("ocr-engine-panel")
@@ -2742,15 +2674,11 @@ function bindRun<t extends SettingPath>(k?: t, v?: GetValue<setting, t>) {
     }
 }
 
-function bindRun2() {
-    for (const f of bindF2) {
-        const x = f.keys.find(
-            (k) =>
-                nowStoreK.has(k) ||
-                Array.from(nowStoreK).find((x) => x.startsWith(`${k}.`)),
-        );
-        f.f(Boolean(x));
-    }
+function updateRestartPrompt() {
+    const changed = typedEntries(startupSettings).some(
+        ([key, value]) => getSet(key) !== value,
+    );
+    reloadEl.style({ display: changed ? "" : "none" });
 }
 
 const editedItem = addClass(
@@ -8020,8 +7948,11 @@ sideBar.class(
     ),
 );
 
-const reloadEl = view().addInto(sideBar);
-const reloadScreenShot = view().addInto(sideBar);
+const startupSettings = renderSendSync("getStartupSettings", []);
+const reloadEl = view()
+    .add(button("重启软件以生效").on("click", () => renderSend("reload", [])))
+    .addInto(sideBar);
+updateRestartPrompt();
 
 const historyEl = view("y")
     .class("change-actions")
