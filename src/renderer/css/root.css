@@ -1719,21 +1719,32 @@ body.settings-shell .theme-preset {
     background: light-dark(#297457, #80c6aa);
 }
 
+/* Action browser */
 .action-directory[popover] {
+    --directory-surface: light-dark(#ffffff, #1a202b);
+    --directory-top: light-dark(#f7f9fd, #202837);
+    --directory-text: light-dark(#1d293c, #eaf0f9);
+    --directory-muted: light-dark(#526174, #a7b4c8);
+    --directory-line: light-dark(#dce3eb, #394354);
+    --directory-focus: light-dark(#3559a4, #a8c7ff);
     position: fixed;
     inset: auto;
     margin: 0;
-    box-sizing: border-box;
-    overflow: hidden;
     padding: 0;
+    overflow: hidden;
+    box-sizing: border-box;
     container: action-directory / inline-size;
-    color: var(--font-color);
-    background: var(--surface);
-    border: 1px solid var(--settings-line);
-    border-radius: 10px;
+    color-scheme: light dark;
+    color: var(--directory-text);
+    background: var(--directory-surface);
+    border: 1px solid var(--directory-line);
+    border-radius: 15px;
     box-shadow:
-        0 14px 50px #08142b40,
-        0 2px 7px #08142b20;
+        0 18px 50px -10px rgb(4 10 24 / 42%),
+        0 2px 8px rgb(4 10 24 / 15%);
+    font-family:
+        "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI",
+        "PingFang SC", sans-serif;
 }
 .action-directory:not(:popover-open) {
     display: none !important;
@@ -1742,148 +1753,290 @@ body.settings-shell .theme-preset {
     display: flex;
     flex-direction: column;
 }
+.action-directory [data-family="capture"] {
+    --family-ink: light-dark(#096780, #7ad8ef);
+    --family-wash: light-dark(#e2f3f8, #223c49);
+}
+.action-directory [data-family="drawing"] {
+    --family-ink: light-dark(#855013, #f4c27c);
+    --family-wash: light-dark(#fcf0dc, #3d3429);
+}
+.action-directory [data-family="filters"] {
+    --family-ink: light-dark(#6c48a4, #c8a8fc);
+    --family-wash: light-dark(#f0eafa, #353048);
+}
+.directory-glyph {
+    display: inline-block;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    background: currentColor;
+    mask: var(--glyph) center / contain no-repeat;
+}
 .directory-head {
     flex: none;
     gap: 9px;
-    padding: 12px 15px 10px;
-    border-bottom: 1px solid var(--settings-line);
+    padding: 11px 17px 12px;
+    background: var(--directory-top);
+    border-bottom: 1px solid var(--directory-line);
 }
 .directory-search {
+    display: flex;
     align-items: center;
-    gap: 7px;
-    border: 1px solid var(--settings-line);
-    border-radius: 6px;
-    padding: 0 8px;
-    background: var(--soft);
-    width: min(270px, 100%);
-}
-.directory-search:focus-within {
-    border-color: var(--accent);
-}
-.directory-search img,
-.directory-column-title img {
-    width: 15px;
-    height: 15px;
-    filter: var(--icon-color);
-    flex: none;
-}
-body.settings-shell .settings-content .directory-search input {
-    min-width: 0;
     width: 100%;
+    gap: 10px;
+}
+.directory-search > .directory-glyph {
+    color: var(--directory-focus);
+    width: 19px;
+    height: 19px;
+}
+body.settings-shell
+    .settings-content
+    .action-directory
+    .directory-search
+    input {
+    flex: 1;
+    min-width: 0;
     max-width: none;
-    height: 29px;
-    border: none;
+    width: 100%;
+    height: 32px;
     outline: none;
+    border: 0;
+    box-shadow: none;
     background: transparent;
+    color: var(--directory-text);
+    caret-color: var(--directory-focus);
     padding: 0;
-    font: inherit;
-    color: inherit;
+    font:
+        500 16px / 1.4 "Segoe UI Variable Text",
+        "Segoe UI",
+        "Microsoft YaHei UI",
+        sans-serif;
+}
+.action-directory .directory-search input::placeholder {
+    color: var(--directory-muted);
+    opacity: 1;
+}
+body.settings-shell .action-directory .directory-search .directory-dismiss {
+    flex: none;
+    width: auto;
+    height: 22px;
+    min-height: 22px;
+    padding: 0 6px;
+    border: 1px solid var(--directory-line);
+    border-radius: 5px;
+    box-shadow: none;
+    outline: none;
+    color: var(--directory-muted);
+    background: transparent;
+    font:
+        500 10px / 1.3 "Segoe UI",
+        sans-serif;
+}
+body.settings-shell
+    .action-directory
+    .directory-search
+    .directory-dismiss:hover {
+    color: var(--directory-text);
+    background: var(--directory-surface);
 }
 .directory-shortcuts {
     align-items: center;
-    gap: 5px 14px;
-}
-.directory-chip-group {
-    align-items: center;
-    gap: 4px;
+    gap: 5px 17px;
 }
 .directory-shortcuts:empty {
     display: none;
 }
-.directory-chip-label,
-.directory-section-title {
+.directory-chip-group {
+    align-items: center;
+    gap: 5px;
+}
+.directory-chip-label {
+    margin-inline-end: 3px;
     font-size: 11px;
-    color: var(--settings-muted);
+    font-weight: 550;
+    color: var(--directory-muted);
 }
 body.settings-shell .action-directory .directory-chip-group button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: auto;
     height: auto;
-    min-height: 23px;
-    max-width: 100%;
-    padding: 1px 8px;
-    border: 1px solid var(--settings-line);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--font-color);
+    min-height: 25px;
+    padding: 2px 9px;
+    border: 0;
+    box-shadow: none;
     outline: none;
-    font: inherit;
+    border-radius: 999px;
+    background: var(--family-wash);
+    color: var(--family-ink);
+    font-family: inherit;
     font-size: 12px;
+    font-weight: 560;
+    line-height: 1.45;
+}
+.directory-chip-group .directory-glyph {
+    width: 13px;
+    height: 13px;
 }
 body.settings-shell .action-directory .directory-chip-group button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+    box-shadow: inset 0 0 0 1px var(--family-ink);
 }
 .directory-columns {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
-    gap: 14px 15px;
+    align-items: stretch;
+    gap: 12px;
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    padding: 12px 15px 15px;
+    scrollbar-color: light-dark(#c3cbd7, #485366) transparent;
+    padding: 13px 15px 16px;
 }
 .directory-column {
     min-width: 0;
-    gap: 9px;
+    gap: 10px;
 }
 .directory-column-title {
     align-items: center;
-    gap: 7px;
-    font-size: 14px;
-    font-weight: 650;
-    padding: 0 4px 4px;
+    gap: 8px;
+    padding: 7px 9px;
+    min-height: 40px;
+    border-radius: 8px;
+    background: var(--family-wash);
+    color: var(--family-ink);
+    font-size: 15px;
+    font-weight: 680;
+    line-height: 1.35;
+}
+.directory-family-icon {
+    display: grid;
+    place-items: center;
+    width: 25px;
+    height: 25px;
+    flex: none;
+    border-radius: 6px;
+    color: var(--family-ink);
+    background: color-mix(in srgb, var(--family-ink) 11%, var(--family-wash));
+}
+.directory-family-icon .directory-glyph {
+    width: 18px;
+    height: 18px;
+}
+.directory-total {
+    margin-inline-start: auto;
+    font:
+        600 12px / 1.4 "Segoe UI",
+        sans-serif;
+    font-variant-numeric: tabular-nums;
 }
 .directory-section {
     gap: 1px;
     min-width: 0;
 }
 .directory-section-title {
-    gap: 5px;
-    align-items: center;
-    padding: 0 4px 3px;
-}
-.directory-section-title span:last-child {
-    font-variant-numeric: tabular-nums;
-}
-body.settings-shell .action-directory .directory-section button {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 6px;
+    padding: 0 7px 4px;
+    color: var(--directory-muted);
+    font:
+        600 11px / 1.5 "Segoe UI",
+        "Microsoft YaHei UI",
+        sans-serif;
+}
+.directory-section-title span:last-child {
+    font-weight: 450;
+    font-variant-numeric: tabular-nums;
+}
+.directory-section-title::after {
+    content: "";
+    height: 1px;
+    flex: 1;
+    margin-inline-start: 2px;
+    background: var(--directory-line);
+}
+body.settings-shell
+    .settings-content
+    .action-directory
+    .directory-section
+    button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
     width: 100%;
     min-width: 0;
-    min-height: 25px;
+    min-height: 27px;
     height: auto;
-    padding: 2px 6px;
+    transition: none;
+    padding: 3px 7px;
     border: 0;
-    border-radius: 4px;
     outline: none;
+    box-shadow: none;
+    border-radius: 5px;
     background: transparent;
-    color: var(--font-color);
-    font: inherit;
-    font-size: 13px;
-    line-height: 1.45;
+    color: var(--directory-text);
+    font:
+        450 13px / 1.45 "Segoe UI",
+        "Microsoft YaHei UI",
+        sans-serif;
     text-align: start;
     overflow-wrap: anywhere;
 }
+.directory-section .directory-glyph {
+    width: 15px;
+    height: 15px;
+    color: var(--directory-muted);
+}
 body.settings-shell
+    .settings-content
     .action-directory
     .directory-section
-    button:is(:hover, .directory-active) {
-    background: var(--accent-wash);
-    color: var(--accent);
+    button[aria-selected="true"] {
+    color: var(--family-ink);
+    font-weight: 650;
+}
+.directory-section [aria-selected="true"] .directory-glyph {
+    color: var(--family-ink);
 }
 .directory-section [aria-selected="true"]::after {
     content: "✓";
-    color: var(--accent);
     flex: none;
+    margin-inline-start: auto;
+    color: var(--family-ink);
+    font-weight: 700;
+}
+body.settings-shell
+    .settings-content
+    .action-directory
+    .directory-columns:not([data-navigation="keyboard"])
+    button:hover {
+    background: color-mix(
+        in srgb,
+        var(--directory-text) 9%,
+        var(--directory-surface)
+    );
+    color: var(--directory-text);
+}
+body.settings-shell
+    .settings-content
+    .action-directory
+    [data-navigation="keyboard"]
+    .directory-section
+    .directory-active {
+    background: var(--family-wash);
+    color: var(--family-ink);
+    box-shadow: inset 2px 0 var(--family-ink);
 }
 .directory-empty {
     grid-column: 1 / -1;
-    padding: 10px 4px;
+    padding: 12px 5px;
     font-size: 13px;
-    color: var(--settings-muted);
+    color: var(--directory-muted);
 }
 @container action-directory (max-width: 550px) {
     .directory-columns {
@@ -1893,6 +2046,7 @@ body.settings-shell
 @container action-directory (max-width: 400px) {
     .directory-columns {
         grid-template-columns: minmax(0, 1fr);
+        padding: 10px;
     }
     .directory-head {
         padding: 8px 10px;

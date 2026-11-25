@@ -3481,7 +3481,28 @@ function actionPicker<T extends string>(
                     "action-chevron",
                 ),
             ])
-            .attr({ ariaLabel: name, title: "选择动作" });
+            .attr({ title: "选择动作", ariaLabel: name });
+    }
+    const families = {
+        capture: { name: "截屏", icon: "rect_select" },
+        drawing: { name: "绘制", icon: "draw" },
+        filters: { name: "图像滤镜", icon: "filters" },
+    } as const;
+    function familyOf(key: string) {
+        if (key.startsWith("filter.")) return "filters";
+        if (key.startsWith("draw.") || key.startsWith("shape."))
+            return "drawing";
+        return "capture";
+    }
+    function glyph(icon: IconType) {
+        const el = ele("span")
+            .class("directory-glyph")
+            .attr({ ariaHidden: "true" });
+        el.el.style.setProperty(
+            "--glyph",
+            `url("${getImgUrl(`${icon}.svg`)}")`,
+        );
+        return el;
     }
     function open() {
         if (closeMenu) return;
@@ -3516,7 +3537,19 @@ function actionPicker<T extends string>(
         head.add(
             view("x")
                 .class("directory-search")
-                .add([image(getImgUrl("search.svg"), noI18n("")), query]),
+                .add([
+                    glyph("search"),
+                    query,
+                    button(noI18n("Esc"))
+                        .class("directory-dismiss")
+                        .attr({
+                            title: "关闭",
+                            ariaLabel: t("关闭"),
+                            tabIndex: -1,
+                        })
+                        .on("mousedown", (e) => e.preventDefault())
+                        .on("click", () => close(true)),
+                ]),
         );
         const shortcuts = view("x", "wrap")
             .class("directory-shortcuts")
@@ -3562,7 +3595,11 @@ function actionPicker<T extends string>(
             group.add(txt(label).class("directory-chip-label"));
             for (const entry of choices)
                 group.add(
-                    button(noI18n(entry.name))
+                    button([
+                        glyph(entry.icon ?? "filters"),
+                        txt(entry.name, true),
+                    ])
+                        .data({ family: familyOf(entry.value) })
                         .attr({ tabIndex: -1 })
                         .on("mousedown", (e) => e.preventDefault())
                         .on("click", () => choose(entry)),
@@ -3596,8 +3633,8 @@ function actionPicker<T extends string>(
             }
             const r = trigger.el.getBoundingClientRect(),
                 gap = 8;
-            const width = Math.min(756, innerWidth - gap * 2),
-                height = Math.min(490, innerHeight - gap * 2);
+            const width = Math.min(790, innerWidth - gap * 2),
+                height = Math.min(554, innerHeight - gap * 2);
             const left = Math.max(
                 gap,
                 Math.min(r.left, innerWidth - width - gap),
@@ -3626,6 +3663,7 @@ function actionPicker<T extends string>(
             row.classList.add("directory-active");
             query.el.setAttribute("aria-activedescendant", row.id);
             if (scroll) {
+                list.el.dataset.navigation = "keyboard";
                 const r = row.getBoundingClientRect(),
                     box = list.el.getBoundingClientRect();
                 if (r.top < box.top) list.el.scrollTop += r.top - box.top;
@@ -3642,19 +3680,16 @@ function actionPicker<T extends string>(
             rows = [];
             columns = [];
             active = -1;
+            list.el.dataset.navigation = terms.length ? "keyboard" : "pointer";
             list.clear();
             list.el.scrollTop = 0;
             query.el.removeAttribute("aria-activedescendant");
             const buckets = new Map<string, Map<string, ActionChoice<T>[]>>();
             for (const entry of entries) {
                 const key = entry.value;
-                const family = key.startsWith("filter.")
-                    ? "图像滤镜"
-                    : /^(draw|shape)\./.test(key)
-                      ? "绘制"
-                      : "截屏";
+                const family = familyOf(key);
                 let section = entry.group;
-                if (family === "图像滤镜") {
+                if (family === "filters") {
                     if (["filter.blur", "filter.pixelate"].includes(key))
                         section = t("常用");
                     else if (key.startsWith("filter.gray_"))
@@ -3672,7 +3707,7 @@ function actionPicker<T extends string>(
                     else section = t("滤镜效果");
                 }
                 const keywords = [
-                    t(family),
+                    t(families[family].name),
                     section,
                     entry.group,
                     entry.name,
@@ -3688,23 +3723,31 @@ function actionPicker<T extends string>(
                 groups.set(section, items);
                 buckets.set(family, groups);
             }
-            for (const [family, icon] of [
-                ["截屏", "rect_select"],
-                ["绘制", "draw"],
-                ["图像滤镜", "filters"],
-            ] as const) {
+            for (const [family, { name, icon }] of Object.entries(families)) {
                 const groups = buckets.get(family);
                 if (!groups) continue;
                 const column = view("y")
                     .class("directory-column")
-                    .attr({ role: "group", ariaLabel: t(family) })
+                    .data({ family })
+                    .attr({ role: "group", ariaLabel: t(name) })
                     .addInto(list);
                 column.add(
                     view("x")
                         .class("directory-column-title")
                         .add([
-                            image(getImgUrl(`${icon}.svg`), noI18n("")),
-                            txt(family),
+                            view()
+                                .class("directory-family-icon")
+                                .add(glyph(icon)),
+                            txt(name),
+                            txt(
+                                String(
+                                    Array.from(groups.values()).reduce(
+                                        (total, items) => total + items.length,
+                                        0,
+                                    ),
+                                ),
+                                true,
+                            ).class("directory-total"),
                         ]),
                 );
                 const lane: HTMLButtonElement[] = [];
@@ -3723,7 +3766,12 @@ function actionPicker<T extends string>(
                             ]),
                     );
                     for (const entry of items) {
-                        const row = button(noI18n(entry.name))
+                        const row = button([
+                            glyph(entry.icon ?? "filters"),
+                            txt(entry.name, true).class(
+                                "directory-option-name",
+                            ),
+                        ])
                             .attr({
                                 role: "option",
                                 tabIndex: -1,
@@ -3757,6 +3805,17 @@ function actionPicker<T extends string>(
             )?.dataset.value;
             const entry = byId.get(id as T);
             if (entry) choose(entry);
+        });
+        list.on("pointermove", (e) => {
+            if (e.pointerType !== "mouse" || (!e.movementX && !e.movementY))
+                return;
+            const row = (e.target as Element).closest<HTMLButtonElement>(
+                "[data-value]",
+            );
+            if (!row) return;
+            if (list.el.dataset.navigation !== "pointer")
+                list.el.dataset.navigation = "pointer";
+            if (row !== rows[active]) highlight(rows.indexOf(row));
         });
         query.on("input", render).on("keydown", (e) => {
             if (e.isComposing) return;
