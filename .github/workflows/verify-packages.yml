@@ -1,0 +1,55 @@
+name: Verify published desktop packages
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published version to start on each native runner
+        type: string
+        required: true
+permissions: {}
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, platform: darwin, arch: arm64, ext: zip }
+          - { runner: macos-15-intel, platform: darwin, arch: x64, ext: zip }
+          - { runner: ubuntu-24.04, platform: linux, arch: x64, ext: tar.gz }
+          - { runner: ubuntu-24.04-arm, platform: linux, arch: arm64, ext: tar.gz }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    env:
+      TAG: ${{ inputs.tag }}
+      PLATFORM: ${{ matrix.platform }}
+      ARCH: ${{ matrix.arch }}
+      EXT: ${{ matrix.ext }}
+    steps:
+      - name: Fetch and extract the public package
+        shell: bash
+        run: |
+          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-][A-Za-z0-9.-]+)?$ ]]
+          name="wSearch-$TAG-$PLATFORM-$ARCH.$EXT"
+          curl --fail --location --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$name" -o "$name"
+          mkdir unpacked
+          if [[ "$PLATFORM" = darwin ]]; then
+            ditto -x -k "$name" unpacked
+          else
+            tar -xzf "$name" -C unpacked
+          fi
+      - name: Run the packaged executable
+        shell: python
+        run: |
+          import os, pathlib, subprocess
+          root = pathlib.Path("unpacked")
+          if os.environ["PLATFORM"] == "darwin":
+              exe = next(root.glob("**/wSearch.app/Contents/MacOS/wSearch"))
+              command = [str(exe.resolve())]
+          else:
+              exe = next(p for p in root.rglob("wSearch") if p.is_file())
+              command = ["xvfb-run","-a",str(exe.resolve()),"--no-sandbox"]
+          subprocess.run(["file",str(exe)],check=True)
+          result = subprocess.run([*command,"--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
+          print(result.stdout[-5000:],flush=True)
+          if result.returncode != 0 or os.environ["TAG"] not in result.stdout.splitlines():
+              raise SystemExit(f"Application version check failed ({result.returncode})")
