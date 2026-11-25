@@ -1069,5 +1069,10 @@
     "723fa1": "Send a test message to check the model connection",
     "723fa2": "Add model request parameters as JSON",
     "723fa3": "Make this model available for screenshot recognition",
-    "286f8a": "Send"
+    "286f8a": "Send",
+    "a24d81": "Application log",
+    "a24d82": "Get logs",
+    "a24d83": "Select “Get logs” to view entries",
+    "a24d84": "No log entries",
+    "a24d85": "Diagnostics"
 }

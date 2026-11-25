@@ -1981,18 +1981,32 @@ const xs: Record<
         },
     },
     _logs: {
-        name: "获取日志",
+        name: "运行日志",
         el: () => {
-            const el = xGroup("y").class(blockSetting);
-            const b = button("点击获取").on("click", () => {
-                const data = renderSendSync("getLogs", []);
-                v.sv(JSON.stringify(data, null, 2));
-            });
-            const v = textarea("暂无日志，点击按钮获取").attr({
-                readOnly: true,
-            });
-            el.add([b, v]);
-            return el;
+            const output = textarea("点击“获取日志”查看记录")
+                .class("log-output")
+                .attr({
+                    readOnly: true,
+                    ariaLabel: t("运行日志"),
+                    spellcheck: false,
+                });
+            const caption = txt("获取日志");
+            const fetchButton = button([
+                image(getImgUrl("reload.svg"), noI18n("")),
+                caption,
+            ])
+                .class("log-fetch")
+                .on("click", () => {
+                    const entries = renderSendSync("getLogs", []);
+                    output.sv(
+                        entries.length ? JSON.stringify(entries, null, 2) : "",
+                    );
+                    output.el.placeholder = t("暂无日志");
+                    output.el.rows = entries.length ? 7 : 2;
+                    caption.el.textContent = t("刷新");
+                });
+            output.el.rows = 2;
+            return view().class("log-controls").add([fetchButton, output]);
         },
     },
     _version: {
@@ -2462,7 +2476,7 @@ const main: {
             },
             { title: "开发者模式", settings: ["dev"] },
             { title: "位置信息", settings: ["_location"] },
-            { title: "获取日志", settings: ["_logs"] },
+            { title: "诊断", settings: ["_logs"] },
             { title: "版本信息", settings: ["_version"] },
             { title: "退出应用", settings: ["_exit"] },
         ],
@@ -7206,7 +7220,7 @@ ele("style")
     .attr({
         textContent: `
 .settings-shell {
-    --accent: var(--desk-clay);
+    --accent: var(--desk-accent);
     --accent-wash: color-mix(in srgb,var(--accent) 11%,var(--surface));
     --stage: var(--desk-rail);
     --surface: var(--desk-raised);
@@ -7471,7 +7485,7 @@ ele("style")
     display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
 }
 .settings-shell .quick-card {
-    --mark-ink:var(--desk-clay);
+    --mark-ink:var(--desk-accent);
     --mark-bg:color-mix(in srgb,var(--mark-ink) 13%,var(--desk-raised));
     display:grid;grid-template-columns:38px minmax(0,1fr) 14px;
     grid-template-rows:auto auto 1fr;align-items:center;align-content:start;
@@ -7482,12 +7496,12 @@ ele("style")
     color:var(--desk-ink);
     transition:background-color 120ms,border-color 120ms,box-shadow 120ms;
 }
-.settings-shell .quick-translate {--mark-ink:var(--desk-sage)}
+.settings-shell .quick-translate {--mark-ink:var(--desk-secondary)}
 .settings-shell .quick-card:enabled:hover {
     border-color:color-mix(in srgb,var(--mark-ink) 48%,var(--desk-line));
     box-shadow:0 2px 8px #20100412;
 }
-.settings-shell .quick-card:focus-visible {outline:2px solid var(--desk-clay);outline-offset:2px}
+.settings-shell .quick-card:focus-visible {outline:2px solid var(--desk-accent);outline-offset:2px}
 .quick-symbol {
     grid-column:1;grid-row:1/3;display:grid;place-items:center;
     width:38px;height:38px;border-radius:11px;color:var(--mark-ink);background:var(--mark-bg);

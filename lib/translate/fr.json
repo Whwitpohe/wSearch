@@ -1069,5 +1069,10 @@
     "723fa1": "Envoyer un message de test pour vérifier la connexion au modèle",
     "723fa2": "Ajouter les paramètres de requête du modèle au format JSON",
     "723fa3": "Rendre ce modèle disponible pour reconnaître les captures d’écran",
-    "286f8a": "Envoyer"
+    "286f8a": "Envoyer",
+    "a24d81": "Journal de l’application",
+    "a24d82": "Charger le journal",
+    "a24d83": "Cliquez sur « Charger le journal » pour afficher les entrées",
+    "a24d84": "Aucune entrée",
+    "a24d85": "Diagnostic"
 }

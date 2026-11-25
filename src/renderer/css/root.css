@@ -2202,28 +2202,28 @@ body.settings-shell
 /* Application work surfaces. Keep capture overlays and exported pixels independent of the desktop palette. */
 :is(body.settings-shell, body.workspace) {
     --desk-paper: light-dark(
-        color-mix(in srgb, #faf8f4 82%, var(--bg)),
-        color-mix(in srgb, #262522 86%, var(--bg))
+        color-mix(in srgb, #fafafa 82%, var(--bg)),
+        color-mix(in srgb, #1e1f20 86%, var(--bg))
     );
     --desk-rail: light-dark(
-        color-mix(in srgb, #eeece6 85%, var(--bg)),
-        color-mix(in srgb, #201f1d 88%, var(--bg))
+        color-mix(in srgb, #f2f2f3 85%, var(--bg)),
+        color-mix(in srgb, #171819 88%, var(--bg))
     );
     --desk-raised: light-dark(
-        color-mix(in srgb, #fffefa 85%, var(--bg)),
-        color-mix(in srgb, #302e2b 88%, var(--bg))
+        color-mix(in srgb, #ffffff 85%, var(--bg)),
+        color-mix(in srgb, #272829 88%, var(--bg))
     );
     --desk-ink: light-dark(
-        color-mix(in srgb, #302c28 87%, var(--font-color)),
-        color-mix(in srgb, #f3efe6 91%, var(--font-color))
+        color-mix(in srgb, #24262a 87%, var(--font-color)),
+        color-mix(in srgb, #f0f0f1 91%, var(--font-color))
     );
-    --desk-muted: light-dark(#685f55, #b9b2a7);
+    --desk-muted: light-dark(#60636a, #b1b4b9);
     --desk-line: color-mix(in srgb, var(--desk-ink) 14%, var(--desk-paper));
-    --desk-clay: light-dark(#984d36, #e29677);
-    --desk-sage: light-dark(#4e6b5e, #a3bb9d);
+    --desk-accent: light-dark(#365e93, #a5c3eb);
+    --desk-secondary: light-dark(#53667b, #acbbcd);
     --desk-selection: color-mix(
         in srgb,
-        var(--desk-clay) 12%,
+        var(--desk-accent) 12%,
         var(--desk-rail)
     );
     --desk-display:
@@ -2338,8 +2338,8 @@ body.settings-shell .settings-search-field > input {
     border-radius: 8px;
 }
 body.settings-shell .settings-search-field > input:focus {
-    border-color: var(--desk-clay);
-    outline: 1px solid var(--desk-clay);
+    border-color: var(--desk-accent);
+    outline: 1px solid var(--desk-accent);
     outline-offset: 0;
 }
 body.settings-shell .settings-sidebar label:has(input:checked) {
@@ -2347,7 +2347,7 @@ body.settings-shell .settings-sidebar label:has(input:checked) {
     color: var(--desk-ink);
 }
 body.settings-shell .settings-sidebar label:has(input:checked)::before {
-    background: var(--desk-clay);
+    background: var(--desk-accent);
     height: 13px;
 }
 body.window-chrome:is(.settings-shell, .workspace) {
@@ -2355,7 +2355,7 @@ body.window-chrome:is(.settings-shell, .workspace) {
 }
 @media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
     body.window-mica:is(.settings-shell, .workspace) {
-        background-color: color-mix(in srgb, var(--desk-rail) 72%, transparent);
+        background-color: color-mix(in srgb, var(--desk-rail) 90%, transparent);
     }
 }
 body:is(.settings-shell, .workspace) .window-caption {
@@ -2402,7 +2402,7 @@ body.settings-shell .action-directory[popover] {
     --directory-top: var(--desk-paper);
     --directory-text: var(--desk-ink);
     --directory-muted: var(--desk-muted);
-    --directory-focus: var(--desk-clay);
+    --directory-focus: var(--desk-accent);
     border-radius: 10px;
 }
 @media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
@@ -2464,10 +2464,10 @@ body.settings-shell
 }
 body.settings-shell dialog.app-dialog .dialog-primary {
     border-color: transparent;
-    color: light-dark(#fff, #2c211c);
+    color: light-dark(#fff, #192331);
 }
 body.settings-shell dialog.app-dialog button:focus-visible {
-    outline: 2px solid var(--desk-clay);
+    outline: 2px solid var(--desk-accent);
     outline-offset: 2px;
 }
 @media (forced-colors: active) {
@@ -2477,5 +2477,81 @@ body.settings-shell dialog.app-dialog button:focus-visible {
     }
     .settings-shell .quick-card:focus-visible {
         outline-color: Highlight;
+    }
+}
+
+/* The settings row provides the label for this read-only log viewer. */
+body.settings-shell .settings-row[data-name="_logs"] {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px 16px;
+}
+.settings-row[data-name="_logs"] .log-controls {
+    display: contents;
+}
+.settings-row[data-name="_logs"] .row-caption {
+    min-width: 0;
+}
+body.settings-shell .settings-row .log-fetch {
+    grid-column: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    height: 30px;
+    min-height: 30px;
+    padding: 4px 10px;
+    color: var(--desk-ink);
+    background: var(--desk-raised);
+    border: 1px solid var(--desk-line);
+    border-radius: 7px;
+    outline: none;
+    font: inherit;
+    font-size: 12px;
+}
+.settings-row .log-fetch img {
+    width: 14px;
+    height: 14px;
+    filter: var(--icon-color);
+}
+body.settings-shell .settings-row .log-fetch:hover {
+    background: var(--desk-selection);
+    border-color: var(--desk-accent);
+}
+body.settings-shell .settings-row .log-fetch:focus-visible {
+    outline: 2px solid var(--desk-accent);
+    outline-offset: 2px;
+}
+body.settings-shell .settings-content .log-output {
+    grid-column: 1 / -1;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 10px 12px;
+    margin: 0;
+    border: 1px solid var(--desk-line);
+    border-radius: 7px;
+    outline: none;
+    color: var(--desk-ink);
+    background: var(--desk-paper);
+    line-height: 1.55;
+    font-size: 13px;
+    resize: vertical;
+}
+body.settings-shell .settings-content .log-output::placeholder {
+    font-family: var(--main-font), sans-serif;
+    color: var(--desk-muted);
+    opacity: 1;
+}
+body.settings-shell .settings-content .log-output:focus-visible {
+    outline: 2px solid var(--desk-accent);
+    outline-offset: 1px;
+}
+@media (forced-colors: active) {
+    body.settings-shell .settings-content .log-output,
+    body.settings-shell .settings-row .log-fetch {
+        border-color: ButtonText;
     }
 }

@@ -3,7 +3,7 @@
     --panel: var(--desk-raised);
     --line: var(--desk-line);
     --muted: var(--desk-muted);
-    --focus: var(--desk-clay);
+    --focus: var(--desk-accent);
     color: var(--desk-ink);
     background-color: var(--desk-paper);
     color-scheme: light dark;
@@ -293,7 +293,7 @@ body.workspace .vision-composer textarea {
 }
 
 .vision-composer:focus-within {
-    border-color: color-mix(in srgb, var(--desk-clay) 52%, var(--line));
+    border-color: color-mix(in srgb, var(--desk-accent) 52%, var(--line));
 }
 .vision-tools {
     gap: 6px;
@@ -332,7 +332,7 @@ body.workspace .vision-composer textarea {
     place-items: center;
     border: 0;
     border-radius: 9px;
-    background: var(--desk-clay);
+    background: var(--desk-accent);
     color: var(--desk-paper);
     padding: 7px;
 }
@@ -388,7 +388,7 @@ body.workspace .vision-workspace .vision-composer textarea:focus-visible {
     box-shadow: none;
 }
 body.workspace .vision-composer:has(textarea:focus-visible) {
-    border-color: var(--desk-clay);
+    border-color: var(--desk-accent);
 }
 
 .vision-tools button.vision-send:disabled {

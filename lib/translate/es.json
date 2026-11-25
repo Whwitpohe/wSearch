@@ -1069,5 +1069,10 @@
     "723fa1": "Envía un mensaje de prueba para comprobar la conexión al modelo",
     "723fa2": "Añade parámetros a la solicitud del modelo en formato JSON",
     "723fa3": "Permite seleccionar este modelo para reconocer capturas de pantalla",
-    "286f8a": "Enviar"
+    "286f8a": "Enviar",
+    "a24d81": "Registro de la aplicación",
+    "a24d82": "Cargar registro",
+    "a24d83": "Selecciona «Cargar registro» para ver las entradas",
+    "a24d84": "No hay entradas",
+    "a24d85": "Diagnóstico"
 }
