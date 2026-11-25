@@ -1,51 +1,133 @@
-name: Build/release
-
+name: Build desktop releases
 on:
   push:
-    tags:
-      - "*"
+    tags: ["[0-9]*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build for Linux and macOS
+        required: true
+        type: string
+permissions:
+  contents: read
 
 jobs:
-  release:
-    runs-on: ${{ matrix.os }}
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      tag: ${{ steps.targets.outputs.tag }}
+    steps:
+      - id: targets
+        shell: python
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          import json, os, re
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", tag):
+              raise SystemExit("Expected a version tag")
+          rows = [
+              ("ubuntu-24.04", "linux", "x64"), ("ubuntu-24.04-arm", "linux", "arm64"),
+              ("macos-15-intel", "darwin", "x64"), ("macos-15", "darwin", "arm64"),
+          ]
+          if os.environ["GITHUB_EVENT_NAME"] == "push":
+              rows.extend([("windows-latest", "win32", "x64"), ("windows-11-arm", "win32", "arm64")])
+          targets = [dict(runner=r, platform=p, arch=a) for r,p,a in rows]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print("matrix=" + json.dumps({"include": targets}), file=out)
+              print("tag=" + tag, file=out)
 
+  build:
+    needs: plan
+    name: ${{ matrix.platform }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
     strategy:
       fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-        arch: [x64, arm64]
-      max-parallel: 3
-
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      M_ARCH: ${{ matrix.arch }}
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+      USE_HARD_LINKS: false
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/v
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v1
-
-      - name: Install Node.js, NPM and Yarn
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Install Linux Lib
-        if: matrix.os == 'ubuntu-latest'
+          cache: pnpm
+      - if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install libx11-dev libxext-dev libxtst-dev libxrender-dev libxmu-dev libxmuu-dev rpm
-
-      - name: ${{ matrix.os }} ${{ matrix.arch }} build
+          sudo apt-get update -qq
+          sudo apt-get install -y libx11-dev libxext-dev libxtst-dev libxrender-dev libxmu-dev libxmuu-dev rpm libarchive-tools
+      - name: Install, test and build on the target architecture
+        run: |
+          node -e "if (process.arch !== process.env.M_ARCH || require('./package.json').version !== process.env.RELEASE_TAG) process.exit(1)"
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm run build
+          pnpm exec electron-builder --publish never --config electron-builder.config.js
+      - name: Verify release files
+        shell: python
         env:
-          M_ARCH: ${{matrix.arch}}
-          USE_HARD_LINKS: false
+          TARGET: ${{ matrix.platform }}
         run: |
-          npm install -g pnpm@10.17.0
-          pnpm install
-          pnpm run dist
-
-      - name: release
-        uses: softprops/action-gh-release@v2
+          import os, pathlib, shutil, zipfile
+          platform = os.environ["TARGET"]
+          extensions = {"linux":["AppImage","deb","rpm","tar.gz"],"darwin":["dmg","zip"],"win32":["exe","zip"]}[platform]
+          prefix = "wSearch-{}-{}-{}.".format(os.environ["RELEASE_TAG"],platform,os.environ["M_ARCH"])
+          dest = pathlib.Path("release-files")
+          dest.mkdir()
+          for ext in extensions:
+              src = pathlib.Path("build") / (prefix + ext)
+              if not src.is_file() or src.stat().st_size < 1_000_000:
+                  raise SystemExit("Missing package: " + str(src))
+              if ext == "zip":
+                  with zipfile.ZipFile(src) as z:
+                      if z.testzip() is not None: raise SystemExit("Invalid ZIP")
+              shutil.move(src, dest / src.name)
+      - uses: actions/upload-artifact@v4
         with:
-          files: "build/*"
-          draft: false
-          prerelease: true
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          name: packages-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-files/
+          compression-level: 0
+          retention-days: 2
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: release-files
+          merge-multiple: true
+      - name: Publish the verified packages
+        run: |
+          if ! gh release view "$TAG" >/dev/null; then
+            gh release create "$TAG" --verify-tag --title "wSearch $TAG" --generate-notes
+          fi
+          for file in release-files/*; do
+            name=$(basename "$file")
+            remote=$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq ".assets[] | select(.name==\"$name\") | .digest")
+            if test -n "$remote"; then
+              test "$remote" = "sha256:$(sha256sum "$file" | cut -d ' ' -f 1)" || { echo "Asset already exists with different contents: $name"; exit 1; }
+            else
+              gh release upload "$TAG" "$file"
+            fi
+          done
