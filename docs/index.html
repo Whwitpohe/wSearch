@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <meta
+      name="description"
+      content="wSearch 是一款开源桌面截图工具，支持 OCR、原位翻译、标注、贴图和可配置的框选快捷键。"
+    >
+    <title>wSearch · 框选截图，原位翻译</title>
+    <link rel="icon" href="./site/mark.png">
+    <link rel="stylesheet" href="./site/site.css">
+    <script src="./site/i18n.js" defer></script>
+    <script src="./site/release.js" defer></script>
+    <script src="./site/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main" data-t="skip">跳到正文</a>
+    <header class="top">
+      <div class="shell bar">
+        <a class="brand" href="#main" aria-label="wSearch"
+          ><img src="./site/mark.png" width="31" height="31" alt="">wSearch</a
+        >
+        <nav aria-label="Navigation" data-aria="navigation">
+          <a href="#features" data-t="features">功能</a
+          ><a href="#guide" data-t="guide">使用方法</a
+          ><a href="#changes" data-t="changes">更新记录</a>
+        </nav>
+        <div class="tools">
+          <label class="language"
+            ><span class="ico globe" aria-hidden="true"></span
+            ><select id="lang" aria-label="Language" data-aria="language">
+              <option value="zh-CN">简体中文</option>
+              <option value="zh-TW">繁體中文</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="ru">Русский</option>
+              <option value="ar">العربية</option>
+              <option value="eo">Esperanto</option>
+            </select></label
+          >
+          <a class="repo" href="https://github.com/Whwitpohe/wSearch"
+            >GitHub <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </div>
+    </header>
+    <main id="main">
+      <section class="shell hero">
+        <div class="intro">
+          <h1>
+            <span data-t="hero1">框选屏幕，</span
+            ><em data-t="hero2">原位翻译。</em>
+          </h1>
+          <p class="lead" data-t="lead">
+            用一次框选截取文字、标注画面，或让视觉模型把译文放回截图中的原处。
+          </p>
+          <div class="cta">
+            <a class="primary" href="#downloads"
+              ><span class="ico download" aria-hidden="true"></span
+              ><span data-t="get">下载 wSearch</span></a
+            ><a class="textlink" href="#guide"
+              ><span data-t="how">查看用法</span
+              ><span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <div class="edition">
+            <span class="version">v15.8.1</span><span aria-hidden="true">/</span
+            ><span data-t="open">开源桌面工具</span>
+          </div>
+        </div>
+        <figure class="demo">
+          <div class="demo-head">
+            <span class="filename"
+              ><span class="ico photo" aria-hidden="true"></span>moon.png</span
+            >
+            <div class="modes">
+              <button type="button" data-pos="0" data-t="original">原图</button
+              ><button type="button" data-pos="100" data-t="translated">
+                译图
+              </button>
+            </div>
+          </div>
+          <div class="art" id="art">
+            <img
+              class="moon"
+              src="./site/moon.webp"
+              width="960"
+              height="960"
+              alt=""
+            >
+            <div class="stars" aria-hidden="true"></div>
+            <div class="sheet" aria-hidden="true">
+              <div class="poster" dir="ltr">
+                <span class="topic">LUNAR ATLAS</span><strong>The Moon</strong
+                ><span>Earth’s natural satellite</span
+                ><span class="datum">Mean distance<br><b>384,400 km</b></span>
+              </div>
+            </div>
+            <div class="sheet target" aria-hidden="true">
+              <div class="poster">
+                <span class="topic" data-t="atlas">月球图鉴</span
+                ><strong data-t="moon">月球</strong
+                ><span data-t="satellite">地球的天然卫星</span
+                ><span class="datum"
+                  ><span data-t="distance">平均距离</span><br>
+                  <b dir="ltr">384,400 km</b></span
+                >
+              </div>
+            </div>
+            <div class="crop" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </div>
+            <div class="seam" aria-hidden="true"><span>‹ ›</span></div>
+            <input
+              id="compare"
+              type="range"
+              min="0"
+              max="100"
+              value="53"
+              aria-label="对比原图与译图"
+              data-aria="compare"
+            >
+          </div>
+          <figcaption>
+            <span
+              ><span class="blue-dot"></span
+              ><span data-t="demo">拖动对比 · 翻译示意</span></span
+            ><a href="https://images.nasa.gov/details/PIA00405"
+              >NASA/JPL/USGS ↗</a
+            >
+          </figcaption>
+        </figure>
+      </section>
+      <section id="features" class="band">
+        <div class="shell">
+          <h2 data-t="featuresTitle">一套工具，处理屏幕上的内容。</h2>
+          <div class="features">
+            <article>
+              <span class="feature-icon ocr"></span>
+              <h3 data-t="f1">文字识别</h3>
+              <p data-t="f1Body">
+                提取截图中的文字。使用本地 OCR
+                离线识别，或选择已配置的在线模型。
+              </p>
+            </article>
+            <article>
+              <span class="feature-icon draw"></span>
+              <h3 data-t="f2">标注与贴图</h3>
+              <p data-t="f2Body">
+                用画笔、箭头、文字和马赛克标注截图，也可以把参考图钉在桌面。
+              </p>
+            </article>
+            <article>
+              <span class="feature-icon film"></span>
+              <h3 data-t="f3">长截图与录屏</h3>
+              <p data-t="f3Body">
+                滚动拼接超出一屏的内容，或录下操作过程，用画面说明步骤。
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section id="guide" class="shell guide">
+        <div class="guide-copy">
+          <h2 data-t="guideTitle">让松开鼠标，成为下一步。</h2>
+          <ol>
+            <li>
+              <h3 data-t="s1">选模型</h3>
+              <p data-t="s1Body">
+                在设置中添加支持图像的 OpenAI 兼容、Anthropic 或 Gemini
+                模型，并在 OCR 中选用它。
+              </p>
+            </li>
+            <li>
+              <h3 data-t="s2">绑动作</h3>
+              <p data-t="s2Body">
+                在「快捷键 →
+                框选后执行」中选择图片翻译并录入组合键。画笔、保存、复制也能分别绑定。
+              </p>
+            </li>
+            <li>
+              <h3 data-t="s3">框选，然后松开</h3>
+              <p data-t="s3Body">
+                按下组合键，框住想读的画面。视觉模型会接收所选截图，译文会显示在相应文字位置。
+              </p>
+            </li>
+          </ol>
+        </div>
+        <figure class="interface">
+          <picture
+            ><source
+              media="(prefers-color-scheme:dark)"
+              srcset="./site/actions-dark.webp"
+            >
+            <img
+              src="./site/actions-light.webp"
+              width="950"
+              height="650"
+              loading="lazy"
+              alt="wSearch 的动作选择器"
+              data-alt="screenAlt"
+            ></picture
+          >
+          <figcaption data-t="screenCap">
+            wSearch 动作选择器 · 简体中文界面
+          </figcaption>
+        </figure>
+      </section>
+      <section id="downloads" class="band">
+        <div class="shell releases">
+          <div>
+            <h2 data-t="get">下载 wSearch</h2>
+            <p data-t="choose">按操作系统和处理器选择安装包。</p>
+            <a
+              class="textlink"
+              href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
+              ><span data-t="allFiles">查看全部发布文件</span>
+              ↗</a
+            >
+          </div>
+          <div class="packages" id="packages">
+            <a href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
+              >GitHub Releases ↗</a
+            >
+          </div>
+        </div>
+      </section>
+      <section id="changes" class="shell changes">
+        <div>
+          <h2 data-t="changes">更新记录</h2>
+          <span class="version">v15.8.1</span>
+        </div>
+        <div>
+          <h3 data-t="releaseTitle">wSearch 首个正式版本</h3>
+          <ul>
+            <li data-t="r1">整图翻译，可接入三类模型接口。</li>
+            <li data-t="r2">新增可配置的框选后动作和分组动作选择器。</li>
+            <li data-t="r3">设置、日志和 AI 输入区统一为自动深浅主题。</li>
+          </ul>
+          <a
+            class="textlink"
+            href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
+            ><span data-t="notes">完整发布日志</span>
+            ↗</a
+          >
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="shell foot">
+        <a class="brand" href="#main"
+          ><img src="./site/mark.png" width="22" height="22" alt="">wSearch</a
+        ><span
+          ><span data-t="based">基于</span>
+          <a href="https://github.com/xushengfeng/eSearch">eSearch</a> ·
+          <a href="https://github.com/Whwitpohe/wSearch/blob/master/LICENSE"
+            >GPL-3.0</a
+          ></span
+        ><a href="https://github.com/Whwitpohe/wSearch/issues" data-t="feedback"
+          >反馈问题</a
+        >
+      </div>
+    </footer>
+  </body>
+</html>

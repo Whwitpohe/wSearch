@@ -1,6 +1,6 @@
 # wSearch
 
-( [中文](README.md) | English )
+( [中文](README.md) | English ) · [Project website](https://whwitpohe.github.io/wSearch/) · [Changelog](CHANGELOG.md)
 
 [![license](https://img.shields.io/github/license/Whwitpohe/wSearch)](LICENSE)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
