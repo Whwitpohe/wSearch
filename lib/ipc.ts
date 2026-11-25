@@ -207,7 +207,18 @@ type Message = {
     ) => void;
     /** 独立窗口模式：移动、缩放系统窗口 */
     pinPanelState: (state: PinPanelState) => void;
-    pinPanelRender: (state: PinPanelState, tools: boolean) => void;
+    pinPanelRender: (
+        state: PinPanelState,
+        tools: boolean,
+        maxWidth: number,
+        revision: number,
+    ) => void;
+    pinPanelSize: (
+        id: number,
+        revision: number,
+        width: number,
+        height: number,
+    ) => void;
     pinPanelAction: (id: number, action: PinPanelAction) => void;
     pinPanelDispatch: (id: number, action: PinPanelAction) => void;
     dingSetBounds: (x: number, y: number, w: number, h: number) => void;

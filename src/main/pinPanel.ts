@@ -51,6 +51,9 @@ type Panel = {
     anchor: Rectangle;
     ready: boolean;
     tools: boolean;
+    revision: number;
+    rendered?: string;
+    size?: { width: number; height: number };
     unwatch: () => void;
     timer?: ReturnType<typeof setTimeout>;
 };
@@ -69,22 +72,10 @@ export function initPinPanels(
         if (!p.win.isDestroyed()) p.win.destroy();
         trayStatus("");
     }
-    function paint(p: Panel) {
+    function position(p: Panel) {
+        if (!p.size || (!p.tools && !p.state.status)) return;
         const work = screen.getDisplayMatching(p.anchor).workArea;
-        const count = p.state.buttons.length;
-        const width = Math.min(
-            work.width,
-            Math.max(
-                p.state.status ? 310 : 0,
-                p.tools ? Math.min(510, count * 33 + 164) : 0,
-                140,
-            ),
-        );
-        const rows = p.tools
-            ? Math.ceil((count * 33 + 144) / Math.max(1, width - 16))
-            : 0;
-        const height = (p.state.status ? 48 : 0) + rows * 36 + 10;
-        const rect = outsidePin(p.anchor, work, width, height);
+        const rect = outsidePin(p.anchor, work, p.size.width, p.size.height);
         if (!rect) {
             p.win.hide();
             if (p.state.status) trayStatus(p.state.status);
@@ -98,12 +89,62 @@ export function initPinPanels(
             current.height !== rect.height
         )
             p.win.setBounds(rect);
-        if (p.ready) {
-            mainSend(p.win.webContents, "pinPanelRender", [p.state, p.tools]);
-
-            if (!p.win.isVisible()) p.win.showInactive();
-        }
+        if (!p.win.isVisible()) p.win.showInactive();
     }
+    function paint(p: Panel) {
+        if (!p.ready) return;
+        const available = screen.getDisplayMatching(p.anchor).workArea.width;
+        const zoom = p.win.webContents.getZoomFactor();
+        const maxWidth = Math.min(available / zoom, p.tools ? 510 : 360);
+        const key = JSON.stringify([
+            maxWidth,
+            p.state.status,
+            p.state.closeLabel,
+            p.tools,
+            p.tools
+                ? [
+                      p.state.buttons,
+                      p.state.zoom,
+                      p.state.opacity,
+                      p.state.zoomLabel,
+                      p.state.opacityLabel,
+                  ]
+                : null,
+        ]);
+        if (key !== p.rendered) {
+            p.rendered = key;
+            mainSend(p.win.webContents, "pinPanelRender", [
+                p.state,
+                p.tools,
+                maxWidth,
+                ++p.revision,
+            ]);
+        } else position(p);
+    }
+    mainOn("pinPanelSize", ([id, revision, w, h], event) => {
+        const p = panels.get(id);
+        if (
+            !p ||
+            event.sender !== p.win.webContents ||
+            event.senderFrame !== event.sender.mainFrame ||
+            revision !== p.revision
+        )
+            return;
+        const work = screen.getDisplayMatching(p.anchor).workArea;
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0)
+            return;
+        p.size = {
+            width: Math.min(
+                Math.ceil(Math.min(w, 510) * p.win.webContents.getZoomFactor()),
+                work.width,
+            ),
+            height: Math.min(
+                Math.ceil(h * p.win.webContents.getZoomFactor()),
+                work.height,
+            ),
+        };
+        position(p);
+    });
     function deferHide(p: Panel) {
         clearTimeout(p.timer);
         p.timer = setTimeout(() => {
@@ -173,7 +214,9 @@ export function initPinPanels(
                 maximizable: false,
                 minimizable: false,
                 fullscreenable: false,
-                backgroundColor: "#202737",
+                transparent: true,
+                hasShadow: false,
+                backgroundColor: "#00000000",
                 webPreferences: {
                     nodeIntegration: true,
                     contextIsolation: false,
@@ -215,6 +258,7 @@ export function initPinPanels(
                 state,
                 anchor,
                 tools,
+                revision: 0,
                 ready: false,
                 unwatch,
             };

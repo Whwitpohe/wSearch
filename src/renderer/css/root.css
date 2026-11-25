@@ -376,13 +376,13 @@ body .dialog-body .form-field :is(input, select, textarea) {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
 }
-.dialog-body :is(.secret-field, .model-field) {
+.dialog-body .secret-field {
     position: relative;
 }
-body .dialog-body :is(.secret-field, .model-field) input {
+body .dialog-body .secret-field input {
     padding-inline-end: 94px;
 }
-.dialog-body :is(.secret-field, .model-field) > button {
+.dialog-body .secret-field > button {
     position: absolute;
     right: 3px;
     bottom: 3px;
@@ -403,12 +403,6 @@ body .dialog-body :is(.secret-field, .model-field) input {
 .model-options[open] textarea {
     margin-top: 7px;
 }
-.model-results {
-    gap: 5px;
-    max-height: 130px;
-    overflow: auto;
-}
-.model-results:empty,
 .dialog-status:empty,
 .dialog-body > :is(p, div):empty {
     display: none;
@@ -549,61 +543,131 @@ input[type="checkbox"]:checked {
 }
 .toolbar-zones {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 9px;
+    grid-template-columns: max-content max-content minmax(0, 1fr);
+    gap: clamp(8px, 2vw, 24px);
+    align-items: start;
+    padding: 12px;
+    background: var(--soft);
+    border: 1px solid var(--settings-line);
+    border-radius: 10px;
 }
 .toolbar-zone {
-    border: 1px solid var(--settings-line);
-    border-radius: 9px;
-    padding: 8px;
-    background: var(--surface);
-    min-height: 72px;
-    gap: 8px;
-}
-.toolbar-zone:last-child {
-    grid-column: 1 / -1;
-}
-.toolbar-zone.drag-over {
-    outline: 2px solid var(--accent);
-    background: var(--accent-wash);
+    min-width: 0;
+    gap: 7px;
 }
 .lane-heading {
-    justify-content: space-between;
+    gap: 5px;
     align-items: center;
-    font-weight: 600;
     font-size: 12px;
+    font-weight: 600;
     color: var(--settings-muted);
 }
-.tool-chips,
+.lane-heading > :last-child {
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+}
+.preview-scroll {
+    max-height: min(54vh, 560px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    padding: 4px 7px 6px 4px;
+}
+.preview-scroll:is(:hover, :focus-within),
+.drag-over .preview-scroll {
+    scrollbar-color: color-mix(in srgb, var(--font-color) 30%, transparent)
+        transparent;
+}
+.tool-chips {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: var(--bar-size);
+    min-height: var(--bar-size);
+    border-radius: calc(var(--bar-size) / 6);
+    box-shadow: var(--shadow);
+    background: var(--bar-bg);
+}
+.toolbar-zone[data-lane="hidden"] .tool-chips {
+    max-width: 100%;
+    min-width: min(100%, var(--bar-size));
+    display: grid;
+    grid-template-columns: repeat(auto-fill, var(--bar-size));
+    width: 100%;
+    justify-content: start;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+.settings-shell .tool-chips > :is(button, .preview-fixed) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex: none;
+    width: var(--bar-size);
+    height: var(--bar-size);
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--font-color);
+    border-radius: calc(var(--bar-size) / 6);
+    font-size: calc(var(--bar-size) / 5);
+    line-height: 1.1;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.settings-shell .tool-chips button {
+    cursor: grab;
+}
+.settings-shell .tool-chips button:hover {
+    background: var(--hover-color);
+}
+.settings-shell .tool-chips button:active {
+    cursor: grabbing;
+}
+.settings-shell .tool-chips > :is(button, .preview-fixed) > img {
+    width: calc(var(--bar-size) * var(--bar-icon));
+    height: calc(var(--bar-size) * var(--bar-icon));
+    max-height: 81.25%;
+    max-width: 81.25%;
+    object-fit: contain;
+    filter: var(--icon-color);
+    pointer-events: none;
+}
+.settings-shell .tool-chips button[aria-pressed="true"],
+.settings-shell .tool-chips button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+.toolbar-zone.drag-over .preview-scroll {
+    background: var(--accent-wash);
+    border-radius: 6px;
+}
+.settings-shell .tool-chips .insert-before {
+    box-shadow: inset 0 3px var(--accent);
+}
+.settings-shell [data-lane="hidden"] .insert-before {
+    box-shadow: inset 3px 0 var(--accent);
+}
+.tool-chips [data-choices]::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto auto;
+    width: min(12px, 33%);
+    height: min(12px, 33%);
+    border-radius: 50%;
+    background: var(--bar-focus-color);
+    pointer-events: none;
+}
 .toolbar-moves {
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
-}
-.settings-shell .tool-chips button {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-    height: auto;
-    min-height: 28px;
-    padding: 4px 6px;
-    background: var(--soft);
-    border-radius: 5px;
-    font-size: 12px;
-    cursor: grab;
-}
-.tool-chips button img {
-    width: 15px;
-    height: 15px;
-    filter: var(--icon-color);
-    pointer-events: none;
-}
-.settings-shell .tool-chips [aria-pressed="true"] {
-    background: var(--accent-wash);
-    outline: 1px solid var(--accent);
-}
-.tool-chips .insert-before {
-    box-shadow: -3px 0 var(--accent);
 }
 .toolbar-moves:not(:empty) {
     margin-top: 8px;
@@ -611,12 +675,14 @@ input[type="checkbox"]:checked {
 .toolbar-moves button {
     font-size: 12px;
 }
-
-.toolbar-zone[data-lane="hidden"] .tool-chips {
-    max-height: 154px;
-    overflow-y: auto;
-    padding: 2px;
-    align-content: flex-start;
+@container (max-width: 460px) {
+    .toolbar-zones {
+        gap: 6px;
+        padding: 7px;
+    }
+    .lane-heading {
+        font-size: 11px;
+    }
 }
 
 .dialog-heading {
@@ -638,54 +704,128 @@ input[type="checkbox"]:checked {
 body dialog.app-dialog:focus {
     outline: none;
 }
+
 .dialog-select {
     width: 100%;
     min-width: 0;
+    position: relative;
 }
-body dialog .dialog-select > button {
+body dialog .dialog-select > .choice-trigger {
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
     height: 36px;
+    min-width: 0;
     background: var(--dialog-field);
     text-align: start;
 }
-.dialog-select > button img {
-    width: 13px;
-    height: 13px;
-    filter: var(--icon-color);
-}
-.dialog-menu {
-    margin-top: 6px;
-    border: 1px solid var(--dialog-line);
-    border-radius: 9px;
+.choice-trigger > span {
     overflow: hidden;
-    padding: 5px;
-    gap: 5px;
-    background: var(--dialog-field);
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
-.dialog-menu[hidden] {
-    display: none !important;
+.choice-trigger img,
+.choice-search img {
+    width: 14px;
+    height: 14px;
+    filter: var(--icon-color);
+    pointer-events: none;
+    flex: none;
 }
-body dialog .dialog-menu input {
+body dialog .editable-choice input[role="combobox"] {
     width: 100%;
+    padding-inline-end: 38px;
+}
+body dialog .editable-choice > .choice-trigger {
+    position: absolute;
+    inset-inline-end: 2px;
+    top: 2px;
+    width: 31px;
+    height: calc(100% - 4px);
+    min-height: 0;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-inline-start: 1px solid var(--dialog-line);
+    border-radius: 0 6px 6px 0;
+}
+.dialog-menu[popover] {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    padding: 5px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid var(--dialog-line);
+    border-radius: 10px;
     background: var(--dialog-surface);
+    color: var(--dialog-ink);
+    box-shadow:
+        0 8px 26px rgb(9 16 34 / 28%),
+        0 1px 3px rgb(9 16 34 / 14%);
+}
+.dialog-menu:not(:popover-open) {
+    display: none;
+}
+.dialog-menu:popover-open {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.choice-search {
+    align-items: center;
+    gap: 5px;
+    flex: none;
+    padding: 2px 3px 5px;
+    border-block-end: 1px solid var(--dialog-line);
+}
+body dialog .dialog-menu .choice-search input {
+    width: 0;
+    min-width: 0;
+    flex: 1;
+    min-height: 29px;
+    height: 29px;
+    padding: 3px 4px;
+    border: 0;
+    outline: none;
+    background: transparent;
+}
+body dialog .choice-search > button {
+    min-height: 26px;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: transparent;
+    border: 0;
 }
 .dialog-option-list {
-    max-height: min(210px, 32vh);
+    min-height: 0;
     overflow: auto;
-    gap: 2px;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
 }
-body dialog .dialog-option-list button {
+body.settings-shell dialog .dialog-option-list button {
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
     text-align: start;
+    outline: none;
+    box-shadow: none;
     background: transparent;
     border: none;
     border-radius: 5px;
     padding: 6px 9px;
+    font: inherit;
     line-height: 1.4;
-    min-height: 29px;
+    min-height: 32px;
+    height: auto;
+    overflow-wrap: anywhere;
 }
 body dialog .dialog-option-list button:is(.option-active, :hover) {
     background: color-mix(
@@ -700,12 +840,15 @@ body dialog .dialog-option-list button[aria-selected="true"] {
 }
 body dialog .dialog-option-list button[aria-selected="true"]::after {
     content: "✓";
-    float: inline-end;
+    flex: none;
+    margin-inline-start: auto;
 }
 .option-empty {
+    display: block;
     font-size: 12px;
     color: var(--dialog-muted);
     padding: 8px;
+    overflow-wrap: anywhere;
 }
 .dialog-actions .dialog-test {
     max-width: 60%;

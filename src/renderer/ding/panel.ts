@@ -11,7 +11,8 @@ function send(type: PinPanelAction["type"], value = 0) {
     renderSend("pinPanelAction", [id, { type, value }]);
 }
 status.querySelector("button")!.onclick = () => send("dismiss");
-renderOn("pinPanelRender", ([state, tools]) => {
+renderOn("pinPanelRender", ([state, tools, maxWidth, revision]) => {
+    document.body.style.maxWidth = `${maxWidth}px`;
     id = state.id;
     status.hidden = !state.status;
     status.querySelector("span")!.textContent = state.status;
@@ -62,4 +63,6 @@ renderOn("pinPanelRender", ([state, tools]) => {
             el.value = String(
                 el.dataset.type === "zoom" ? state.zoom : state.opacity,
             );
+    const bounds = document.body.getBoundingClientRect();
+    renderSend("pinPanelSize", [id, revision, bounds.width, bounds.height]);
 });

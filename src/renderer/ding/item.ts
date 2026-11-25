@@ -756,7 +756,10 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         attributes: true,
         attributeFilter: ["style"],
     });
-    function showStatus(value = "") {
+    let statusTimer: ReturnType<typeof setTimeout> | undefined;
+    function showStatus(value = "", duration?: number) {
+        clearTimeout(statusTimer);
+        if (duration) statusTimer = setTimeout(() => showStatus(), duration);
         statusText = value;
         updatePanel();
     }
@@ -787,7 +790,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
                 data.translation = translated;
                 data.isTranslate = true;
                 if (!reply.regions.length) {
-                    showStatus(t("图中没有需要翻译的文字"));
+                    showStatus(t("图中没有需要翻译的文字"), 2600);
                     return;
                 }
             } else {
@@ -1132,6 +1135,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
     const destroy = () => {
         destroyed = true;
         clearTimeout(previewTimer);
+        clearTimeout(statusTimer);
         panelPosition.disconnect();
         cancelAnimationFrame(panelFrame);
         panelActions.delete(Number(wid));

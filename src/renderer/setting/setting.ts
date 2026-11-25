@@ -3540,6 +3540,12 @@ function sortTool() {
         ]);
     }
     function render() {
+        const offsets = new Map(
+            Array.from(
+                zone.el.querySelectorAll<HTMLElement>(".preview-scroll"),
+                (wrap) => [wrap.parentElement?.dataset.lane, wrap.scrollTop],
+            ),
+        );
         zone.clear();
         for (const lane of lanes) {
             const group = view("y")
@@ -3554,15 +3560,34 @@ function sortTool() {
                         txt(String(layout[lane].length), true),
                     ]),
             );
-            const list = view().class("tool-chips").addInto(group);
+            const scroll = view().class("preview-scroll").addInto(group);
+            const list = view()
+                .class("tool-chips", Class.glassBar)
+                .attr({ role: "group", ariaLabel: t(captions[lane]) })
+                .addInto(scroll);
+            function fixed(key: string, icon: IconType, name: string) {
+                const el = view()
+                    .class("preview-fixed")
+                    .data({ fixed: key })
+                    .attr({ title: name, role: "img", ariaLabel: t(name) })
+                    .add(iconEl(icon));
+                list.add(el);
+            }
+            if (lane === "draw") fixed("select", "rect_select", "选择");
             function target(e: DragEvent) {
                 const chip = (e.target as HTMLElement).closest<HTMLElement>(
                     "[data-tool]",
                 );
+                if ((e.target as HTMLElement).closest('[data-fixed="select"]'))
+                    return layout[lane][0];
                 if (!chip || !list.el.contains(chip)) return undefined;
                 const bounds = chip.getBoundingClientRect(),
                     key = chip.dataset.tool!;
-                return e.clientX < bounds.left + bounds.width / 2
+                const before =
+                    lane === "hidden"
+                        ? e.clientX < bounds.left + bounds.width / 2
+                        : e.clientY < bounds.top + bounds.height / 2;
+                return before
                     ? key
                     : layout[lane][layout[lane].indexOf(key) + 1];
             }
@@ -3600,16 +3625,25 @@ function sortTool() {
                 const item = meta.get(key)!;
                 const b = button()
                     .data({ tool: key })
-                    .attr({ draggable: true, title: item.title })
-                    .add([
+                    .attr({
+                        draggable: true,
+                        title: item.title,
+                        ariaLabel: item.title,
+                    })
+                    .add(
                         item.icon
-                            ? image(item.icon, noI18n("")).attr({
-                                  draggable: false,
-                              })
-                            : "",
-                        txt(item.title, true),
-                    ])
+                            ? image(item.icon, noI18n(""))
+                                  .class("icon")
+                                  .attr({ draggable: false })
+                            : txt(item.title, true),
+                    )
                     .addInto(list);
+                if (
+                    ["ocr", "search", "record", "long", "translate"].includes(
+                        key,
+                    )
+                )
+                    b.data({ choices: "true" });
                 b.el.setAttribute("aria-pressed", String(key === selected));
                 b.on("click", () => selectKey(key))
                     .on("dragstart", (e) => {
@@ -3627,6 +3661,12 @@ function sortTool() {
                             el.classList.remove("drag-over", "insert-before");
                     });
             }
+            if (
+                lane === "draw" &&
+                drawTools.some((tool) => layout.hidden.includes(tool.key))
+            )
+                fixed("more", "more", "更多");
+            scroll.el.scrollTop = offsets.get(lane) ?? 0;
         }
         selectKey(selected);
     }
@@ -3749,107 +3789,282 @@ function sortList<t>(
 function dialogSelect<T extends string>(
     options: { value: T; name?: Parameters<typeof txt>[0] }[],
     searchable = false,
+    loadOptions?: (signal: AbortSignal) => Promise<T[]>,
 ) {
     const root = view().class("dialog-select");
-    const trigger = button()
-        .attr({
-            role: "combobox",
-            ariaHasPopup: "listbox",
-            ariaExpanded: "false",
-        })
+    const manual = input().attr({ autocomplete: "off", spellcheck: false });
+    const trigger = button().class("choice-trigger");
+    const anchor = loadOptions ? manual.el : trigger.el;
+    const text = txt("", true);
+    if (loadOptions) {
+        root.class("editable-choice").add(manual);
+        trigger.attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") });
+    } else trigger.add(text);
+    root.add(trigger.add(image(getImgUrl("down.svg"), noI18n(""))));
+    const menu = view()
+        .class("dialog-menu")
+        .attr({ popover: "manual" })
         .addInto(root);
-    const valueText = txt("", true).addInto(trigger);
-    trigger.add(image(getImgUrl("down.svg"), noI18n("")));
-    const menu = view("y").class("dialog-menu").addInto(root);
     const listId = `choices-${crypto.randomUUID()}`;
-    trigger.el.setAttribute("aria-controls", listId);
+    anchor.setAttribute("role", "combobox");
+    anchor.setAttribute("aria-haspopup", "listbox");
+    anchor.setAttribute("aria-controls", listId);
+    anchor.setAttribute("aria-expanded", "false");
+    const searchBar = view("x").class("choice-search");
     const filter = input().attr({
         placeholder: t("搜索"),
         ariaLabel: t("搜索"),
+        autocomplete: "off",
     });
-    if (searchable) menu.add(filter);
-    const list = view("y")
+    if (searchable) {
+        searchBar.add([image(getImgUrl("search.svg"), noI18n("")), filter]);
+        menu.add(searchBar);
+        filter.el.setAttribute("aria-controls", listId);
+    }
+    if (loadOptions)
+        searchBar.add(
+            button(image(getImgUrl("reload.svg"), noI18n("")))
+                .attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") })
+                .on("click", () => void fetchEntries()),
+        );
+    const list = view()
         .class("dialog-option-list")
         .attr({ id: listId, role: "listbox" })
         .addInto(menu);
-    const entries = options
+    type Entry = { value: T; name: string; query: string };
+    const entry = (value: T, name: string): Entry => ({
+        value,
+        name,
+        query: `${name} ${value}`.toLowerCase(),
+    });
+    let entries = options
         .filter((o) => o.value !== "")
-        .map((o) => ({
-            value: o.value,
-            name: txt(o.name ?? o.value).el.textContent || o.value,
-        }));
-    let value: T = options[0]?.value ?? ("" as T),
-        active = -1;
-    function close(focus = false) {
-        menu.el.hidden = true;
-        trigger.el.setAttribute("aria-expanded", "false");
-        root.el.removeAttribute("aria-activedescendant");
-        trigger.el.removeAttribute("aria-activedescendant");
+        .map((o) =>
+            entry(o.value, txt(o.name ?? o.value).el.textContent || o.value),
+        );
+    let shown: Entry[] = [],
+        active = -1,
+        count = 0,
+        value: T = options[0]?.value ?? ("" as T);
+    let lifetime: AbortController | undefined,
+        request: AbortController | undefined,
+        loaded = !loadOptions;
+    let error = "",
+        frame = 0;
+    const isOpen = () => menu.el.matches(":popover-open");
+    function position() {
+        frame = 0;
+        if (!isOpen()) return;
+        const r = root.el.getBoundingClientRect(),
+            edge = 8,
+            gap = 4;
+        const roomBelow = Math.max(0, innerHeight - edge - r.bottom - gap),
+            roomAbove = Math.max(0, r.top - edge - gap);
+        const width = Math.min(
+            innerWidth - 2 * edge,
+            Math.max(r.width, searchable ? 224 : 150),
+        );
+        const capacity = 280;
+        const preferred = searchable
+            ? capacity
+            : Math.min(capacity, 16 + entries.length * 38);
+        const below = roomBelow >= preferred || roomBelow >= roomAbove;
+        const height = Math.min(capacity, below ? roomBelow : roomAbove);
+        menu.style({
+            width: `${width}px`,
+            maxHeight: `${height}px`,
+            left: `${Math.max(edge, Math.min(innerWidth - edge - width, r.left))}px`,
+            top: below ? `${r.bottom + gap}px` : "auto",
+            bottom: below ? "auto" : `${innerHeight - r.top + gap}px`,
+        });
+    }
+    function schedulePosition(e?: Event) {
+        if (e?.target instanceof Node && menu.el.contains(e.target)) return;
+        if (!frame) frame = requestAnimationFrame(position);
+    }
+    function clean() {
+        lifetime?.abort();
+        lifetime = undefined;
+        request?.abort();
+        request = undefined;
+        cancelAnimationFrame(frame);
+        frame = 0;
+        anchor.setAttribute("aria-expanded", "false");
+        anchor.removeAttribute("aria-activedescendant");
         filter.el.removeAttribute("aria-activedescendant");
-        if (focus) trigger.el.focus();
+    }
+    function close(focus = false) {
+        if (isOpen()) menu.el.hidePopover();
+        clean();
+        if (focus) anchor.focus({ preventScroll: true });
+    }
+    function setValue(next: T) {
+        value = next;
+        if (loadOptions) manual.sv(next);
+        else
+            text.sv(
+                entries.find((e) => e.value === next)?.name ||
+                    t("选择引擎类型"),
+            );
     }
     function choose(next: T) {
         setValue(next);
         close(true);
         root.el.dispatchEvent(new Event("input"));
     }
-    function move(index: number) {
-        const rows = Array.from(
-            list.el.querySelectorAll<HTMLButtonElement>("button"),
-        );
-        active = Math.max(0, Math.min(index, rows.length - 1));
-        for (const [i, b] of rows.entries())
-            b.classList.toggle("option-active", i === active);
-        const item = rows[active];
-        if (item) {
-            trigger.el.setAttribute("aria-activedescendant", item.id);
-            filter.el.setAttribute("aria-activedescendant", item.id);
-            item.scrollIntoView({ block: "nearest" });
+    function append(end: number) {
+        const fragment = document.createDocumentFragment();
+        for (; count < Math.min(shown.length, end); count++) {
+            const e = shown[count];
+            const b = button(noI18n(e.name)).attr({
+                role: "option",
+                id: `${listId}-${count}`,
+                tabIndex: -1,
+            });
+            b.el.dataset.value = e.value;
+            b.el.setAttribute("aria-selected", String(e.value === value));
+            fragment.append(b.el);
+        }
+        list.el.append(fragment);
+    }
+    function move(index: number, scroll = true) {
+        if (!shown.length) return;
+        list.el.children[active]?.classList.remove("option-active");
+        active = Math.min(shown.length - 1, Math.max(0, index));
+        if (active >= count) append(active + 40);
+        const item = list.el.children[active] as HTMLElement;
+        item.classList.add("option-active");
+        anchor.setAttribute("aria-activedescendant", item.id);
+        filter.el.setAttribute("aria-activedescendant", item.id);
+        if (scroll) {
+            const r = item.getBoundingClientRect(),
+                box = list.el.getBoundingClientRect();
+            if (r.top < box.top) list.el.scrollTop += r.top - box.top;
+            else if (r.bottom > box.bottom)
+                list.el.scrollTop += r.bottom - box.bottom;
         }
     }
     function populate() {
-        const q = filter.gv.trim().toLowerCase(),
-            visible = entries.filter((e) =>
-                `${e.name} ${e.value}`.toLowerCase().includes(q),
-            );
+        const q = filter.gv.trim().toLowerCase();
+        shown =
+            request || error ? [] : entries.filter((e) => e.query.includes(q));
+        active = -1;
+        count = 0;
         list.clear();
-        for (const [i, e] of visible.entries()) {
-            const b = button(noI18n(e.name))
-                .attr({ role: "option", id: `${listId}-${i}`, tabIndex: -1 })
-                .on("click", () => choose(e.value));
-            b.el.dataset.value = e.value;
-            b.el.setAttribute("aria-selected", String(e.value === value));
-            list.add(b);
+        list.el.scrollTop = 0;
+        anchor.removeAttribute("aria-activedescendant");
+        filter.el.removeAttribute("aria-activedescendant");
+        if (!shown.length)
+            list.add(
+                txt(
+                    error ||
+                        (request ? t("加载中…") : t("无结果，尝试其他关键词")),
+                    true,
+                )
+                    .class("option-empty")
+                    .attr({ role: "status" }),
+            );
+        else {
+            append(60);
+            const selected = shown.findIndex((e) => e.value === value);
+            move(selected < 60 ? selected : 0, false);
         }
-        if (!visible.length)
-            list.add(txt("无结果，尝试其他关键词").class("option-empty"));
-        move(visible.findIndex((o) => o.value === value));
+        position();
+    }
+    list.on("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
+            "button[data-value]",
+        );
+        if (b?.dataset.value !== undefined) choose(b.dataset.value as T);
+    }).on("scroll", () => {
+        if (
+            list.el.scrollTop + list.el.clientHeight >=
+            list.el.scrollHeight - 64
+        )
+            append(count + 60);
+    });
+    async function fetchEntries() {
+        if (!loadOptions) return;
+        request?.abort();
+        const current = new AbortController();
+        request = current;
+        error = "";
+        populate();
+        try {
+            const names = await loadOptions(
+                AbortSignal.any([current.signal, AbortSignal.timeout(30000)]),
+            );
+            if (current !== request || current.signal.aborted) return;
+            entries = names.map((name) => entry(name, name));
+            loaded = true;
+        } catch (e) {
+            if (current === request && !current.signal.aborted) {
+                error = String(e);
+                loaded = false;
+            }
+        } finally {
+            if (current === request) {
+                request = undefined;
+                if (isOpen()) populate();
+            }
+        }
     }
     function open() {
-        menu.el.hidden = false;
-        trigger.el.setAttribute("aria-expanded", "true");
+        if (isOpen()) return;
+        menu.el.showPopover();
+        anchor.setAttribute("aria-expanded", "true");
+        lifetime = new AbortController();
+        const signal = lifetime.signal;
+        window.addEventListener("resize", schedulePosition, { signal });
+        document.addEventListener(
+            "pointerdown",
+            (event) => {
+                if (!root.el.contains(event.target as Node)) close();
+            },
+            { capture: true, signal },
+        );
+        document.addEventListener("scroll", schedulePosition, {
+            capture: true,
+            signal,
+        });
+        root.el
+            .closest("dialog")
+            ?.addEventListener("close", () => close(), { signal, once: true });
         filter.sv("");
-        populate();
-        if (searchable) filter.el.focus();
+        if (!loaded) void fetchEntries();
+        else populate();
+        if (searchable) filter.el.focus({ preventScroll: true });
     }
-    trigger.on("click", () => (menu.el.hidden ? open() : close()));
+    menu.on("toggle", () => {
+        if (!isOpen()) clean();
+    });
+    trigger
+        .on("mousedown", (e) => {
+            if (isOpen()) e.preventDefault();
+        })
+        .on("click", () => (isOpen() ? close(true) : open()));
     filter.on("input", (e) => {
         e.stopPropagation();
         populate();
     });
+    manual.on("input", () => {
+        value = manual.gv as T;
+    });
     root.on("focusout", (e) => {
-        if (!root.el.contains(e.relatedTarget as Node | null)) close();
+        if (e.relatedTarget && !root.el.contains(e.relatedTarget as Node))
+            close();
     });
     root.on("keydown", (e) => {
-        if (menu.el.hidden) {
-            if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+        if (e.isComposing) return;
+        if (!isOpen()) {
+            if (["ArrowUp", "ArrowDown"].includes(e.key)) {
                 e.preventDefault();
                 open();
             }
             return;
         }
         if (e.key === "Tab") {
-            close();
+            close(true);
             return;
         }
         if (e.key === "Escape") {
@@ -3858,10 +4073,14 @@ function dialogSelect<T extends string>(
             close(true);
             return;
         }
-        const rows = list.el.querySelectorAll<HTMLButtonElement>("button");
         if (e.key === "Enter" || (!searchable && e.key === " ")) {
+            if (
+                e.target !== filter.el &&
+                (e.target as Element).closest(".choice-search button")
+            )
+                return;
             e.preventDefault();
-            rows[active]?.click();
+            if (shown[active]) choose(shown[active].value);
             return;
         }
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
@@ -3870,24 +4089,29 @@ function dialogSelect<T extends string>(
                 e.key === "Home"
                     ? 0
                     : e.key === "End"
-                      ? rows.length - 1
+                      ? shown.length - 1
                       : active + (e.key === "ArrowDown" ? 1 : -1),
             );
         } else if (!searchable && e.key.length === 1) {
-            const i = Array.from(rows).findIndex((b) =>
-                b.textContent?.toLowerCase().startsWith(e.key.toLowerCase()),
+            const i = shown.findIndex((o) =>
+                o.query.startsWith(e.key.toLowerCase()),
             );
             if (i >= 0) move(i);
         }
     });
-    function setValue(v: T) {
-        value = v;
-        valueText.sv(
-            entries.find((e) => e.value === v)?.name || t("选择引擎类型"),
-        );
-    }
-    close();
-    return root.bindGet(() => value).bindSet(setValue);
+    return Object.assign(
+        root
+            .bindGet(() => (loadOptions ? (manual.gv as T) : value))
+            .bindSet(setValue),
+        {
+            invalidate() {
+                close();
+                entries = [];
+                loaded = false;
+                error = "";
+            },
+        },
+    );
 }
 
 function field(caption: string, control: ElType<HTMLElement>, raw = false) {
@@ -3917,7 +4141,23 @@ function modelDialog(
     const key = input("password")
         .attr({ autocomplete: "off" })
         .sv(previous?.key || "");
-    const model = input().sv(previous?.model || "");
+    const model = dialogSelect<string>([], true, (signal) =>
+        listModels(
+            {
+                type: active,
+                url: url.gv.trim() || endpoints[active],
+                key: key.gv.trim(),
+                model: "",
+                name: "",
+                supportVision: false,
+                config: {},
+            },
+            signal,
+        ),
+    );
+    model.sv(previous?.model || "");
+    for (const control of [url, key])
+        control.on("input", () => model.invalidate());
     const config = textarea()
         .attr({ spellcheck: false })
         .sv(JSON.stringify(previous?.config || {}, null, 2));
@@ -3925,17 +4165,17 @@ function modelDialog(
     const result = ele("output")
         .class("dialog-status")
         .attr({ role: "status" });
-    const models = view("x", "wrap").class("model-results");
+
     const fields = new Map<
         Provider,
         { url: string; key: string; model: string; config: string }
     >();
-    let controller: AbortController | undefined;
+
     let stopTest: (() => void) | undefined;
     let generation = 0;
     function cancel() {
         generation++;
-        controller?.abort();
+
         stopTest?.();
         stopTest = undefined;
     }
@@ -3957,7 +4197,7 @@ function modelDialog(
         model.sv(draft?.model ?? "");
         config.sv(draft?.config ?? "{}");
         status("");
-        models.clear();
+        model.invalidate();
     });
     function readModel(): Model {
         let options: unknown;
@@ -3984,35 +4224,6 @@ function modelDialog(
             supportVision: vision.gv,
         };
     }
-    const fetchModels = button("获取模型列表").on("click", async () => {
-        cancel();
-        const token = generation;
-        controller = new AbortController();
-        models.clear();
-        status(t("加载中…"));
-        try {
-            const options = await listModels(
-                readModel(),
-                AbortSignal.any([
-                    controller.signal,
-                    AbortSignal.timeout(30000),
-                ]),
-            );
-            if (token !== generation) return;
-            models.add(
-                options.map((value) =>
-                    button(noI18n(value)).on("click", () => {
-                        model.sv(value);
-                        models.clear();
-                        status("");
-                    }),
-                ),
-            );
-            status(options.length ? "" : t("无结果，尝试其他关键词"));
-        } catch (err) {
-            if (token === generation) status(String(err));
-        }
-    });
     const test = button("测试").on("click", async () => {
         cancel();
         const token = generation;
@@ -4049,8 +4260,7 @@ function modelDialog(
                 .add([field("名称", name), field("接口协议", provider)]),
             field("API URL", url, true),
             secret,
-            field("模型名称", model).add(fetchModels).class("model-field"),
-            models,
+            field("模型名称", model),
             label([vision, "支持图像识别"]).class("vision-option"),
             details,
             view("x").class("dialog-test").add([test, result]),
@@ -4064,7 +4274,8 @@ function modelDialog(
                 const next = readModel();
                 if (!next.model || !next.name) {
                     status(t("请填写名称和模型"));
-                    (!next.name ? name : model).el.focus();
+                    if (!next.name) name.el.focus();
+                    else model.el.querySelector("input")?.focus();
                     return false;
                 }
                 cancel();
