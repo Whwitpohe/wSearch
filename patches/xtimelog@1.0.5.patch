@@ -1,0 +1,12 @@
+diff --git a/src/main.ts b/src/main.ts
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -27,7 +27,7 @@
+             const t = i.c > 1 ? `${i.n}x${i.c}` : i.n;
+             x.push(`${t} ${i.d}`);
+         }
+-        x.push(this.tl.at(-1).t);
++        x.push(name);
+         console.log(`${this.name} ${l.map((i) => i.d).reduce((p, c) => p + c, 0)}ms: `, x.join(" "));
+     }
+     clear() {
