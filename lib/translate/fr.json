@@ -980,5 +980,21 @@
     "f314ac": "Fonctionnalités",
     "828528": "Préférences",
     "cf208d": "OCR en ligne",
-    "21408f": "OCR local"
+    "21408f": "OCR local",
+    "05a898": "Faites glisser les boutons pour les trier, les changer de barre ou les masquer.",
+    "473c7e": "Déplacer vers",
+    "0efbc1": "Avancer",
+    "2f4850": "Reculer",
+    "9caedc": "Réseau",
+    "3f08c7": "Actions après sélection (raccourcis globaux)",
+    "61f74f": "Sélectionner et traduire l’image",
+    "545b89": "Appuyez sur le raccourci, sélectionnez une zone et relâchez pour voir la traduction.",
+    "8f2124": "Protocole API",
+    "2524e2": "URL non valide",
+    "8acb6a": "Saisissez le nom du modèle",
+    "8e9649": "Saisissez un nom et un modèle",
+    "56f08c": "Chargement…",
+    "c4b4ae": "Le modèle n’a pas renvoyé de positions. Réessayez.",
+    "0f749a": "Zones de texte invalides. Réessayez.",
+    "6d6fca": "Positions hors de la capture. Réessayez."
 }

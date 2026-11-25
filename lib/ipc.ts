@@ -20,6 +20,8 @@ import type {
     LongWarnLevel,
     MainWinType,
     NormRect,
+    PinPanelAction,
+    PinPanelState,
     ScreenshotTranslation,
     setting,
     translateWinType,
@@ -204,6 +206,10 @@ type Message = {
         displayId?: number,
     ) => void;
     /** 独立窗口模式：移动、缩放系统窗口 */
+    pinPanelState: (state: PinPanelState) => void;
+    pinPanelRender: (state: PinPanelState, tools: boolean) => void;
+    pinPanelAction: (id: number, action: PinPanelAction) => void;
+    pinPanelDispatch: (id: number, action: PinPanelAction) => void;
     dingSetBounds: (x: number, y: number, w: number, h: number) => void;
     /** 截屏页请求窗口视频源 */
     getCaptureSources: (requestId: number) => void;
@@ -256,7 +262,7 @@ type Message = {
     browserUrl: (id: number, url: string) => void;
     browserLoad: (id: number, load: boolean) => void;
     userDataPath: () => string;
-    claudeScreenshotTranslation: (
+    translateScreenshotImage: (
         id: number,
         retry: boolean,
     ) => ScreenshotTranslation;

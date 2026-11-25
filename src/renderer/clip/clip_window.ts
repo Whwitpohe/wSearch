@@ -1,4 +1,6 @@
-import { selectedClaude } from "../../../lib/claudeVision";
+import { toolbarLayout } from "../../../lib/toolbarLayout";
+import { selectedVisionModel } from "../../../lib/visionModel";
+import { alert } from "../lib/messageDialog";
 /// <reference types="vite/client" />
 
 import { EraserBrush } from "@erase2d/fabric";
@@ -1604,29 +1606,10 @@ function runDing() {
     toolsX.close.f();
 }
 
-function alert(m: string) {
-    const d = ele("dialog")
-        .add(
-            view("y")
-                .add([
-                    t(m),
-                    button(t("确定"))
-                        .on("click", () => {
-                            d.remove();
-                        })
-                        .style({ width: "auto" }),
-                ])
-                .class(Class.gap),
-        )
-        .class(Class.glassBar)
-        .addInto();
-    d.el.showModal();
-}
-
-function checkTranslator() {
+function checkTranslator(forceImage = false) {
     if (
-        toolsX.translate.el.gv === "ding" &&
-        selectedClaude(store.get("OCR.类型"), store.get("AI.在线模型"))
+        (forceImage || toolsX.translate.el.gv === "ding") &&
+        selectedVisionModel(store.get("OCR.类型"), store.get("AI.在线模型"))
     )
         return true;
     const fyq = store.get("翻译.翻译器");
@@ -1637,12 +1620,12 @@ function checkTranslator() {
     return true;
 }
 
-async function translate() {
-    const t = checkTranslator();
+async function translate(forceImage = false) {
+    const t = checkTranslator(forceImage === true);
     if (!t) return;
     const display = getNowScreen();
     const c = getClipPhoto();
-    if (toolsX.translate.el.gv === "ding") {
+    if (forceImage === true || toolsX.translate.el.gv === "ding") {
         renderSend("clip_ding", [
             c.toDataURL(),
             "translate",
@@ -3227,8 +3210,9 @@ function showSideBarIndex(index: number) {
             const height = Math.ceil(el.el.children.length / w);
             const x = w;
             const y = height;
-            const anchor = drawMainTools.findIndex(
-                (tool) => tool.category === anchorCategory,
+            const anchor = Array.from(drawMainBar.children).indexOf(
+                (anchorCategory === "select" ? selectMainTool : moreMainTool).el
+                    .el,
             );
             const barTop = drawBar.getBoundingClientRect().top;
             const top = Math.max(
@@ -3919,14 +3903,15 @@ toolBarEl.style({
     top: store.get("工具栏.初始位置.top"),
 });
 
-const toolsOrder = store.get("工具栏.功能");
-for (const g of tools) {
-    const id = g;
-    const i = toolsOrder.indexOf(id);
-    const el = toolsX[id].el;
-    if (i !== -1) el.style({ order: String(i) });
-    else el.style({ display: "none" });
-}
+const layout = toolbarLayout(
+    store.get("工具栏.布局"),
+    store.get("工具栏.功能"),
+    store.get("图像编辑.编辑栏.功能"),
+    [...tools, ...clipDrawTools.map((tool) => tool.key)],
+);
+for (const id of tools)
+    if (!layout.capture.includes(id) && !layout.draw.includes(id))
+        toolsX[id].el.style({ display: "none" });
 
 const drawBarEl = view().attr({ id: "draw_bar" }).addInto();
 const drawBarMainEl = view()
@@ -4083,7 +4068,7 @@ const drawToolEntries = clipDrawTools.map((meta) => ({
 const drawToolEntryMap = new Map(
     drawToolEntries.map((entry) => [entry.key, entry]),
 );
-const configuredDrawToolKeys = store.get("图像编辑.编辑栏.功能");
+const configuredDrawToolKeys = [...layout.draw, ...layout.capture];
 const visibleDrawTools = configuredDrawToolKeys.flatMap((key) => {
     const entry = drawToolEntryMap.get(key);
     return entry ? [entry] : [];
@@ -4172,9 +4157,21 @@ const drawMainTools: DrawMainTool[] = [
     ...visibleMainTools,
     ...(hiddenDrawTools.length > 0 ? [moreMainTool] : []),
 ];
-for (const { el } of drawMainTools) {
-    drawBarMainEl.add(el);
+const visibleByKey = new Map(
+    visibleMainTools.map((tool) => [tool.key, tool.el]),
+);
+function mountTools(bar: typeof toolBarEl, keys: string[]) {
+    for (const key of keys) {
+        const el =
+            visibleByKey.get(key) ??
+            (Object.hasOwn(toolsX, key) ? toolsX[key as 功能].el : undefined);
+        if (el) bar.add(el);
+    }
 }
+mountTools(toolBarEl, layout.capture);
+drawBarMainEl.add(selectMainTool.el);
+mountTools(drawBarMainEl, layout.draw);
+if (hiddenDrawTools.length) drawBarMainEl.add(moreMainTool.el);
 
 const drawMoreItems = hiddenDrawTools.map((entry) => entry.el);
 
@@ -4646,6 +4643,7 @@ const hotkeyTipX: { name: string; hotkey: hotkeyTip }[] = [
     { name: "快捷键", hotkey: [{ name: "展示", keys: ["Alt"] }] },
 ];
 
+let forceImageTranslation = false;
 let autoDo = store.get("框选后默认操作");
 
 let lastLong = 0;
@@ -4926,6 +4924,9 @@ async function initCapture(
     renderSend("clip_show", []);
     const screensEl = toolsX.screens.el;
     if (allScreens.length > 1) {
+        screensEl.el.style.display = layout.hidden.includes("screens")
+            ? "none"
+            : "";
         let minX = 0;
         let maxX = 0;
         let minY = 0;
@@ -4967,7 +4968,10 @@ async function initCapture(
         screensEl.el.style.display = "none";
     }
 
-    setDefaultAction(act);
+    for (const tool of Object.values(toolsX))
+        tool.el.el.style.backgroundColor = "";
+    forceImageTranslation = act === "translate";
+    setDefaultAction(act ?? store.get("框选后默认操作"));
 
     getWin();
 
@@ -5101,7 +5105,9 @@ const toolShortcutKeys = new Map<string, string>();
 const digitTargets = new Map<string, string>();
 const digitActions = new Map<string, () => void>();
 const positionalTools = drawMainTools.filter(
-    (tool) => tool.category !== "more",
+    (tool) =>
+        tool.category !== "more" &&
+        tool.el.el.parentElement === drawBarMainEl.el,
 );
 for (const [i, tool] of positionalTools.slice(0, 9).entries()) {
     const digit = String(i + 1);
@@ -5420,7 +5426,9 @@ document.onmouseup = (e) => {
             followBar({ x: e.clientX, y: e.clientY });
             // 框选后默认操作
             if (autoDo !== "no" && e.button === 0) {
-                toolsX[autoDo].f();
+                if (forceImageTranslation && autoDo === "translate")
+                    void translate(true);
+                else toolsX[autoDo].f();
             }
             isShowBars = true;
             showBars(isShowBars);

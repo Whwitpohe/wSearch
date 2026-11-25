@@ -67,8 +67,9 @@ import type {
     功能,
 } from "../ShareTypes";
 import { initBergamot } from "./bergamot";
-import { registerClaudeTranslation } from "./claudeScreenshot";
 import defaultSetting, { matchBestLan } from "./defaultSetting";
+import { initPinPanels } from "./pinPanel";
+import { registerScreenshotTranslation } from "./screenshotTranslation";
 
 const runPath = join(resolve(__dirname, ""), "../../");
 const tmpDir = join(tmpdir(), "eSearch");
@@ -2231,14 +2232,22 @@ const liveDingIds = new Set<number>();
 /** 所有存活的贴图 id，覆盖层广播时用它判断是否全部关闭 */
 const activeDingIds = new Set<number>();
 /** 选源页待处理的动态贴图请求 */
-const claudeScreenshots = registerClaudeTranslation(
+const isPinSender = (id: number, sender: Electron.WebContents) =>
+    activeDingIds.has(id) &&
+    (dingSingleList.get(id)?.webContents === sender ||
+        dingOverlayList
+            .entries()
+            .some(([, entry]) => entry.win.webContents === sender));
+const closePinPanel = initPinPanels(
+    isPinSender,
+    (win) => rendererPath(win, "dingPanel.html"),
+    (message) => tray?.setToolTip(message || app.name),
+);
+const screenshotTranslations = registerScreenshotTranslation(
     store,
     (id, event) =>
         event.senderFrame === event.sender.mainFrame &&
-        (dingSingleList.get(id)?.webContents === event.sender ||
-            dingOverlayList
-                .entries()
-                .some(([, entry]) => entry.win.webContents === event.sender)),
+        isPinSender(id, event.sender),
 );
 const pendingLivePicks = new Map<
     number,
@@ -2469,7 +2478,8 @@ function createDingSingle(
         dingSingleList.delete(id);
         liveDingIds.delete(id);
         activeDingIds.delete(id);
-        claudeScreenshots.close(id);
+        screenshotTranslations.close(id);
+        closePinPanel(id);
     });
     if (dingThrogh) win.setIgnoreMouseEvents(true);
     rendererPath(win, "ding.html", { query: { mode: "single" } });
@@ -2520,8 +2530,10 @@ function createDingWindow(
         }).id;
     }
     const mode =
-        type === "translate" && !live && claudeScreenshots.register(id, img)
-            ? "claude-translate"
+        type === "translate" &&
+        !live &&
+        screenshotTranslations.register(id, img)
+            ? "vision-translate"
             : type;
     activeDingIds.add(id);
     if (store.get("贴图.窗口.独立窗口")) {
@@ -2607,7 +2619,8 @@ mainOnReflect("dingShare", ([data]) => {
         const id = Number(data.id);
         liveDingIds.delete(id);
         activeDingIds.delete(id);
-        claudeScreenshots.close(id);
+        screenshotTranslations.close(id);
+        closePinPanel(id);
         if (activeDingIds.size === 0) {
             for (const i of dingOverlayList.keys()) {
                 dingOverlayList.delete(i);

@@ -980,5 +980,21 @@
     "f314ac": "Funkcioj",
     "828528": "Preferoj",
     "cf208d": "Reta OCR",
-    "21408f": "Loka OCR"
+    "21408f": "Loka OCR",
+    "05a898": "Trenu butonojn por ordigi, movi inter bretoj aŭ kaŝi ilin.",
+    "473c7e": "Movi al",
+    "0efbc1": "Movi antaŭen",
+    "2f4850": "Movi malantaŭen",
+    "9caedc": "Reto",
+    "3f08c7": "Agoj post elekto (sistemaj fulmoklavoj)",
+    "61f74f": "Elekti kaj traduki bildon",
+    "545b89": "Premu la fulmoklavon, elektu areon kaj lasu la musbutonon por vidi la tradukon.",
+    "8f2124": "API-protokolo",
+    "2524e2": "Nevalida URL",
+    "8acb6a": "Enigu modelnomon",
+    "8e9649": "Enigu nomon kaj modelon",
+    "56f08c": "Ŝargante…",
+    "c4b4ae": "La modelo ne liveris tekstajn poziciojn. Reprovu.",
+    "0f749a": "Nevalidaj tekstaj regionoj. Reprovu.",
+    "6d6fca": "Tekstpozicioj estas ekster la ekrankopio. Reprovu."
 }

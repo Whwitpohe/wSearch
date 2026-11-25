@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"><title>eSearch</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:5px 7px;border:1px solid #55627c;background:#202737;color:#f5f7ff;font:13px "Segoe UI","Microsoft YaHei UI",sans-serif;overflow:hidden}#status{display:flex;align-items:center;gap:8px;min-height:42px}#status span{flex:1;overflow-wrap:anywhere;line-height:1.4}.actions{display:flex;flex-wrap:wrap;align-items:center;gap:3px}button,input{font:inherit;color:inherit;background:#333e53;border:1px solid #526079;border-radius:5px}button{width:30px;height:30px;padding:5px;cursor:pointer}button:hover{background:#536789}button:focus-visible,input:focus-visible{outline:2px solid #a8c5ff}img{width:17px;height:17px;filter:brightness(0) invert(1)}input{width:53px;height:28px;font-size:12px;padding:1px 3px}[hidden]{display:none!important}
+ .actions label {display:flex;gap:2px;align-items:center;font-size:11px;color:#cbd7f0;}
+.actions label img{width:15px;height:15px;}
+.actions label span{font-size:10px;}
+#status span{max-height:43px;overflow:auto;}
+</style></head><body><div id="status" hidden><span role="status"></span><button type="button">×</button></div><div class="actions" hidden></div><script type="module" src="./ding/panel.ts"></script></body></html>

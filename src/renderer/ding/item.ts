@@ -21,6 +21,8 @@ import type {
     CaptureSourceInfo,
     LiveDingData,
     NormRect,
+    PinPanelAction,
+    PinPanelState,
 } from "../../ShareTypes";
 import { writeImage } from "../lib/clipboard";
 import {
@@ -30,7 +32,6 @@ import {
     isImageFormatSupported,
 } from "../lib/imageExport";
 import { Class, getImgUrl } from "../root/root";
-import { paintClaudeTranslation } from "./claudeOverlay";
 import { dxdy, type Frame } from "./layout";
 import {
     drawTranslation,
@@ -38,6 +39,7 @@ import {
     preTranAndOcr,
     UnConfigTranslateError,
 } from "./ocr";
+import { paintScreenshotTranslation } from "./translationOverlay";
 
 const fs = require("node:fs") as typeof import("fs");
 
@@ -58,7 +60,7 @@ export type DingItemOptions = {
     data: DingItemData;
     /** 独立系统窗口：没有覆盖层里的 dock、最小化等 */
     single: boolean;
-    claudeScreenshot: boolean;
+    visionTranslation: boolean;
     /** 无法用程序移动窗口时（Wayland），用系统原生拖动 */
     nativeDrag?: boolean;
     /** 请求缩放（滚轮、大小控件） */
@@ -297,6 +299,9 @@ export function editDing(data: DingItemData, url = getUrl(data)) {
     );
     renderSend("edit_pic", [b]);
 }
+
+const panelActions = new Map<number, (action: PinPanelAction) => void>();
+renderOn("pinPanelDispatch", ([id, action]) => panelActions.get(id)?.(action));
 
 export function createDingItem(opts: DingItemOptions): DingItem {
     const { data, single } = opts;
@@ -575,9 +580,13 @@ export function createDingItem(opts: DingItemOptions): DingItem {
     }
 
     div.el.onmouseenter = () => {
+        overPin = true;
+        updatePanel();
         toolBarC.sv({ show: true });
     };
     div.el.onmouseleave = () => {
+        overPin = false;
+        updatePanel();
         toolBarC.sv({ show: false });
     };
 
@@ -689,66 +698,103 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         }
     };
 
-    const ocrTransStateBarText = txt();
-    const ocrTransStateBar = view("x")
-        .class(Class.glassBar)
-        .class(Class.hide)
-        .style({
-            padding: "4px",
-            gap: "4px",
-            bottom: "4px",
-            borderRadius: "4px",
-            alignItems: "center",
-            position: "absolute",
-            zIndex: 2,
-            left: "50%",
-            transform: "translateX(-50%)",
-        })
-        .add([
-            ocrTransStateBarText,
-            button(iconEl("close"))
-                .attr({ title: "关闭" })
-                .on("click", () => {
-                    ocrTransStateBar.class(Class.hide);
-                }),
-        ])
-        .bindSet((v: string) => {
-            ocrTransStateBarText.sv(v);
-        });
-    if (opts.nativeDrag) ocrTransStateBar.class(appNoDragClass);
-
+    let previewTools = false;
+    let previewTimer: ReturnType<typeof setTimeout> | undefined;
+    let externalTools = false,
+        overPin = false,
+        statusText = "",
+        panelFrame = 0,
+        lastPacket = "";
+    function syncPanel() {
+        if (destroyed) return;
+        const bounds = div.el.getBoundingClientRect();
+        const state: PinPanelState = {
+            id: Number(wid),
+            rect: {
+                x: bounds.x,
+                y: bounds.y,
+                width: bounds.width,
+                height: bounds.height,
+            },
+            compact: externalTools,
+            hovered: overPin || previewTools,
+            status: statusText,
+            buttons: toolButtons.flatMap((button, index) => {
+                const icon = button.el.querySelector("img");
+                if (!icon || button.el.style.display === "none") return [];
+                return [
+                    {
+                        label:
+                            button.el.getAttribute("aria-label") ||
+                            button.el.title,
+                        icon: icon.src,
+                        index,
+                    },
+                ];
+            }),
+            zoom: Number(sizeInput.gv) || 100,
+            opacity: Math.round(Number(imageP.el.style.opacity || 1) * 100),
+            zoomLabel: t("大小"),
+            opacityLabel: t("不透明度"),
+            closeLabel: t("关闭"),
+        };
+        const packet = JSON.stringify(state);
+        if (packet !== lastPacket) {
+            lastPacket = packet;
+            renderSend("pinPanelState", [state]);
+        }
+        panelFrame = 0;
+    }
+    function updatePanel() {
+        if (!panelFrame && !destroyed)
+            panelFrame = requestAnimationFrame(syncPanel);
+    }
+    const panelPosition = new MutationObserver(() => {
+        if ((externalTools && overPin) || statusText) updatePanel();
+    });
+    panelPosition.observe(div.el, {
+        attributes: true,
+        attributeFilter: ["style"],
+    });
+    function showStatus(value = "") {
+        statusText = value;
+        updatePanel();
+    }
     let translating = false;
     let attempted = false;
     async function translate() {
         if (translating) return;
         translating = true;
-        ocrTransStateBar.el.classList.remove(Class.hide);
+
         try {
-            if (opts.claudeScreenshot && !data.live) {
-                ocrTransStateBar.sv(t("Claude 正在翻译整张截图…"));
-                const reply = await renderInvoke(
-                    "claudeScreenshotTranslation",
-                    [Number(wid), attempted],
-                );
+            if (opts.visionTranslation && !data.live) {
+                showStatus(t("正在翻译..."));
+                const reply = await renderInvoke("translateScreenshotImage", [
+                    Number(wid),
+                    attempted,
+                ]);
                 attempted = true;
                 if (destroyed || data.live) return;
                 if ("error" in reply) throw Error(reply.error);
                 const source = await loadImage(data.url);
                 if (destroyed || data.live) return;
-                const canvas = paintClaudeTranslation(source, reply.regions);
+                const canvas = paintScreenshotTranslation(
+                    source,
+                    reply.regions,
+                );
                 const translated = canvas.toDataURL("image/png");
                 imageP.el.appendChild(canvas);
                 data.translation = translated;
                 data.isTranslate = true;
                 if (!reply.regions.length) {
-                    ocrTransStateBar.sv(t("图中没有需要翻译的文字"));
+                    showStatus(t("图中没有需要翻译的文字"));
                     return;
                 }
             } else {
-                ocrTransStateBar.sv(t("正在OCR识别..."));
+                showStatus(t("正在OCR识别..."));
                 const shot = snapshot();
                 const p = await preTranAndOcr(shot);
-                ocrTransStateBar.sv(t("正在翻译..."));
+                showStatus(t("正在翻译..."));
                 await drawTranslation(
                     imageP,
                     data,
@@ -756,7 +802,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
                     shot === data.url ? void 0 : shot,
                 );
             }
-            ocrTransStateBar.class(Class.hide);
+            showStatus();
         } catch (error) {
             data.isTranslate = false;
             imageP.el.querySelector("canvas")?.remove();
@@ -766,7 +812,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
                     : error instanceof Error
                       ? error.message
                       : t("翻译失败");
-            ocrTransStateBar.sv(`${message} · ${t("点击翻译重试")}`);
+            showStatus(`${message} · ${t("点击翻译重试")}`);
         } finally {
             translating = false;
         }
@@ -931,7 +977,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
     }
 
     const exportImage = () =>
-        opts.claudeScreenshot && !data.live ? getUrl(data) : snapshot();
+        opts.visionTranslation && !data.live ? getUrl(data) : snapshot();
     const toolButtons = [
         transB,
         button(iconEl("free_draw"))
@@ -996,7 +1042,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
     // 图片在前、顶栏在后：-webkit-app-region 会继承，图片的拖动区会覆盖顶栏，必须在顶栏之后处理 no-drag
     div.add(imageP)
         .add(toolBar)
-        .add(ocrTransStateBar)
+
         .add(liveStateBar)
         .add(adjustBar);
     if (data.live) {
@@ -1011,11 +1057,37 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         sizeInput.sv(String(Math.round(zoom * 100)));
     };
     const setToolbarZoom = (width: number) => {
-        const base = data.live ? 540 : SMALL_TOOLBAR_WIDTH;
-        toolBarC.style({
-            zoom: width <= base ? String(width / base) : "",
-        });
+        const rect = div.el.getBoundingClientRect();
+        const small =
+            width < (data.live ? 540 : SMALL_TOOLBAR_WIDTH) ||
+            (rect.height > 0 && rect.height < 52);
+        if (small && !externalTools) {
+            previewTools = true;
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(() => {
+                previewTools = false;
+                updatePanel();
+            }, 1700);
+        }
+        externalTools = small;
+        toolBar.style({ display: externalTools ? "none" : "" });
+        updatePanel();
     };
+    panelActions.set(Number(wid), (action) => {
+        if (action.type === "dismiss") showStatus();
+        else if (action.type === "zoom" && Number.isFinite(action.value))
+            opts.zoom(
+                Math.max(0.05, Math.min(20, action.value / 100)),
+                0,
+                0,
+                false,
+            );
+        else if (action.type === "opacity" && Number.isFinite(action.value))
+            opacityEl.sv(String(Math.min(100, Math.max(0, action.value))));
+        else if (action.type === "button")
+            toolButtons[action.value]?.el.click();
+        updatePanel();
+    });
     const setImageFrame = (frame: Frame | null) => {
         if (frame) {
             imageP.style({
@@ -1059,6 +1131,10 @@ export function createDingItem(opts: DingItemOptions): DingItem {
 
     const destroy = () => {
         destroyed = true;
+        clearTimeout(previewTimer);
+        panelPosition.disconnect();
+        cancelAnimationFrame(panelFrame);
+        panelActions.delete(Number(wid));
         resizeObserver?.disconnect();
         video.srcObject = null;
         if (liveSourceId && !liveReleased) {

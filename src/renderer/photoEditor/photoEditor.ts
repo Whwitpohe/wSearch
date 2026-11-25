@@ -26,6 +26,7 @@ import {
     imageFormatMime,
     isImageFormatSupported,
 } from "../lib/imageExport";
+import { alert } from "../lib/messageDialog";
 import { Class, cssVar, getImgUrl, initStyle, setTitle } from "../root/root";
 
 const { existsSync, writeFileSync } = require("node:fs") as typeof import("fs");
@@ -39,25 +40,6 @@ import removeobj from "../lib/removeObj";
 
 function icon(src: IconType) {
     return image(getImgUrl(`${src}.svg`), noI18n("icon")).class("icon");
-}
-
-function alert(m: string) {
-    const d = ele("dialog")
-        .add(
-            view("y")
-                .add([
-                    t(m),
-                    button(t("确定"))
-                        .on("click", () => {
-                            d.remove();
-                        })
-                        .style({ width: "auto" }),
-                ])
-                .class(Class.gap),
-        )
-        .class(Class.glassBar)
-        .addInto();
-    d.el.showModal();
 }
 
 initStyle(store);

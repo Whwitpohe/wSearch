@@ -120,7 +120,7 @@ function paintRegion(
     ctx.restore();
 }
 
-export function paintClaudeTranslation(
+export function paintScreenshotTranslation(
     image: HTMLImageElement,
     regions: ScreenshotRegion[],
 ) {

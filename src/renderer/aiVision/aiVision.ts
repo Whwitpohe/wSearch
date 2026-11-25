@@ -192,6 +192,17 @@ async function runAIX(targetId?: string, force = false) {
             content: { text: text },
         });
         newChatItem(id);
+        if (end) stopEl.sv(false);
+        pickLastItem();
+    });
+    a.text.catch((error) => {
+        stopEl.sv(false);
+        if (error?.name === "AbortError") return;
+        content.set(id, {
+            role: "assistant",
+            content: { text: String(error) },
+        });
+        newChatItem(id);
         pickLastItem();
     });
 }

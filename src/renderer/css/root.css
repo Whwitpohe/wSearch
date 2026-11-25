@@ -198,15 +198,262 @@ body textarea {
     width: 300px;
 }
 
+/* Application-owned dialogs share the same surface in every renderer. */
 body dialog {
-    padding: var(--o-padding);
-    border-radius: calc(var(--border-radius) + var(--o-padding));
-    color: var(--font-color);
-    background-color: var(--bg);
+    color-scheme: light dark;
+    --dialog-surface: light-dark(#fff, #232936);
+    --dialog-ink: light-dark(#1c2638, #ecf0f9);
+    --dialog-muted: light-dark(#56657b, #b3bfd1);
+    --dialog-line: light-dark(#d9dfea, #414b5d);
+    --dialog-field: light-dark(#f7f9fc, #1a202c);
+    --dialog-accent: light-dark(#3c53bd, #b0bfff);
+    margin: auto;
+    padding: 20px;
+    width: fit-content;
+    min-width: min(280px, 90vw);
+    max-width: min(720px, calc(100vw - 28px));
+    max-height: calc(100dvh - 28px);
+    overflow: auto;
+    background: var(--dialog-surface);
+    color: var(--dialog-ink);
+    border: 1px solid var(--dialog-line);
+    border-radius: 16px;
+    box-shadow: 0 20px 75px #050b2566;
+    font-family:
+        "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
 }
 body dialog::backdrop {
-    backdrop-filter: var(--blur);
-    background-color: #0004;
+    background: #10182e83;
+    backdrop-filter: blur(4px);
+}
+body dialog h2 {
+    font-size: 19px;
+    font-weight: 650;
+    line-height: 1.35;
+    margin: 0;
+}
+body
+    dialog
+    :is(
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+        select,
+        textarea
+    ) {
+    color: var(--dialog-ink);
+    background: var(--dialog-field);
+    border: 1px solid var(--dialog-line);
+    outline: 0;
+    max-width: 100%;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font: inherit;
+    min-height: 35px;
+}
+body dialog :is(input, select, textarea, button, summary):focus-visible {
+    outline: 2px solid var(--dialog-accent);
+    outline-offset: 2px;
+}
+body dialog select,
+body dialog select::picker(select) {
+    appearance: base-select;
+}
+body dialog select {
+    align-items: center;
+    cursor: pointer;
+    min-width: 110px;
+}
+body dialog select::picker-icon {
+    color: var(--dialog-muted);
+    transition: transform 0.15s;
+}
+body dialog select:open::picker-icon {
+    transform: rotate(180deg);
+}
+body dialog select::picker(select) {
+    color-scheme: light dark;
+    background: var(--dialog-surface);
+    color: var(--dialog-ink);
+    border: 1px solid var(--dialog-line);
+    box-shadow: 0 10px 28px #08102438;
+    border-radius: 9px;
+    padding: 4px;
+    margin-block: 4px;
+    max-height: min(290px, 52vh);
+    overflow: auto;
+    min-width: anchor-size(width);
+}
+body dialog select option {
+    padding: 7px 9px;
+    font: inherit;
+    min-height: 32px;
+    background: transparent;
+    color: inherit;
+    border-radius: 5px;
+}
+body dialog select option:is(:hover, :focus-visible, :checked) {
+    background: color-mix(
+        in srgb,
+        var(--dialog-accent) 14%,
+        var(--dialog-surface)
+    );
+    color: var(--dialog-accent);
+}
+body dialog button {
+    min-height: 32px;
+    height: auto;
+    padding: 5px 11px;
+    outline: none;
+    border: 1px solid var(--dialog-line);
+    border-radius: 7px;
+    background: var(--dialog-field);
+    color: var(--dialog-ink);
+    cursor: pointer;
+}
+body dialog button:hover {
+    background: color-mix(
+        in srgb,
+        var(--dialog-accent) 10%,
+        var(--dialog-surface)
+    );
+}
+body dialog button:disabled {
+    opacity: 0.55;
+}
+body dialog.app-dialog {
+    padding: 0;
+    width: min(490px, calc(100vw - 28px));
+    overflow: hidden;
+}
+body dialog.app-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+.dialog-heading,
+.dialog-actions {
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+}
+.dialog-heading {
+    justify-content: space-between;
+    border-bottom: 1px solid var(--dialog-line);
+}
+.dialog-heading button {
+    width: 30px;
+    min-height: 30px;
+    padding: 5px;
+    display: grid;
+    place-items: center;
+}
+.dialog-body {
+    min-height: 0;
+    overflow: auto;
+    padding: 17px 20px;
+    gap: 13px;
+}
+.dialog-body > *,
+.dialog-body .form-field {
+    min-width: 0;
+    max-width: 100%;
+}
+.dialog-body .form-field {
+    gap: 5px;
+}
+.dialog-body .form-field label {
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--dialog-muted);
+}
+body .dialog-body .form-field :is(input, select, textarea) {
+    width: 100%;
+    max-width: 100%;
+}
+.dialog-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+.dialog-body :is(.secret-field, .model-field) {
+    position: relative;
+}
+body .dialog-body :is(.secret-field, .model-field) input {
+    padding-inline-end: 94px;
+}
+.dialog-body :is(.secret-field, .model-field) > button {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    min-height: 29px;
+    padding: 2px 7px;
+    font-size: 12px;
+}
+.dialog-body textarea {
+    width: 100%;
+    font-family: var(--monospace);
+    min-height: 62px;
+}
+.model-options > summary {
+    cursor: pointer;
+    color: var(--dialog-muted);
+    font-size: 13px;
+}
+.model-options[open] textarea {
+    margin-top: 7px;
+}
+.model-results {
+    gap: 5px;
+    max-height: 130px;
+    overflow: auto;
+}
+.model-results:empty,
+.dialog-status:empty,
+.dialog-body > :is(p, div):empty {
+    display: none;
+}
+.dialog-test {
+    gap: 10px;
+    align-items: center;
+}
+.dialog-status {
+    font-size: 12px;
+    color: var(--dialog-muted);
+    overflow-wrap: anywhere;
+}
+.dialog-actions {
+    justify-content: flex-end;
+    border-top: 1px solid var(--dialog-line);
+}
+body dialog .dialog-primary,
+body dialog .dialog-primary:hover {
+    background: var(--dialog-accent);
+    color: light-dark(white, #192344);
+    border-color: transparent;
+}
+body dialog:not(.app-dialog) > p {
+    margin: 0 0 12px;
+}
+body dialog:not(.app-dialog) > button + button {
+    margin-inline-start: 6px;
+}
+body dialog.font-dialog,
+body dialog.history-dialog {
+    width: min(540px, 90vw);
+}
+body dialog.message-dialog {
+    padding: 18px;
+    width: min(390px, 90vw);
+}
+.message-dialog p {
+    margin: 0 0 14px;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+    .dialog-columns {
+        grid-template-columns: 1fr;
+    }
 }
 
 kbd {
@@ -295,4 +542,233 @@ input[type="checkbox"]:checked {
         box-shadow: 0 5px #fff4;
         background: linear-gradient(315deg, #191919, #000);
     }
+}
+
+.settings-shell .toolbar-layout {
+    width: 100%;
+}
+.toolbar-zones {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+.toolbar-zone {
+    border: 1px solid var(--settings-line);
+    border-radius: 9px;
+    padding: 8px;
+    background: var(--surface);
+    min-height: 72px;
+    gap: 8px;
+}
+.toolbar-zone:last-child {
+    grid-column: 1 / -1;
+}
+.toolbar-zone.drag-over {
+    outline: 2px solid var(--accent);
+    background: var(--accent-wash);
+}
+.lane-heading {
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--settings-muted);
+}
+.tool-chips,
+.toolbar-moves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.settings-shell .tool-chips button {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    height: auto;
+    min-height: 28px;
+    padding: 4px 6px;
+    background: var(--soft);
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: grab;
+}
+.tool-chips button img {
+    width: 15px;
+    height: 15px;
+    filter: var(--icon-color);
+    pointer-events: none;
+}
+.settings-shell .tool-chips [aria-pressed="true"] {
+    background: var(--accent-wash);
+    outline: 1px solid var(--accent);
+}
+.tool-chips .insert-before {
+    box-shadow: -3px 0 var(--accent);
+}
+.toolbar-moves:not(:empty) {
+    margin-top: 8px;
+}
+.toolbar-moves button {
+    font-size: 12px;
+}
+
+.toolbar-zone[data-lane="hidden"] .tool-chips {
+    max-height: 154px;
+    overflow-y: auto;
+    padding: 2px;
+    align-content: flex-start;
+}
+
+.dialog-heading {
+    justify-content: flex-start;
+}
+.dialog-heading h2 {
+    flex: 1;
+}
+.dialog-heading .dialog-symbol {
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    border-radius: 8px;
+    background: light-dark(#e7edff, #c1d0ff);
+}
+.dialog-heading .dialog-symbol + h2 {
+    margin-inline-start: 2px;
+}
+body dialog.app-dialog:focus {
+    outline: none;
+}
+.dialog-select {
+    width: 100%;
+    min-width: 0;
+}
+body dialog .dialog-select > button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    background: var(--dialog-field);
+    text-align: start;
+}
+.dialog-select > button img {
+    width: 13px;
+    height: 13px;
+    filter: var(--icon-color);
+}
+.dialog-menu {
+    margin-top: 6px;
+    border: 1px solid var(--dialog-line);
+    border-radius: 9px;
+    overflow: hidden;
+    padding: 5px;
+    gap: 5px;
+    background: var(--dialog-field);
+}
+.dialog-menu[hidden] {
+    display: none !important;
+}
+body dialog .dialog-menu input {
+    width: 100%;
+    background: var(--dialog-surface);
+}
+.dialog-option-list {
+    max-height: min(210px, 32vh);
+    overflow: auto;
+    gap: 2px;
+}
+body dialog .dialog-option-list button {
+    width: 100%;
+    text-align: start;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 9px;
+    line-height: 1.4;
+    min-height: 29px;
+}
+body dialog .dialog-option-list button:is(.option-active, :hover) {
+    background: color-mix(
+        in srgb,
+        var(--dialog-accent) 14%,
+        var(--dialog-surface)
+    );
+}
+body dialog .dialog-option-list button[aria-selected="true"] {
+    color: var(--dialog-accent);
+    font-weight: 650;
+}
+body dialog .dialog-option-list button[aria-selected="true"]::after {
+    content: "✓";
+    float: inline-end;
+}
+.option-empty {
+    font-size: 12px;
+    color: var(--dialog-muted);
+    padding: 8px;
+}
+.dialog-actions .dialog-test {
+    max-width: 60%;
+    min-width: 0;
+}
+.dialog-actions .dialog-test output,
+.dialog-actions .dialog-test p {
+    max-height: 48px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+}
+.dialog-heading,
+.dialog-actions {
+    flex-wrap: nowrap;
+}
+
+body.settings-shell dialog.app-dialog .dialog-option-list button {
+    outline: none;
+    box-shadow: none;
+    border: 0;
+    font: inherit;
+    min-height: 32px;
+}
+.dialog-option-list button:focus-visible {
+    outline: 2px solid var(--dialog-accent);
+}
+body dialog .vision-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    cursor: pointer;
+}
+body dialog .vision-option input {
+    appearance: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    top: 0;
+    border-radius: 12px;
+    background: var(--dialog-line);
+    --m-color: var(--dialog-accent);
+    outline: none;
+}
+body dialog .vision-option input::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--dialog-surface);
+}
+body dialog .vision-option input:checked {
+    background-image: none;
+}
+body dialog .vision-option input:checked::after {
+    left: 17px;
+}
+body dialog:focus:not(:focus-visible) {
+    outline: none;
+}
+
+body dialog.notice-dialog {
+    width: min(390px, calc(100vw - 28px));
 }

@@ -2,10 +2,8 @@ import {
     a,
     addClass,
     addStyle,
-    alert,
     button,
     check,
-    confirm,
     dynamicList,
     dynamicSelect,
     type ElType,
@@ -27,17 +25,32 @@ import {
     txt,
     view,
 } from "dkh-ui";
+import {
+    endpoints,
+    listModels,
+    type Model,
+    type Provider,
+    providerOf,
+} from "../../../lib/modelApi";
 import type { GetValue, SettingPath } from "../../../lib/store/renderStore";
 import store from "../../../lib/store/renderStore";
+import {
+    lanes,
+    type ToolbarLane,
+    type ToolbarLayout,
+    toolbarLayout,
+} from "../../../lib/toolbarLayout";
 import { getLanName, getLans, lan, t } from "../../../lib/translate/translate";
 import type { GithubUrlType, setting, 功能 } from "../../ShareTypes";
 import { clipDrawTools } from "../lib/clipDrawTools";
 import { colorPicker } from "../lib/colorPicker";
+import { alert, confirm } from "../lib/messageDialog";
 import {
     BERGAMOT_LANGS,
     BergamotTranslator,
     getEngineLans,
     getTranslators,
+    ModelTranslator,
 } from "../lib/translate";
 import {
     Class,
@@ -187,15 +200,10 @@ const s: Partial<settingItem<SettingPath>> = {
         name: "图标比例",
         el: () => xNumber("", { min: 0.01, max: 1, step: 0.01 }),
     },
-    "工具栏.功能": {
+    "工具栏.布局": {
         name: "按钮显示和排序",
-        desc: "拖拽以控制按键顺序和显示",
+        desc: "拖动按钮可排序，也可移到另一栏或隐藏区。",
         el: () => sortTool().class(blockSetting),
-    },
-    "图像编辑.编辑栏.功能": {
-        name: "按钮显示和排序",
-        desc: "拖拽以控制按键顺序和显示",
-        el: () => sortTool(drawTools, { hideWrap: true }).class(blockSetting),
     },
     "工具栏.初始位置": {
         name: "工具栏位置",
@@ -560,160 +568,7 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     "AI.在线模型": {
         name: "在线模型",
-        el: (v) =>
-            sortList<(typeof v)[0]>(
-                (v) => v.name,
-                (_item, dialog) => {
-                    const { promise, resolve } =
-                        Promise.withResolvers<typeof _item>();
-                    const item = _item || {
-                        name: "",
-                        url: "",
-                        key: "",
-                        supportVision: false,
-                        model: "",
-                        type: "chatgpt",
-                        config: {},
-                    };
-
-                    const nameEl = input().sv(item.name);
-                    const urlEl = input().sv(item.url);
-                    const keyEl = input().sv(item.key);
-                    const modelEl = input().sv(item.model ?? "");
-                    const fetchModelList = button("获取模型列表").on(
-                        "click",
-                        async () => {
-                            const [r, error] = tryx(async () => {
-                                const url = urlEl.gv;
-                                const key = keyEl.gv;
-                                const res = await fetch(
-                                    new URL("models", url),
-                                    {
-                                        headers: {
-                                            Authorization: `Bearer ${key}`,
-                                        },
-                                    },
-                                );
-                                const data = (await res.json()) as {
-                                    data: { id: string }[];
-                                };
-                                modelListEl.clear().add(
-                                    data.data.map((i) =>
-                                        button()
-                                            .add(i.id)
-                                            .on("click", () =>
-                                                modelEl.sv(i.id),
-                                            ),
-                                    ),
-                                );
-                            });
-                            if (error) {
-                                console.error(error);
-                            } else {
-                                console.log(r);
-                            }
-                        },
-                    );
-                    const modelListEl = xGroup("x").style({
-                        width: baseWidth,
-                        maxHeight: "200px",
-                        overflowY: "auto",
-                    });
-                    const configEl = textarea()
-                        .bindSet((v, el) => {
-                            try {
-                                el.value = JSON.stringify(v, null, 2);
-                            } catch (e) {
-                                el.value = "{}";
-                            }
-                        })
-                        .bindGet((el) => {
-                            return safeJSONParse<Record<string, unknown>>(
-                                el.value,
-                                {},
-                            );
-                        })
-                        .sv(item.config)
-                        .style(textStyle(6));
-                    const supportVision = check("vision").sv(
-                        item.supportVision,
-                    );
-
-                    const testResult = txt();
-
-                    dialogB(
-                        dialog,
-                        [
-                            xGroup("y").add([
-                                view().add(["名称", ele("br"), nameEl]),
-                                view().add([noI18n("URL"), ele("br"), urlEl]),
-                                view().add([noI18n("key"), ele("br"), keyEl]),
-                                view().add([
-                                    fetchModelList,
-                                    ele("br"),
-                                    modelListEl,
-                                ]),
-                                view().add(["模型名称", ele("br"), modelEl]),
-                                view().add([
-                                    "请求体自定义",
-                                    ele("br"),
-                                    configEl,
-                                ]),
-                                label([supportVision, "支持图像识别"]),
-                                view().add([
-                                    button("测试").on("click", async () => {
-                                        testResult.sv("测试中...");
-                                        const [r, error] = tryx(async () => {
-                                            const t = runAI(
-                                                [
-                                                    {
-                                                        role: "user",
-                                                        content: {
-                                                            text: "Say this is a test",
-                                                        },
-                                                    },
-                                                ],
-                                                {
-                                                    config: configEl.gv,
-                                                    url: urlEl.gv,
-                                                    key: keyEl.gv,
-                                                    model: modelEl.gv,
-                                                },
-                                            ).text;
-
-                                            await t;
-                                        });
-                                        await r;
-                                        if (error) {
-                                            testResult.sv(
-                                                noI18n(
-                                                    `${t("测试失败：")} ${error.message}`,
-                                                ),
-                                            );
-                                        } else {
-                                            testResult.sv("测试成功");
-                                        }
-                                    }),
-                                    testResult,
-                                ]),
-                            ]),
-                        ],
-                        () => resolve(null),
-                        () =>
-                            resolve({
-                                name: nameEl.gv,
-                                type: "chatgpt",
-                                url: urlEl.gv,
-                                key: keyEl.gv,
-                                model: modelEl.gv,
-                                config: configEl.gv,
-                                supportVision: supportVision.gv,
-                            }),
-                    );
-
-                    return promise;
-                },
-            ),
+        el: (v) => sortList<(typeof v)[0]>((v) => v.name, modelDialog),
     },
     "录屏.提示.键盘.开启": {
         name: "录屏键盘提示",
@@ -1277,7 +1132,8 @@ const s: Partial<settingItem<SettingPath>> = {
         el: () => hotkeyX(["save", "2"], "save"),
     },
     "全局工具快捷键.translate": {
-        name: getToolsN("translate"),
+        name: "框选并翻译图片",
+        desc: "按快捷键框选区域，松开鼠标后自动显示译图。",
         el: () => hotkeyX(["translate", "2"], "translate"),
     },
     "全局工具快捷键.editor": {
@@ -2211,14 +2067,16 @@ const main: {
                     "工具栏跟随",
                     "工具栏.按钮大小",
                     "工具栏.按钮图标比例",
-                    "工具栏.功能",
+                    "工具栏.布局",
                     "工具栏.初始位置",
                     "工具栏.稍后出现",
                 ],
             },
+
             {
-                title: "编辑栏",
-                settings: ["图像编辑.编辑栏.功能"],
+                title: "复制偏移",
+                desc: "复制完一个元素后，为了分辨，可以让其偏移",
+                settings: ["图像编辑.复制偏移.x", "图像编辑.复制偏移.y"],
             },
             { title: "鼠标跟随栏", settings: ["鼠标跟随栏.显示"] },
             {
@@ -2260,19 +2118,21 @@ const main: {
                 settings: ["广截屏.模式", "广截屏.显示模式", "广截屏.t"],
             },
             {
+                title: "截屏",
+                settings: ["使用XDGDesktopPortal"],
+            },
+            {
+                title: "外部截屏器",
+                settings: [
+                    "额外截屏器.命令",
+                    "额外截屏器.位置",
+                    "自定义屏幕属性",
+                ],
+            },
+            { title: "后台", settings: ["保留截屏窗口"] },
+            {
                 title: "鼠标快捷键",
                 settings: ["鼠标快捷键.右键", "鼠标快捷键.双击"],
-            },
-        ],
-    },
-    {
-        pageName: "图像编辑",
-        icon: "draw",
-        items: [
-            {
-                title: "复制偏移",
-                desc: "复制完一个元素后，为了分辨，可以让其偏移",
-                settings: ["图像编辑.复制偏移.x", "图像编辑.复制偏移.y"],
             },
         ],
     },
@@ -2402,6 +2262,7 @@ const main: {
             {
                 title: "屏幕翻译",
                 settings: [
+                    "全局工具快捷键.translate",
                     "屏幕翻译.语言.from",
                     "屏幕翻译.语言.to",
                     "屏幕翻译.dTime",
@@ -2448,6 +2309,14 @@ const main: {
         pageName: "搜索与浏览",
         icon: "browser",
         items: [
+            {
+                title: "主搜索功能",
+                settings: [
+                    "主搜索功能.自动搜索排除",
+                    "主搜索功能.剪贴板选区搜索",
+                    "主搜索功能.截屏搜索延迟",
+                ],
+            },
             {
                 title: "自动",
                 settings: ["自动搜索", "自动打开链接", "自动搜索中文占比"],
@@ -2575,7 +2444,7 @@ const main: {
                 settings: ["其他快捷键.复制颜色", "其他快捷键.隐藏或显示栏"],
             },
             {
-                title: "框选后默认操作",
+                title: "框选后执行（全局快捷键）",
                 desc: "与工具栏快捷键不同，此快捷键全局生效",
                 settings: [
                     "全局工具快捷键.ocr",
@@ -2588,7 +2457,6 @@ const main: {
                     "全局工具快捷键.long",
                     "全局工具快捷键.copy",
                     "全局工具快捷键.save",
-                    "全局工具快捷键.translate",
                     "全局工具快捷键.editor",
                 ],
             },
@@ -2612,23 +2480,6 @@ const main: {
             { title: "启动", settings: ["_autostart", "启动提示"] },
             { title: "语言", settings: ["语言.语言"] },
             { title: "托盘", settings: ["托盘"] },
-            {
-                title: "主搜索功能",
-                settings: [
-                    "主搜索功能.自动搜索排除",
-                    "主搜索功能.剪贴板选区搜索",
-                    "主搜索功能.截屏搜索延迟",
-                ],
-            },
-            {
-                title: "代理",
-                settings: [
-                    "代理.mode",
-                    "代理.pacScript",
-                    "代理.proxyRules",
-                    "代理.proxyBypassRules",
-                ],
-            },
         ],
     },
     {
@@ -2651,26 +2502,18 @@ const main: {
         ],
     },
     {
-        pageName: "高级",
-        icon: "setting",
+        pageName: "网络",
+        icon: "link",
         items: [
             {
-                title: "高级设置",
-                settings: ["_setting_file", "_default_setting", "硬件加速"],
-            },
-            {
-                title: "截屏",
-                settings: ["使用XDGDesktopPortal"],
-            },
-            {
-                title: "外部截屏器",
+                title: "代理",
                 settings: [
-                    "额外截屏器.命令",
-                    "额外截屏器.位置",
-                    "自定义屏幕属性",
+                    "代理.mode",
+                    "代理.pacScript",
+                    "代理.proxyRules",
+                    "代理.proxyBypassRules",
                 ],
             },
-            { title: "后台", settings: ["保留截屏窗口"] },
             {
                 title: "GitHub镜像",
                 settings: [
@@ -2678,6 +2521,16 @@ const main: {
                     "网络.github镜像.base",
                     "网络.github镜像.api",
                 ],
+            },
+        ],
+    },
+    {
+        pageName: "高级",
+        icon: "setting",
+        items: [
+            {
+                title: "高级设置",
+                settings: ["_setting_file", "_default_setting", "硬件加速"],
             },
             {
                 title: "检查更新",
@@ -2833,7 +2686,15 @@ function getSettingMem() {
         localStorage.getItem(settingMemKey),
         xs,
     );
-    const validMemo = memo.filter((k) => sKeys.has(k));
+    const validMemo = [
+        ...new Set(
+            memo.map((k) =>
+                k === "工具栏.功能" || k === "图像编辑.编辑栏.功能"
+                    ? ("工具栏.布局" as const)
+                    : k,
+            ),
+        ),
+    ].filter((k) => sKeys.has(k));
     if (validMemo.length !== memo.length)
         localStorage.setItem(settingMemKey, JSON.stringify(validMemo));
     return validMemo;
@@ -3017,34 +2878,6 @@ const xselectClass = addClass(
     },
 );
 
-const toolBarClass = addClass(
-    {
-        borderRadius: "calc(var(--bar-size) / 6)",
-        boxShadow: "var(--shadow)",
-    },
-    {
-        "&>div": {
-            width: "var(--bar-size)",
-            height: "var(--bar-size)",
-            borderRadius: "calc(var(--bar-size) / 6)",
-        },
-        "&>div>.icon": {
-            width: "calc(var(--bar-size) * var(--bar-icon))",
-            transition: "var(--transition)",
-        },
-    },
-);
-
-const dialogFlexClass = addClass(
-    {},
-    {
-        "&[open]": {
-            display: "flex",
-            gap: "var(--o-padding)",
-        },
-    },
-);
-
 function getDefaultSetting() {
     if (defaultSetting) return defaultSetting;
     defaultSetting = renderSendSync("getDefaultSetting", []);
@@ -3078,10 +2911,6 @@ function renderSetting(settingPath: KeyPath) {
                     const value = el.gv;
                     if (value !== null && value !== undefined) {
                         setSet(sp, value);
-                        console.log(
-                            `Setting ${settingPath} updated to`,
-                            structuredClone(value),
-                        );
                         for (const p of bind[settingPath] ?? []) {
                             reRenderSetting(p);
                         }
@@ -3473,7 +3302,11 @@ function xFont() {
             listPEl.remove();
         }
 
-        const listPEl = ele("dialog");
+        const listPEl = ele("dialog")
+            .on("close", (e) => (e.currentTarget as HTMLDialogElement).remove())
+            .class("font-dialog")
+            .attr({ ariaLabel: t("字体") });
+        listPEl.add(ele("h2").add("字体"));
         const listP = view("y").class(Class.gap).addInto(listPEl);
         const preview = input()
             .style({ width: "auto" })
@@ -3654,85 +3487,160 @@ function sortable() {
     };
 }
 
-function sortTool(
-    toolList: { key: string; icon?: string; title: string }[] = tools,
-    options: { hideWrap?: boolean } = {},
-) {
-    const pel = xGroup("x").style({
-        paddingLeft: "8px",
-        alignItems: "flex-start",
-    });
-    const toolShowEl = view().class(Class.glassBar).class(toolBarClass).style({
-        minWidth: "var(--b-button)",
-        minHeight: "var(--b-button)",
-    });
-    const toolHideEl = view().class(Class.glassBar).class(toolBarClass).style({
-        minWidth: "var(--b-button)",
-        minHeight: "var(--b-button)",
-    });
-    const s = sortable();
-    s(toolShowEl, {
-        onEnd: () => {
-            pel.el.dispatchEvent(new CustomEvent("input"));
-        },
-    });
-    s(toolHideEl, {
-        onEnd: () => {
-            pel.el.dispatchEvent(new CustomEvent("input"));
-        },
-    });
-    const hideGroup = xGroup("y").add([view().add(iconEl("hide")), toolHideEl]);
-    pel.add([toolShowEl, hideGroup]);
-    if (options.hideWrap) hideGroup.style({ alignItems: "flex-start" });
-    function updateHideLayout(count: number) {
-        if (!options.hideWrap) return;
-        const cols = Math.max(1, Math.min(6, Math.ceil(Math.sqrt(count))));
-        toolHideEl.style({
-            display: "flex",
-            flexWrap: "wrap",
-            alignContent: "flex-start",
-            width: `calc(var(--bar-size) * ${cols})`,
-        });
+function sortTool() {
+    const catalog = [...tools, ...drawTools];
+    const meta = new Map(catalog.map((item) => [item.key, item]));
+    const captions = { capture: "截屏工具栏", draw: "编辑栏", hidden: "隐藏" };
+    const editor = view().class("toolbar-layout");
+    const zone = view().class("toolbar-zones").addInto(editor);
+    const controls = view("x", "wrap").class("toolbar-moves").addInto(editor);
+    let layout: ToolbarLayout;
+    let selected = "",
+        dragging = "";
+    function move(key: string, lane: ToolbarLane, before?: string) {
+        if (!meta.has(key) || before === key) return;
+        for (const list of lanes)
+            layout[list] = layout[list].filter((item) => item !== key);
+        const index = before ? layout[lane].indexOf(before) : -1;
+        layout[lane].splice(index < 0 ? layout[lane].length : index, 0, key);
+        selected = key;
+        render();
+        editor.el.dispatchEvent(new CustomEvent("input"));
+        zone.el
+            .querySelector<HTMLButtonElement>(
+                `[data-tool="${CSS.escape(key)}"]`,
+            )
+            ?.focus({ preventScroll: true });
     }
-    function getItems(v: string[]) {
-        return v.flatMap((i) => {
-            const x = toolList.find((x) => x.key === i);
-            if (!x) {
-                console.log(`${i} is udf`);
-                return [];
-            }
-            return view()
-                .data({ n: i })
-                .style({
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "4px",
-                    boxSizing: "border-box",
-                    fontSize: "calc(var(--bar-size) / 5)",
-                    lineHeight: "1.1",
-                    textAlign: "center",
-                    cursor: "pointer",
-                })
-                .add(x.icon ? tIconEl(x.icon) : x.title);
-        });
+    function selectKey(key: string) {
+        selected = key;
+        for (const el of zone.el.querySelectorAll<HTMLButtonElement>(
+            "[data-tool]",
+        ))
+            el.setAttribute("aria-pressed", String(el.dataset.tool === key));
+        controls.clear();
+        const lane = lanes.find((l) => layout[l].includes(key));
+        if (!lane) return;
+        const list = layout[lane],
+            index = list.indexOf(key);
+        for (const to of lanes)
+            if (to !== lane)
+                controls.add(
+                    button(`${t("移至")} ${t(captions[to])}`).on("click", () =>
+                        move(key, to),
+                    ),
+                );
+        controls.add([
+            button("前移")
+                .attr({ disabled: index === 0 })
+                .on("click", () => move(key, lane, list[index - 1])),
+            button("后移")
+                .attr({ disabled: index === list.length - 1 })
+                .on("click", () => move(key, lane, list[index + 2])),
+        ]);
     }
-    return pel
-        .bindGet(() => {
-            const l = toolShowEl
-                .queryAll("&>div")
-                .map((i) => i.el.getAttribute("data-n"));
-            return l;
-        })
-        .bindSet((v: string[]) => {
-            const showItems = getItems(v);
-            const hideItems = getItems(
-                toolList.map((i) => i.key).filter((i) => !v.includes(i)),
+    function render() {
+        zone.clear();
+        for (const lane of lanes) {
+            const group = view("y")
+                .class("toolbar-zone")
+                .data({ lane })
+                .addInto(zone);
+            group.add(
+                view("x")
+                    .class("lane-heading")
+                    .add([
+                        txt(captions[lane]),
+                        txt(String(layout[lane].length), true),
+                    ]),
             );
-            toolShowEl.clear().add(showItems);
-            toolHideEl.clear().add(hideItems);
-            updateHideLayout(hideItems.length);
-        });
+            const list = view().class("tool-chips").addInto(group);
+            function target(e: DragEvent) {
+                const chip = (e.target as HTMLElement).closest<HTMLElement>(
+                    "[data-tool]",
+                );
+                if (!chip || !list.el.contains(chip)) return undefined;
+                const bounds = chip.getBoundingClientRect(),
+                    key = chip.dataset.tool!;
+                return e.clientX < bounds.left + bounds.width / 2
+                    ? key
+                    : layout[lane][layout[lane].indexOf(key) + 1];
+            }
+            group
+                .on("dragover", (e) => {
+                    if (!dragging) return;
+                    e.preventDefault();
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+                    group.el.classList.add("drag-over");
+                    list.el
+                        .querySelector(".insert-before")
+                        ?.classList.remove("insert-before");
+                    const to = target(e);
+                    if (to)
+                        list.el
+                            .querySelector(`[data-tool="${CSS.escape(to)}"]`)
+                            ?.classList.add("insert-before");
+                })
+                .on("dragleave", (e) => {
+                    if (!group.el.contains(e.relatedTarget as Node | null)) {
+                        group.el.classList.remove("drag-over");
+                        list.el
+                            .querySelector(".insert-before")
+                            ?.classList.remove("insert-before");
+                    }
+                });
+            group.on("drop", (e) => {
+                if (!dragging) return;
+                e.preventDefault();
+                const key = dragging;
+                dragging = "";
+                move(key, lane, target(e));
+            });
+            for (const key of layout[lane]) {
+                const item = meta.get(key)!;
+                const b = button()
+                    .data({ tool: key })
+                    .attr({ draggable: true, title: item.title })
+                    .add([
+                        item.icon
+                            ? image(item.icon, noI18n("")).attr({
+                                  draggable: false,
+                              })
+                            : "",
+                        txt(item.title, true),
+                    ])
+                    .addInto(list);
+                b.el.setAttribute("aria-pressed", String(key === selected));
+                b.on("click", () => selectKey(key))
+                    .on("dragstart", (e) => {
+                        dragging = key;
+                        if (e.dataTransfer) {
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", key);
+                        }
+                    })
+                    .on("dragend", () => {
+                        dragging = "";
+                        for (const el of zone.el.querySelectorAll(
+                            ".drag-over,.insert-before",
+                        ))
+                            el.classList.remove("drag-over", "insert-before");
+                    });
+            }
+        }
+        selectKey(selected);
+    }
+    return editor
+        .bindSet((value: ToolbarLayout | null) => {
+            layout = toolbarLayout(
+                value,
+                getSet("工具栏.功能"),
+                getSet("图像编辑.编辑栏.功能"),
+                [...meta.keys()],
+            );
+            render();
+        })
+        .bindGet(() => structuredClone(layout));
 }
 
 function sortList<t>(
@@ -3757,6 +3665,11 @@ function sortList<t>(
     const newData: Map<string, { "sort-name": string; data: t }> = new Map();
 
     function getItem(id: string | null) {
+        dialog.el.setAttribute(
+            "aria-label",
+            el.el.closest("[data-name]")?.querySelector(".setting-name")
+                ?.textContent || t("设置"),
+        );
         dialog.clear().el.showModal();
         return item(id ? (newData.get(id)?.data ?? null) : null, dialog);
     }
@@ -3833,6 +3746,338 @@ function sortList<t>(
         });
 }
 
+function dialogSelect<T extends string>(
+    options: { value: T; name?: Parameters<typeof txt>[0] }[],
+    searchable = false,
+) {
+    const root = view().class("dialog-select");
+    const trigger = button()
+        .attr({
+            role: "combobox",
+            ariaHasPopup: "listbox",
+            ariaExpanded: "false",
+        })
+        .addInto(root);
+    const valueText = txt("", true).addInto(trigger);
+    trigger.add(image(getImgUrl("down.svg"), noI18n("")));
+    const menu = view("y").class("dialog-menu").addInto(root);
+    const listId = `choices-${crypto.randomUUID()}`;
+    trigger.el.setAttribute("aria-controls", listId);
+    const filter = input().attr({
+        placeholder: t("搜索"),
+        ariaLabel: t("搜索"),
+    });
+    if (searchable) menu.add(filter);
+    const list = view("y")
+        .class("dialog-option-list")
+        .attr({ id: listId, role: "listbox" })
+        .addInto(menu);
+    const entries = options
+        .filter((o) => o.value !== "")
+        .map((o) => ({
+            value: o.value,
+            name: txt(o.name ?? o.value).el.textContent || o.value,
+        }));
+    let value: T = options[0]?.value ?? ("" as T),
+        active = -1;
+    function close(focus = false) {
+        menu.el.hidden = true;
+        trigger.el.setAttribute("aria-expanded", "false");
+        root.el.removeAttribute("aria-activedescendant");
+        trigger.el.removeAttribute("aria-activedescendant");
+        filter.el.removeAttribute("aria-activedescendant");
+        if (focus) trigger.el.focus();
+    }
+    function choose(next: T) {
+        setValue(next);
+        close(true);
+        root.el.dispatchEvent(new Event("input"));
+    }
+    function move(index: number) {
+        const rows = Array.from(
+            list.el.querySelectorAll<HTMLButtonElement>("button"),
+        );
+        active = Math.max(0, Math.min(index, rows.length - 1));
+        for (const [i, b] of rows.entries())
+            b.classList.toggle("option-active", i === active);
+        const item = rows[active];
+        if (item) {
+            trigger.el.setAttribute("aria-activedescendant", item.id);
+            filter.el.setAttribute("aria-activedescendant", item.id);
+            item.scrollIntoView({ block: "nearest" });
+        }
+    }
+    function populate() {
+        const q = filter.gv.trim().toLowerCase(),
+            visible = entries.filter((e) =>
+                `${e.name} ${e.value}`.toLowerCase().includes(q),
+            );
+        list.clear();
+        for (const [i, e] of visible.entries()) {
+            const b = button(noI18n(e.name))
+                .attr({ role: "option", id: `${listId}-${i}`, tabIndex: -1 })
+                .on("click", () => choose(e.value));
+            b.el.dataset.value = e.value;
+            b.el.setAttribute("aria-selected", String(e.value === value));
+            list.add(b);
+        }
+        if (!visible.length)
+            list.add(txt("无结果，尝试其他关键词").class("option-empty"));
+        move(visible.findIndex((o) => o.value === value));
+    }
+    function open() {
+        menu.el.hidden = false;
+        trigger.el.setAttribute("aria-expanded", "true");
+        filter.sv("");
+        populate();
+        if (searchable) filter.el.focus();
+    }
+    trigger.on("click", () => (menu.el.hidden ? open() : close()));
+    filter.on("input", (e) => {
+        e.stopPropagation();
+        populate();
+    });
+    root.on("focusout", (e) => {
+        if (!root.el.contains(e.relatedTarget as Node | null)) close();
+    });
+    root.on("keydown", (e) => {
+        if (menu.el.hidden) {
+            if (["ArrowDown", "ArrowUp"].includes(e.key)) {
+                e.preventDefault();
+                open();
+            }
+            return;
+        }
+        if (e.key === "Tab") {
+            close();
+            return;
+        }
+        if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            close(true);
+            return;
+        }
+        const rows = list.el.querySelectorAll<HTMLButtonElement>("button");
+        if (e.key === "Enter" || (!searchable && e.key === " ")) {
+            e.preventDefault();
+            rows[active]?.click();
+            return;
+        }
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+            e.preventDefault();
+            move(
+                e.key === "Home"
+                    ? 0
+                    : e.key === "End"
+                      ? rows.length - 1
+                      : active + (e.key === "ArrowDown" ? 1 : -1),
+            );
+        } else if (!searchable && e.key.length === 1) {
+            const i = Array.from(rows).findIndex((b) =>
+                b.textContent?.toLowerCase().startsWith(e.key.toLowerCase()),
+            );
+            if (i >= 0) move(i);
+        }
+    });
+    function setValue(v: T) {
+        value = v;
+        valueText.sv(
+            entries.find((e) => e.value === v)?.name || t("选择引擎类型"),
+        );
+    }
+    close();
+    return root.bindGet(() => value).bindSet(setValue);
+}
+
+function field(caption: string, control: ElType<HTMLElement>, raw = false) {
+    const id = control.el.id || `field-${crypto.randomUUID()}`;
+    const focusTarget =
+        control.el.querySelector<HTMLElement>('[role="combobox"]') ||
+        control.el;
+    focusTarget.id = id;
+    const label = ele("label").add(raw ? noI18n(caption) : caption);
+    label.el.htmlFor = id;
+    return view("y").class("form-field").add([label, control]);
+}
+
+function modelDialog(
+    previous: Model | null,
+    dialog: ElType<HTMLDialogElement>,
+) {
+    const { promise, resolve } = Promise.withResolvers<Model | null>();
+    let active: Provider = previous ? providerOf(previous) : "openai";
+    const name = input().sv(previous?.name || "");
+    const provider = dialogSelect<Provider>([
+        { value: "openai", name: noI18n("OpenAI / OpenAI-compatible") },
+        { value: "anthropic", name: noI18n("Anthropic") },
+        { value: "gemini", name: noI18n("Google Gemini") },
+    ]).sv(active);
+    const url = input().sv(previous?.url || endpoints[active]);
+    const key = input("password")
+        .attr({ autocomplete: "off" })
+        .sv(previous?.key || "");
+    const model = input().sv(previous?.model || "");
+    const config = textarea()
+        .attr({ spellcheck: false })
+        .sv(JSON.stringify(previous?.config || {}, null, 2));
+    const vision = check("vision").sv(previous?.supportVision ?? false);
+    const result = ele("output")
+        .class("dialog-status")
+        .attr({ role: "status" });
+    const models = view("x", "wrap").class("model-results");
+    const fields = new Map<
+        Provider,
+        { url: string; key: string; model: string; config: string }
+    >();
+    let controller: AbortController | undefined;
+    let stopTest: (() => void) | undefined;
+    let generation = 0;
+    function cancel() {
+        generation++;
+        controller?.abort();
+        stopTest?.();
+        stopTest = undefined;
+    }
+    function status(text: string) {
+        result.el.textContent = text;
+    }
+    provider.on("input", () => {
+        cancel();
+        fields.set(active, {
+            url: url.gv,
+            key: key.gv,
+            model: model.gv,
+            config: config.gv,
+        });
+        active = provider.gv;
+        const draft = fields.get(active);
+        url.sv(draft?.url ?? endpoints[active]);
+        key.sv(draft?.key ?? "");
+        model.sv(draft?.model ?? "");
+        config.sv(draft?.config ?? "{}");
+        status("");
+        models.clear();
+    });
+    function readModel(): Model {
+        let options: unknown;
+        try {
+            options = JSON.parse(config.gv.trim() || "{}");
+        } catch {
+            throw Error(t("JSON格式错误"));
+        }
+        if (!options || typeof options !== "object" || Array.isArray(options))
+            throw Error(t("JSON格式错误"));
+        const address = url.gv.trim() || endpoints[active];
+        if (
+            !URL.canParse(address) ||
+            !["https:", "http:"].includes(new URL(address).protocol)
+        )
+            throw Error(t("URL 无效"));
+        return {
+            type: active,
+            name: name.gv.trim(),
+            model: model.gv.trim(),
+            url: address,
+            key: key.gv.trim(),
+            config: options as Record<string, unknown>,
+            supportVision: vision.gv,
+        };
+    }
+    const fetchModels = button("获取模型列表").on("click", async () => {
+        cancel();
+        const token = generation;
+        controller = new AbortController();
+        models.clear();
+        status(t("加载中…"));
+        try {
+            const options = await listModels(
+                readModel(),
+                AbortSignal.any([
+                    controller.signal,
+                    AbortSignal.timeout(30000),
+                ]),
+            );
+            if (token !== generation) return;
+            models.add(
+                options.map((value) =>
+                    button(noI18n(value)).on("click", () => {
+                        model.sv(value);
+                        models.clear();
+                        status("");
+                    }),
+                ),
+            );
+            status(options.length ? "" : t("无结果，尝试其他关键词"));
+        } catch (err) {
+            if (token === generation) status(String(err));
+        }
+    });
+    const test = button("测试").on("click", async () => {
+        cancel();
+        const token = generation;
+        try {
+            const draft = readModel();
+            if (!draft.model) throw Error(t("请填写模型名称"));
+            status(t("正在测试..."));
+            const job = runAI(
+                [{ role: "user", content: { text: "Reply with OK." } }],
+                draft,
+            );
+            stopTest = job.stop;
+            await job.text;
+            if (token === generation) status(t("测试成功"));
+        } catch (err) {
+            if (token === generation)
+                status(`${t("测试失败")} · ${String(err)}`);
+        }
+    });
+    const reveal = button("显示").on("click", () => {
+        key.el.type = key.el.type === "password" ? "text" : "password";
+        reveal.el.textContent = t(key.el.type === "password" ? "显示" : "隐藏");
+    });
+    const secret = field("API Key", key, true);
+    secret.add(reveal).class("secret-field");
+    const details = ele("details")
+        .class("model-options")
+        .add([ele("summary").add("请求体自定义"), config]);
+    dialogB(
+        dialog,
+        [
+            view()
+                .class("dialog-columns")
+                .add([field("名称", name), field("接口协议", provider)]),
+            field("API URL", url, true),
+            secret,
+            field("模型名称", model).add(fetchModels).class("model-field"),
+            models,
+            label([vision, "支持图像识别"]).class("vision-option"),
+            details,
+            view("x").class("dialog-test").add([test, result]),
+        ],
+        () => {
+            cancel();
+            resolve(null);
+        },
+        () => {
+            try {
+                const next = readModel();
+                if (!next.model || !next.name) {
+                    status(t("请填写名称和模型"));
+                    (!next.name ? name : model).el.focus();
+                    return false;
+                }
+                cancel();
+                resolve(next);
+            } catch (e) {
+                status(String(e));
+                return false;
+            }
+        },
+    );
+    return promise;
+}
+
 function dialogB(
     d: ElType<HTMLDialogElement>,
     els: ElType<HTMLElement>[],
@@ -3840,21 +4085,62 @@ function dialogB(
     // biome-ignore lint/suspicious/noConfusingVoidType: 保留回调签名
     onOk: () => boolean | undefined | void,
 ) {
-    d.add(
-        xGroup("y").add([
-            ...els,
-            xGroup("x").add([
-                spacer(),
-                button(txt("关闭")).on("click", () => {
-                    onClose();
-                    d.el.close();
-                }),
-                button(txt("完成")).on("click", () => {
-                    if (onOk() !== false) d.el.close();
-                }),
+    const title =
+        d.el.getAttribute("aria-label") ||
+        d.el.closest("[data-name]")?.querySelector(".setting-name")
+            ?.textContent ||
+        t("设置");
+    d.el.setAttribute("aria-label", title);
+    d.class("app-dialog");
+    const testRow = els.find((el) => el.el.classList.contains("dialog-test"));
+    const cancel = () => {
+        onClose();
+        d.el.close();
+    };
+    d.el.oncancel = () => onClose();
+    d.add([
+        view("x")
+            .class("dialog-heading")
+            .add([
+                image(
+                    getImgUrl(
+                        title === t("在线模型")
+                            ? "ai_check.svg"
+                            : title === t("翻译引擎")
+                              ? "translate.svg"
+                              : "setting.svg",
+                    ),
+                    noI18n(""),
+                ).class("dialog-symbol"),
+                ele("h2").add(noI18n(title)),
+                button(iconEl("close"))
+                    .attr({ title: "关闭" })
+                    .on("click", cancel),
             ]),
-        ]),
-    );
+        view("y")
+            .class("dialog-body")
+            .add(els.filter((el) => el !== testRow)),
+        view("x")
+            .class("dialog-actions")
+            .add([
+                testRow ?? "",
+                spacer(),
+                button("取消").on("click", cancel),
+                button("完成")
+                    .class("dialog-primary")
+                    .on("click", () => {
+                        if (onOk() !== false) d.el.close();
+                    }),
+            ]),
+    ]);
+    queueMicrotask(() => {
+        if (d.el.open && document.activeElement === d.el)
+            d.el
+                .querySelector<HTMLElement>(
+                    ".dialog-body input,.dialog-body select,.dialog-body button",
+                )
+                ?.focus({ preventScroll: true });
+    });
 }
 
 function selectUrl(l: { name: string; url: string }[], fallbackUrl?: string) {
@@ -4055,7 +4341,7 @@ function translatorD(
         .sv(v.name)
         .attr({ placeholder: t("请为翻译器命名") })
         .style({ minWidth: 0 });
-    const selectEl = select<Engines | "">(
+    const selectEl = dialogSelect<Engines | "">(
         [{ value: "", name: "选择引擎类型" }].concat(
             // @ts-ignore
             Object.entries(engineConfig).map((v) => ({
@@ -4063,6 +4349,7 @@ function translatorD(
                 value: v[0],
             })),
         ) as { value: Engines }[],
+        true,
     )
         .sv(v.type || "")
         .on("input", () => {
@@ -4073,6 +4360,7 @@ function translatorD(
 
     function set(type: Engines | "") {
         keys.clear().style({ display: "none" });
+        help.clear().style({ display: "none" });
         help.clear().style({ display: "none" });
         testR.clear();
         if (!type) return;
@@ -4092,7 +4380,11 @@ function translatorD(
                           ? textarea()
                           : x.type === "json"
                             ? textarea()
-                            : input()
+                            : input(
+                                  /key|token|secret/i.test(x.name)
+                                      ? "password"
+                                      : "text",
+                              )
                     )
                         .attr({ placeholder: x.text || "", spellcheck: false })
                         .data({ key: x.name })
@@ -4111,45 +4403,43 @@ function translatorD(
             );
     }
 
-    const testEl = view();
+    const testEl = view("x").class("dialog-test");
     const testR = p("");
     const testB = button(txt("测试"));
     testEl.add([testB, testR]);
     testB.on("click", async () => {
         testR.el.innerText = t("正在测试...");
         const v = getV();
-        if (!v) return;
-        if (v.type === "llm") {
-            const model = getSet("AI.在线模型").find(
-                (i) => i.name === v.keys.name,
-            );
-            if (!model) {
-                testR.el.innerText = t("模型不存在");
-                return;
-            }
-            translator.e.chatgpt.setKeys({
-                url: new URL("chat/completions", model.url).toString(),
-                key: model.key,
-                config: {
-                    model: model.model,
-                },
-            });
-        } else if (v.type !== "bergamot") {
-            // @ts-ignore
+        if (!v) {
+            testR.sv(t("测试失败"));
+            return;
+        }
+        if (v.type !== "bergamot" && v.type !== "llm") {
+            // @ts-ignore provider-specific fields
             translator.e[v.type].setKeys(v.keys);
         }
         try {
+            if (v.type === "llm") {
+                const model = getSet("AI.在线模型").find(
+                    (item) => item.name === v.keys.name,
+                );
+                if (!model) throw Error(t("模型不存在"));
+                await new ModelTranslator(model).run(
+                    "The test passed",
+                    "en",
+                    "zh-Hans",
+                );
+                testR.sv(t("测试成功"));
+                return;
+            }
             const r =
                 v.type === "bergamot"
                     ? await new BergamotTranslator().test()
-                    : await translator.e[
-                          v.type === "llm" ? "chatgpt" : v.type
-                      ].test();
+                    : await translator.e[v.type].test();
             console.log(r);
             if (r) testR.el.innerText = t("测试成功");
         } catch (error) {
             testR.el.innerText = `${t("测试失败")} ${String(error)}`;
-            throw error;
         }
     });
 
@@ -4170,6 +4460,7 @@ function translatorD(
                     const [v, e] = tryx(() => JSON.parse(el.el.value));
                     if (e) {
                         alert(`${name} ${t("JSON格式错误")}`);
+                        return null;
                     } else {
                         value = v;
                     }
@@ -4197,10 +4488,8 @@ function translatorD(
     dialogB(
         addTranslatorM,
         [
-            view("x")
-                .add([idEl, selectEl])
-                .style({ width: baseWidth })
-                .class(Class.gap),
+            field("名称", idEl),
+            field("选择引擎类型", selectEl),
             keys,
             help,
             testEl,
@@ -4545,7 +4834,7 @@ renderOn("bergamot_progress", ([data]) => {
 });
 
 function openBergamotDialog() {
-    const d = ele("dialog");
+    const d = ele("dialog").attr({ ariaLabel: t("Firefox 本地模型") });
     d.addInto();
 
     const lans = getLansName([...BERGAMOT_LANGS]).map((i) => ({
@@ -6721,7 +7010,9 @@ for (const [i, page] of main.entries()) {
             txt(packageJson.version, true).class("nav-version"),
         ]);
     else if (
-        ["save", "space", "main", "filters", "setting"].includes(page.icon)
+        ["save", "space", "main", "filters", "link", "setting"].includes(
+            page.icon,
+        )
     )
         appNav.add(label);
     else featureNav.add(label);

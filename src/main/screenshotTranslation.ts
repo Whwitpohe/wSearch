@@ -1,8 +1,15 @@
 import { nativeImage, net } from "electron";
-import { selectedClaude } from "../../lib/claudeVision";
 import { mainHandle } from "../../lib/ipc";
+import {
+    generateText,
+    messagesUrl,
+    modelHeaders,
+    providerOf,
+    requestOptions,
+} from "../../lib/modelApi";
 import type Store from "../../lib/store/store";
 import { t } from "../../lib/translate/translate";
+import { selectedVisionModel } from "../../lib/visionModel";
 import type {
     ScreenshotRegion,
     ScreenshotTranslation,
@@ -78,15 +85,6 @@ async function translateScreenshot(
 ): Promise<ScreenshotRegion[]> {
     const { model, target, from } = capture;
     const image = prepareImage(capture.url);
-    if (!model.key || !model.model)
-        throw Error(t("请在在线模型设置中填写 Claude API 密钥和模型名"));
-    const endpoint = URL.canParse(model.url) ? new URL(model.url) : null;
-    if (
-        endpoint?.origin !== "https://api.anthropic.com" ||
-        endpoint.username ||
-        endpoint.password
-    )
-        throw Error(t("整图翻译需要 Anthropic 官方接口"));
     const language =
         from && from !== "auto"
             ? `Source language: ${from}.`
@@ -106,68 +104,93 @@ async function translateScreenshot(
         "Include only regions that need changing. Preserve numbers, names, and already translated text when appropriate.",
         "Use concise natural wording that fits the original region. Return an empty regions array if nothing needs translation.",
     ].join(" ");
-    let response: Awaited<ReturnType<typeof net.fetch>>;
-    try {
-        response = await net.fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            redirect: "error",
-            signal,
-            headers: {
-                "x-api-key": model.key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            body: JSON.stringify({
-                model: model.model,
-                max_tokens: 8192,
-                messages: [
-                    {
-                        role: "user",
-                        content: [
-                            { type: "image", source: image.source },
-                            { type: "text", text: instruction },
-                        ],
-                    },
-                ],
-                tools: [
-                    {
-                        name: "place_translations",
-                        description:
-                            "Place target-language text on the screenshot.",
-                        input_schema: regionSchema,
-                    },
-                ],
-            }),
-        });
-    } catch {
-        throw Error(
-            t(
-                signal.aborted
-                    ? "Claude 请求已取消或超时"
-                    : "无法连接 Claude，请检查网络",
-            ),
+    let rows: unknown;
+    if (providerOf(model) !== "anthropic") {
+        const prompt = instruction.replace(
+            "Call place_translations once.",
+            'Return only a JSON object {"regions":[{"box":[left,top,right,bottom],"text":"translation"}]}.',
         );
+        const result = await generateText(
+            model,
+            [
+                {
+                    role: "user",
+                    content: {
+                        text: prompt,
+                        img: `data:${image.source.media_type};base64,${image.source.data}`,
+                    },
+                },
+            ],
+            signal,
+            undefined,
+            (url, init) => net.fetch(url.toString(), init),
+        );
+        rows = JSON.parse(
+            result.trim().replace(/^```(?:json)?\s*|\s*```$/gi, ""),
+        ).regions;
+    } else {
+        let response: Awaited<ReturnType<typeof net.fetch>>;
+        try {
+            response = await net.fetch(messagesUrl(model), {
+                method: "POST",
+                redirect: "error",
+                signal,
+                headers: modelHeaders(model),
+                body: JSON.stringify({
+                    max_tokens: 8192,
+                    ...requestOptions(model),
+                    model: model.model,
+                    stream: false,
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                { type: "image", source: image.source },
+                                { type: "text", text: instruction },
+                            ],
+                        },
+                    ],
+                    tools: [
+                        {
+                            name: "place_translations",
+                            description:
+                                "Place target-language text on the screenshot.",
+                            input_schema: regionSchema,
+                        },
+                    ],
+                }),
+            });
+        } catch {
+            throw Error(
+                t(
+                    signal.aborted
+                        ? "Claude 请求已取消或超时"
+                        : "无法连接 Claude，请检查网络",
+                ),
+            );
+        }
+        if (!response.ok) {
+            throw Error(`Anthropic HTTP ${response.status}: ${t("翻译失败")}`);
+        }
+        const result: {
+            stop_reason?: string;
+            content?: {
+                type: string;
+                name?: string;
+                input?: { regions?: unknown };
+            }[];
+        } = await response.json();
+        if (result.stop_reason === "max_tokens")
+            throw Error(t("译文过长，请缩小截图范围后重试"));
+        rows =
+            Array.isArray(result.content) &&
+            result.content.find(
+                (item) =>
+                    item.type === "tool_use" &&
+                    item.name === "place_translations",
+            )?.input?.regions;
     }
-    if (!response.ok) {
-        throw Error(`Claude HTTP ${response.status}: ${t("翻译失败")}`);
-    }
-    const result: {
-        stop_reason?: string;
-        content?: {
-            type: string;
-            name?: string;
-            input?: { regions?: unknown };
-        }[];
-    } = await response.json();
-    if (result.stop_reason === "max_tokens")
-        throw Error(t("译文过长，请缩小截图范围后重试"));
-    const rows =
-        Array.isArray(result.content) &&
-        result.content.find(
-            (item) =>
-                item.type === "tool_use" && item.name === "place_translations",
-        )?.input?.regions;
-    if (!Array.isArray(rows)) throw Error(t("Claude 未返回文字位置，请重试"));
+    if (!Array.isArray(rows)) throw Error(t("模型未返回文字位置，请重试"));
     return rows.map((row): ScreenshotRegion => {
         if (
             !row ||
@@ -177,7 +200,7 @@ async function translateScreenshot(
             typeof row.text !== "string" ||
             !row.text.trim()
         )
-            throw Error(t("Claude 返回的文字区域格式有误，请重试"));
+            throw Error(t("模型返回的文字区域格式有误，请重试"));
         const [x1, y1, x2, y2] = (row.box as number[]).map((value, index) =>
             Math.max(
                 0,
@@ -185,17 +208,17 @@ async function translateScreenshot(
             ),
         );
         if (x2 <= x1 || y2 <= y1)
-            throw Error(t("Claude 返回的文字区域超出截图，请重试"));
+            throw Error(t("模型返回的文字区域超出截图，请重试"));
         return { box: [x1, y1, x2, y2], text: row.text.trim() };
     });
 }
 
-export function registerClaudeTranslation(
+export function registerScreenshotTranslation(
     store: Store,
     allowSender: (id: number, event: Electron.IpcMainInvokeEvent) => boolean,
 ) {
     const captures = new Map<number, Capture>();
-    mainHandle("claudeScreenshotTranslation", async ([id, retry], event) => {
+    mainHandle("translateScreenshotImage", async ([id, retry], event) => {
         const capture = captures.get(id);
         if (!capture || !allowSender(id, event))
             return { error: t("截图已关闭，请重新截图") };
@@ -221,7 +244,7 @@ export function registerClaudeTranslation(
     });
     return {
         register(id: number, url: string) {
-            const model = selectedClaude(
+            const model = selectedVisionModel(
                 store.get("OCR.类型"),
                 store.get("AI.在线模型"),
             );

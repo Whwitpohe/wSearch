@@ -78,6 +78,7 @@ export interface setting {
         按钮图标比例: number;
         初始位置: { left: string; top: string };
         功能: 功能[];
+        布局: { capture: string[]; draw: string[]; hidden: string[] } | null;
         稍后出现: boolean;
     };
     字体: {
@@ -205,7 +206,7 @@ export interface setting {
         运行后端: "cpu" | "cuda" | "coreml" | "directml" | "webgpu";
         在线模型: {
             name: string;
-            type: "chatgpt";
+            type: "chatgpt" | "openai" | "anthropic" | "gemini";
             supportVision: boolean;
             url: string;
             key: string;
@@ -634,7 +635,7 @@ export type LongControlInit = {
     firstPreview?: { data: string; w: number; h: number };
 };
 
-export type DingMode = "ding" | "translate" | "claude-translate";
+export type DingMode = "ding" | "translate" | "vision-translate";
 export type ScreenshotRegion = {
     box: [number, number, number, number];
     text: string;
@@ -642,3 +643,21 @@ export type ScreenshotRegion = {
 export type ScreenshotTranslation =
     | { regions: ScreenshotRegion[] }
     | { error: string };
+
+export type PinPanelState = {
+    id: number;
+    rect: { x: number; y: number; width: number; height: number };
+    compact: boolean;
+    hovered: boolean;
+    status: string;
+    buttons: { label: string; icon: string; index: number }[];
+    zoom: number;
+    opacity: number;
+    zoomLabel: string;
+    opacityLabel: string;
+    closeLabel: string;
+};
+export type PinPanelAction = {
+    type: "button" | "zoom" | "opacity" | "dismiss";
+    value: number;
+};

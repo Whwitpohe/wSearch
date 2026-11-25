@@ -980,5 +980,21 @@
     "f314ac": "Funciones",
     "828528": "Preferencias",
     "cf208d": "OCR en la nube",
-    "21408f": "OCR local"
+    "21408f": "OCR local",
+    "05a898": "Arrastra los botones para ordenarlos, moverlos entre barras u ocultarlos.",
+    "473c7e": "Mover a",
+    "0efbc1": "Mover antes",
+    "2f4850": "Mover después",
+    "9caedc": "Red",
+    "3f08c7": "Acciones de selección (atajos globales)",
+    "61f74f": "Seleccionar y traducir imagen",
+    "545b89": "Usa el atajo, selecciona un área y suelta el ratón para ver la traducción.",
+    "8f2124": "Protocolo de API",
+    "2524e2": "URL no válida",
+    "8acb6a": "Introduce el modelo",
+    "8e9649": "Introduce un nombre y un modelo",
+    "56f08c": "Cargando…",
+    "c4b4ae": "El modelo no devolvió posiciones. Vuelve a intentarlo.",
+    "0f749a": "Regiones no válidas. Reintenta.",
+    "6d6fca": "Las posiciones exceden la captura. Reintenta."
 }

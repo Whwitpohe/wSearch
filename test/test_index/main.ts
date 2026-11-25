@@ -336,6 +336,7 @@ const defaultSetting: setting = {
         },
     },
     工具栏: {
+        布局: null,
         按钮大小: 48,
         按钮图标比例: 0.7,
         初始位置: { left: "10px", top: "100px" },

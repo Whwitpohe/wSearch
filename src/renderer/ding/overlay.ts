@@ -521,7 +521,7 @@ function addDing(
     const item = createDingItem({
         data,
         single: false,
-        claudeScreenshot: type === "claude-translate",
+        visionTranslation: type === "vision-translate",
         zoom: (zoom, dx, dy, clip) => {
             resizeSender = true;
             resize(wid, zoom, dx, dy, clip);

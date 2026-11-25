@@ -980,5 +980,21 @@
     "f314ac": "Features",
     "828528": "Preferences",
     "cf208d": "Cloud OCR",
-    "21408f": "On-device OCR"
+    "21408f": "On-device OCR",
+    "05a898": "Drag buttons to reorder them, move them between bars, or hide them.",
+    "473c7e": "Move to",
+    "0efbc1": "Move earlier",
+    "2f4850": "Move later",
+    "9caedc": "Network",
+    "3f08c7": "Selection actions (global shortcuts)",
+    "61f74f": "Select and translate image",
+    "545b89": "Press the shortcut, select an area, and release to see the translated image.",
+    "8f2124": "API protocol",
+    "2524e2": "Invalid URL",
+    "8acb6a": "Enter a model name",
+    "8e9649": "Enter a name and model",
+    "56f08c": "Loading…",
+    "c4b4ae": "The model returned no text positions. Try again.",
+    "0f749a": "Invalid text regions. Try again.",
+    "6d6fca": "Text positions are outside the screenshot. Try again."
 }

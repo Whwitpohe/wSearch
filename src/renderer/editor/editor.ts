@@ -462,6 +462,8 @@ const spellcheckList = view("y")
 
 // history ui
 const historyDialog = ele("dialog")
+    .class("history-dialog")
+    .attr({ ariaLabel: t("历史记录") })
     .on("close", () => {
         document.startViewTransition(() => {
             historySwitch.sv(false);
@@ -470,6 +472,7 @@ const historyDialog = ele("dialog")
     .addInto();
 view("x")
     .add([
+        ele("h2").add(t("历史记录")),
         spacer(),
         iconBEl("close", "关闭").on("click", () =>
             document.startViewTransition(() => {
