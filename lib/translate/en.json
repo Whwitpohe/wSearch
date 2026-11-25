@@ -972,5 +972,13 @@
     "986eff": "This mode cannot load the selected OCR engine.",
     "e9f9b6": "Claude is translating the screenshot…",
     "b26fa6": "No text needs translating in this image.",
-    "eade95": "Click Translate to retry"
+    "eade95": "Click Translate to retry",
+    "00a420": "Set shortcut",
+    "73a824": "Search results",
+    "7070b1": "General settings",
+    "abbed4": "Frequent settings",
+    "f314ac": "Features",
+    "828528": "Preferences",
+    "cf208d": "Cloud OCR",
+    "21408f": "On-device OCR"
 }

@@ -2891,6 +2891,16 @@ function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
 
     xset(nowStore as unknown as Record<string, unknown>, k, v);
     store.set(k, v);
+    if (k === "字体.主要字体") setSettingsFont();
+    if (
+        k.startsWith("快捷键.") ||
+        k === "屏幕翻译.语言.to" ||
+        k === "翻译.翻译器" ||
+        k === "语言.语言"
+    ) {
+        const summary = document.querySelector(".quick-settings");
+        if (summary) summary.replaceWith(quickSettings().el);
+    }
 }
 
 function bindRun(): void;
@@ -3082,16 +3092,15 @@ function renderSetting(settingPath: KeyPath) {
     });
     const pel = view("x", "wrap")
         .style({ justifyContent: "space-between" })
-        .class(Class.gap)
+        .class(Class.gap, "settings-row")
         .data({ name: settingPath })
         .add([
-            view().add([
-                p(setting.name, true).style({
-                    fontSize: "0.97em",
-                    fontWeight: 600,
-                }),
-                setting.desc ? comment(setting.desc) : "",
-            ]),
+            view()
+                .class("row-caption")
+                .add([
+                    p(setting.name, true).class("setting-name"),
+                    setting.desc ? comment(setting.desc) : "",
+                ]),
             el,
         ]);
     if (el.el.getAttribute("data-xtype") === "switch") {
@@ -3154,25 +3163,28 @@ function reRenderSetting(settingPath: KeyPath) {
     if (nel) el.replaceWith(nel.el);
 }
 
-function renderSettingList(l: string[]) {
+function renderSettingList(keys: string[], title?: string) {
     mainView.clear();
     mainViewP.el.scrollTop = 0;
-    for (const i of l) {
-        const title = getTitles.get(i);
-        mainView.add(
-            view().add([
-                txt("", true)
-                    .sv(
-                        title
-                            ? title.map((i) => t(i)).join(" > ")
-                            : t("未知路径"),
-                    )
-                    .style({
-                        color: cssColor.font.llight,
-                    }),
-                // @ts-ignore
-                renderSetting(i),
-            ]),
+    const page = view().class("settings-page").addInto(mainView);
+    if (title) page.add(ele("h1").add(noI18n(title)));
+    const groups = new Map<string, string[]>();
+    for (const key of keys) {
+        const heading =
+            getTitles
+                .get(key)
+                ?.map((part) => t(part))
+                .join("  /  ") || t("未知路径");
+        const list = groups.get(heading) ?? [];
+        list.push(key);
+        groups.set(heading, list);
+    }
+    for (const [heading, entries] of groups) {
+        page.add(ele("h2").add(noI18n(heading)));
+        page.add(
+            view("y")
+                .class("settings-group")
+                .add(entries.map((key) => renderSetting(key as KeyPath))),
         );
     }
 }
@@ -3204,15 +3216,33 @@ function xSelect<T extends string>(
     }[],
     name: string,
 ) {
-    const el = xGroup("x").class(blockSetting);
-    const r = radioGroup<T>(name);
+    const el = view()
+        .class(blockSetting, "settings-options")
+        .attr({ role: "radiogroup", ariaLabel: t(name) });
+    const r = radioGroup<T>(`${name}-${crypto.randomUUID()}`, true);
     for (const option of options) {
-        el.add(
-            r
-                .new(option.value, option.name)
-                .class(xselectClass)
-                .class(Class.deco),
-        );
+        const choice = r
+            .new(option.value, option.name)
+            .class(xselectClass, "settings-option");
+        if (name === "OCR类型") {
+            const online =
+                option.value.startsWith("ai-") ||
+                ["baidu", "youdao"].includes(option.value);
+            const glyph = option.value.startsWith("ai-")
+                ? "ai_check"
+                : online
+                  ? "link"
+                  : "ocr";
+            const mark = image(getImgUrl(`${glyph}.svg`), noI18n("")).class(
+                "engine-icon",
+            );
+            choice.el.prepend(mark.el);
+            choice.add(
+                txt(online ? "在线识别" : "本地识别").class("engine-source"),
+            );
+            choice.class("engine-choice");
+        }
+        el.add(choice);
     }
     r.on(() => el.el.dispatchEvent(new CustomEvent("input")));
     return el.bindGet(() => r.get()).bindSet((value: T) => r.set(value));
@@ -3735,7 +3765,8 @@ function sortList<t>(
         const itemEl = view("x")
             .style({ alignItems: "center" })
             .class(Class.group)
-            .data({ id: id });
+            .data({ id: id })
+            .class("settings-list-item");
         const nameEl = txt(newData.get(id)?.["sort-name"] ?? "", true).on(
             "click",
             async () => {
@@ -3759,17 +3790,20 @@ function sortList<t>(
         listEl.add(addBtn);
     }
 
-    const addBtn = button(iconEl("add")).on("click", async () => {
-        const nv = await getItem(null);
-        if (!nv) return;
-        const uid = crypto.randomUUID().slice(0, 7);
-        newData.set(uid, {
-            "sort-name": name(nv),
-            data: nv,
+    const addBtn = button()
+        .class("settings-add")
+        .add([image(getImgUrl("add.svg"), noI18n("")), txt("添加")])
+        .on("click", async () => {
+            const nv = await getItem(null);
+            if (!nv) return;
+            const uid = crypto.randomUUID().slice(0, 7);
+            newData.set(uid, {
+                "sort-name": name(nv),
+                data: nv,
+            });
+            addItem(uid);
+            onChange();
         });
-        addItem(uid);
-        onChange();
-    });
 
     const dialog = ele("dialog");
 
@@ -5412,6 +5446,75 @@ function isDarkMode() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+function openShortcutPage(icon: IconType) {
+    const index = main.findIndex((page) => page.icon === icon);
+    if (index < 0) return;
+    sideBarG.set(String(index));
+    searchI.sv("");
+    void showPage(main[index]);
+    mainViewP.el.focus({ preventScroll: true });
+}
+
+function quickSettings() {
+    const cards = view().class("quick-settings");
+    const captureKey = getSet("快捷键.截屏搜索.key");
+    const autoKey = getSet("快捷键.自动识别.key");
+    const action = !captureKey && autoKey ? "自动识别" : "截屏搜索";
+    const shortcut = captureKey || autoKey || "";
+    const keys = view("x").class("shortcut-caps");
+    for (const code of shortcut.split("+").filter(Boolean)) {
+        const key = jsKeyCodeDisplay(ele2jsKeyCode(code));
+        const display =
+            process.platform === "darwin"
+                ? (key.symble ?? key.primary)
+                : key.primary;
+        keys.add(ele("kbd").add(noI18n(display || code)));
+    }
+    if (!shortcut) keys.add(txt("设置快捷键"));
+    const arrow = () =>
+        image(getImgUrl("right.svg"), noI18n("")).class("quick-arrow");
+    const title = (icon: IconType, label: string) =>
+        view("x")
+            .class("quick-caption")
+            .add([image(getImgUrl(`${icon}.svg`), noI18n("")), txt(label)]);
+    const capture = button()
+        .class("quick-card", "quick-capture")
+        .attr({ title: "设置快捷键" })
+        .on("click", () => openShortcutPage("space"))
+        .add([
+            title("rect_select", "快捷键"),
+            p(action).class("quick-title"),
+            keys,
+            arrow(),
+            view()
+                .class("capture-frame")
+                .attr({ ariaHidden: "true" })
+                .add(view().class("capture-cross")),
+        ]);
+    const language =
+        getSet("屏幕翻译.语言.to") || getSet("语言.语言") || navigator.language;
+    let target = language;
+    try {
+        target = displayLan.of(language) || language;
+    } catch {
+        /* User-configured language tags can be arbitrary. */
+    }
+    const engine = getSet("翻译.翻译器").at(0);
+    const translation = button()
+        .class("quick-card", "quick-translate")
+        .attr({ title: "屏幕翻译" })
+        .on("click", () => openShortcutPage("translate"))
+        .add([
+            title("translate", "屏幕翻译"),
+            p(target, true).class("quick-title"),
+            txt(engine?.name || t("未配置翻译引擎"), true).class(
+                "quick-detail",
+            ),
+            arrow(),
+        ]);
+    return cards.add([capture, translation]);
+}
+
 async function showPage(page: (typeof main)[0] | undefined) {
     if (!page) {
         console.warn("Page not found");
@@ -5420,18 +5523,25 @@ async function showPage(page: (typeof main)[0] | undefined) {
     mainView.clear();
     mainViewP.el.scrollTop = 0;
     const content = view().class("settings-page").addInto(mainView);
-    content.add(ele("h1").add(noI18n(page.pageName)));
+    content.add(
+        ele("h1").add(noI18n(page.isMemo ? t("常用设置") : page.pageName)),
+    );
     if (page.desc) content.add(comment(page.desc));
     if (page.about) {
         content.add(aboutPanel);
         return;
     }
     function addRows(keys: KeyPath[]) {
-        const group = view("y").class("settings-group").addInto(content);
+        const group = view().class("settings-group").addInto(content);
+        if (page?.isMemo) group.class("settings-favorites");
         for (const key of keys) group.add(renderSetting(key));
     }
     if (page.settings) addRows(page.settings);
-    if (page.isMemo) addRows(getSettingMem());
+    if (page.isMemo) {
+        content.add(quickSettings());
+        content.add(ele("h2").add("常用选项"));
+        addRows(getSettingMem());
+    }
     for (const section of page.items ?? []) {
         if (!content.el.isConnected) return;
         content.add(ele("h2").add(noI18n(section.title)));
@@ -5614,51 +5724,51 @@ function about() {
         .class(updateLogClass);
     const desc = p(packageJson.description);
 
-    const infoEl = view("y").class("settings-links");
+    const infoEl = view().class("settings-links");
 
+    function resourceLink(href: string, text: string, icon: IconType) {
+        return a(href)
+            .class("settings-resource")
+            .add([
+                image(getImgUrl(`${icon}.svg`), noI18n("")),
+                txt(text),
+                image(getImgUrl("right.svg"), noI18n("")),
+            ]);
+    }
     infoEl.add([
-        view().add([
-            "项目主页：",
-            " ",
-            a(packageJson.homepage).add(noI18n(packageJson.homepage)),
-        ]),
-        view().add([
-            "支持该项目：",
-            " ",
-            a(packageJson.homepage).add("为项目点亮星标🌟"),
-            " ",
-            a("https://github.com/xushengfeng").add("赞赏"),
-        ]),
-        view().add([
-            a(renderSendSync("feedbackBug", [])).add("反馈问题"),
-            " ",
-            a(
-                renderSendSync("feedbackFeature", [
-                    { title: "建议在……添加……功能/改进" },
-                ]),
-            ).add("提供建议"),
-            " ",
-            txt("QQ:1057170038"),
-        ]),
-        view().add(
-            a(
-                "https://github.com/xushengfeng/eSearch/tree/master/lib/translate",
-            ).add("改进翻译"),
+        resourceLink(packageJson.homepage, "项目主页：", "browser"),
+        resourceLink(renderSendSync("feedbackBug", []), "反馈问题", "help"),
+        resourceLink(
+            renderSendSync("feedbackFeature", [
+                { title: t("建议在……添加……功能/改进") },
+            ]),
+            "提供建议",
+            "text",
         ),
-        view().add([
-            "本软件遵循",
-            " ",
-            a("https://www.gnu.org/licenses/gpl-3.0.html").add(
-                noI18n(packageJson.license),
-            ),
-        ]),
-        view().add(
-            noI18n(
-                `Copyright © 2021-${new Date().getFullYear()} ${packageJson.author.name} ${packageJson.author.email}`,
-            ),
+        resourceLink(
+            "https://github.com/xushengfeng/eSearch/tree/master/lib/translate",
+            "改进翻译",
+            "translate",
         ),
+        resourceLink(packageJson.homepage, "为项目点亮星标🌟", "star"),
+        resourceLink("https://github.com/xushengfeng", "赞赏", "link"),
     ]);
-
+    const credits = view("y")
+        .class("settings-credits")
+        .add([
+            view().add([
+                txt("本软件遵循"),
+                " ",
+                a("https://www.gnu.org/licenses/gpl-3.0.html").add(
+                    noI18n(packageJson.license),
+                ),
+                noI18n(" · QQ:1057170038"),
+            ]),
+            txt(
+                `Copyright © 2021–${new Date().getFullYear()} ${packageJson.author.name} · ${packageJson.author.email}`,
+                true,
+            ),
+        ]);
     return el.add([
         view("x")
             .class("settings-about-header")
@@ -5674,6 +5784,7 @@ function about() {
         update,
         desc,
         infoEl,
+        credits,
     ]);
 }
 
@@ -5701,213 +5812,786 @@ for (const p of main) {
 }
 
 pack(document.body).class("settings-shell");
+function setSettingsFont() {
+    document.body.style.fontFamily =
+        getSet("字体.主要字体") ||
+        '"Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif';
+}
+setSettingsFont();
 setTitle(t("设置"));
 const baseWidth = "300px";
 const baseWidth2 = "150px";
 const blockSetting = addClass({ width: "100%" }, {});
 
-addStyle({
-    ".settings-shell": {
-        display: "flex",
-        height: "100dvh",
-        overflow: "hidden",
-        colorScheme: "light dark",
-        "--settings-line":
-            "color-mix(in srgb, var(--font-color) 15%, var(--bg))",
-        "--settings-panel":
-            "color-mix(in srgb, var(--font-color) 3%, var(--bg))",
-        "--settings-accent": "light-dark(#175ea9, #9acaff)",
-        "--settings-muted":
-            "color-mix(in srgb, var(--font-color) 68%, var(--bg))",
-    },
-    ".settings-sidebar": {
-        width: "clamp(148px, 21vw, 220px)",
-        flexShrink: 0,
-        overflowY: "auto",
-        padding: "16px 10px",
-        gap: "2px",
-        background: "var(--settings-panel)",
-        borderInlineEnd: "1px solid var(--settings-line)",
-    },
-    ".settings-brand": {
-        display: "flex",
-        gap: "10px",
-        alignItems: "center",
-        padding: "0 10px 14px",
-        fontSize: "19px",
-        fontWeight: 650,
-        letterSpacing: "-0.02em",
-    },
-    ".settings-sidebar label": {
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        cursor: "pointer",
-        borderRadius: "7px",
-        minHeight: "31px",
-        padding: "4px 10px",
-        fontSize: "14px",
-        lineHeight: 1.35,
-    },
-    ".settings-sidebar label img, .settings-search img": {
-        width: "17px",
-        height: "17px",
-        filter: "var(--icon-color)",
-        opacity: "0.8",
-        flexShrink: 0,
-    },
-    ".settings-sidebar label:hover": { background: "var(--settings-line)" },
-    ".settings-sidebar label:has(input:checked)": {
-        background: "color-mix(in srgb, var(--settings-accent) 13%, var(--bg))",
-        color: "var(--settings-accent)",
-        fontWeight: 650,
-    },
-    ".settings-sidebar input[type=radio]": {
-        position: "absolute",
-        width: "1px",
-        height: "1px",
-        overflow: "hidden",
-        clipPath: "inset(50%)",
-    },
-    ".settings-sidebar label:has(:focus-visible), .settings-shell :is(button,input,select,textarea):focus-visible":
-        { outline: "2px solid var(--settings-accent)", outlineOffset: "2px" },
-    ".settings-main": { minWidth: 0, flex: "1", overflowY: "auto" },
-    ".settings-search": {
-        position: "sticky",
-        top: 0,
-        zIndex: 3,
-        background: "var(--bg)",
-        borderBottom: "1px solid var(--settings-line)",
-        padding: "12px clamp(14px, 4vw, 48px)",
-    },
-    ".settings-search-field": {
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        width: "min(100%, 780px)",
-        marginInline: "auto",
-        position: "relative",
-    },
-    ".settings-search-field > img": {
-        position: "absolute",
-        insetInlineStart: "12px",
-        pointerEvents: "none",
-    },
-    ".settings-search-field > input": {
-        height: "37px",
-        width: "100%",
-        paddingInline: "39px 75px",
-        borderRadius: "8px",
-        background: "var(--settings-panel)",
-        outline: "1px solid var(--settings-line)",
-        fontFamily: "inherit",
-    },
-    ".settings-search-field > kbd": {
-        position: "absolute",
-        insetInlineEnd: "12px",
-        pointerEvents: "none",
-        fontSize: "11px",
-        color: "var(--settings-muted)",
-        fontFamily: "inherit",
-        background: "transparent",
-        boxShadow: "none",
-        border: "1px solid var(--settings-line)",
-        borderRadius: "4px",
-        padding: "1px 5px",
-    },
-    ".settings-content": {
-        marginInline: "auto",
-        maxWidth: "calc(780px + 2 * clamp(14px, 4vw, 48px))",
-        padding: "24px clamp(14px, 4vw, 48px) 48px",
-    },
-    ".settings-page > h1": {
-        margin: "0 0 20px",
-        fontSize: "clamp(24px, 3.2vw, 32px)",
-        lineHeight: 1.2,
-        fontWeight: 650,
-        letterSpacing: "-0.025em",
-    },
-    ".settings-page > h2": {
-        margin: "22px 0 8px",
-        fontSize: "15px",
-        fontWeight: 650,
-        lineHeight: 1.5,
-    },
-    ".settings-group, .settings-about": {
-        border: "1px solid var(--settings-line)",
-        borderRadius: "10px",
-        background: "var(--settings-panel)",
-    },
-    ".settings-group > [data-name], .settings-content > div:not(.settings-page) [data-name]":
-        {
-            padding: "13px 16px",
-            alignItems: "center",
-            minWidth: 0,
-            overflowWrap: "anywhere",
-        },
-    ".settings-shell .settings-switch": {
-        width: "36px",
-        height: "21px",
-        padding: 0,
-        borderRadius: "20px",
-        position: "relative",
-        cursor: "pointer",
-        background: "color-mix(in srgb, var(--font-color) 24%, var(--bg))",
-        outline: "none",
-    },
-    ".settings-shell .settings-switch::before": {
-        content: "''",
-        position: "absolute",
-        width: "15px",
-        height: "15px",
-        borderRadius: "50%",
-        insetInlineStart: "3px",
-        top: "3px",
-        background: "var(--bg)",
-        transition: "inset-inline-start 120ms",
-    },
-    ".settings-shell .settings-switch:checked": {
-        background: "var(--settings-accent)",
-    },
-    ".settings-shell .settings-switch:checked::before": {
-        insetInlineStart: "18px",
-    },
-    ".settings-group > [data-name] + [data-name]": {
-        borderTop: "1px solid var(--settings-line)",
-    },
-    ".settings-group [data-name] > :first-child": {
-        flex: "1 1 155px",
-        minWidth: 0,
-    },
-    ".settings-group [data-name] > :last-child": {
-        maxWidth: "100%",
-        minWidth: 0,
-    },
-    ".settings-content input:is([type=text],[type=password]), .settings-content textarea":
-        { width: baseWidth, maxWidth: "100%", fontFamily: "var(--monospace)" },
-    ".settings-content input[type=number]": { fontFamily: "var(--monospace)" },
-    ".settings-about": {
-        padding: "20px",
-        gap: "14px",
-        overflowWrap: "anywhere",
-    },
-    ".settings-about-header": {
-        alignItems: "center",
-        gap: "12px",
-        flexWrap: "wrap",
-    },
-    ".settings-about-header span, .settings-links": {
-        color: "var(--settings-muted)",
-    },
-    ".settings-update": {
-        borderRadius: "7px",
-        paddingInline: "14px",
-        color: "var(--settings-accent)",
-        fontWeight: 600,
-    },
-    ".settings-links": { gap: "5px", fontSize: "13px" },
-    ".settings-shell a": { textDecoration: "underline" },
-});
+ele("style")
+    .attr({
+        textContent: `
+.settings-shell {
+    --accent: light-dark(#364ed1, #abb8ff);
+    --accent-wash: light-dark(#edf0ff, #2b3454);
+    --stage: color-mix(in srgb, var(--bg) 90%, light-dark(#aebbd5, #0b1019));
+    --surface: color-mix(in srgb, var(--bg) 94%, light-dark(white, #8794ad));
+    --settings-line: color-mix(in srgb, var(--font-color) 13%, var(--surface));
+    --settings-muted: color-mix(in srgb, var(--font-color) 68%, var(--surface));
+    --soft: color-mix(in srgb, var(--font-color) 5%, var(--surface));
+    display: flex;
+    height: 100dvh;
+    overflow: hidden;
+    color-scheme: light dark;
+    background: var(--stage);
+    color: var(--font-color);
+    font-size: 14px;
+    line-height: 1.5;
+    font-family:
+        var(--main-font), "Segoe UI Variable Text", "Microsoft YaHei UI",
+        sans-serif;
+}
+.settings-shell :is(button, input, select, textarea):focus-visible,
+.settings-sidebar label:has(:focus-visible),
+.settings-option:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.settings-main:focus {
+    outline: none;
+}
+.settings-sidebar {
+    flex: 0 0 clamp(188px, 21vw, 232px);
+    min-width: 0;
+    height: 100%;
+    padding: 0 12px 12px;
+    background: #20283b;
+    color: #e8edf8;
+    color-scheme: dark;
+    gap: 0;
+    border-inline-end: 1px solid #141d30;
+}
+.settings-sidebar .settings-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 76px;
+    padding: 0 8px;
+    color: #fff;
+    font:
+        650 22px / 1 "Segoe UI Variable Display",
+        "Segoe UI",
+        sans-serif;
+    letter-spacing: -0.85px;
+}
+.settings-brand img {
+    background: #f7f9ff;
+    padding: 4px;
+    border-radius: 8px;
+    box-sizing: content-box;
+    width: 24px;
+    height: 24px;
+}
+
+.settings-search {
+    margin: 0 2px 16px;
+}
+.settings-search-field {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+.settings-search-field > img {
+    width: 15px;
+    height: 15px;
+    position: absolute;
+    inset-inline-start: 10px;
+    filter: brightness(0) invert(85%);
+    pointer-events: none;
+}
+.settings-search-field > input {
+    width: 100%;
+    height: 33px;
+    min-width: 0;
+    padding: 0 44px 0 32px;
+    border-radius: 7px;
+    border: 1px solid #48536a;
+    outline: none;
+    background: #293246;
+    color: #f4f6ff;
+    font: inherit;
+    font-size: 12px;
+}
+.settings-search-field > input::placeholder {
+    color: #bdc6d9;
+}
+.settings-search-field > kbd {
+    position: absolute;
+    inset-inline-end: 6px;
+    padding: 1px 4px;
+    pointer-events: none;
+    border: 1px solid #536079;
+    border-radius: 4px;
+    background: none;
+    color: #ccd5e7;
+    box-shadow: none;
+    font:
+        500 10px / 1.5 "Segoe UI",
+        sans-serif;
+    white-space: nowrap;
+}
+.settings-search-field > .search-clear {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    inset-inline-end: 4px;
+    width: 25px;
+    height: 25px;
+    padding: 4px;
+    border-radius: 4px;
+    background: transparent;
+    outline: none;
+}
+.search-clear img {
+    width: 15px;
+    height: 15px;
+    filter: brightness(0) invert(90%);
+}
+.settings-search-field:has(input:not(:placeholder-shown)) > kbd {
+    display: none;
+}
+.settings-search-field:has(input:not(:placeholder-shown)) > .search-clear {
+    display: flex;
+}
+.settings-routes {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    gap: 2px;
+    padding: 2px 2px 10px;
+}
+.settings-nav-section {
+    gap: 2px;
+}
+.settings-routes::-webkit-scrollbar {
+    width: 4px;
+}
+.settings-routes::-webkit-scrollbar-thumb {
+    background: #58667f;
+    border-radius: 8px;
+}
+.settings-sidebar .nav-heading {
+    color: #abb8d1;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 14px 10px 5px;
+}
+.settings-sidebar label {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 11px;
+    min-height: 31px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #d4daea;
+    font-size: 13px;
+    line-height: 1.42;
+}
+.settings-sidebar label > img {
+    width: 16px;
+    height: 16px;
+    filter: brightness(0) invert(86%);
+    opacity: 0.88;
+}
+.settings-sidebar label:hover {
+    background: #303a50;
+    color: #fff;
+}
+.settings-sidebar label:has(input:checked) {
+    background: #40547c;
+    color: white;
+    font-weight: 650;
+}
+.settings-sidebar label:has(input:checked)::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: 0;
+    width: 3px;
+    height: 15px;
+    background: #9bb6ff;
+    border-radius: 3px;
+}
+.settings-sidebar label:has(input:checked) img {
+    filter: brightness(0) invert(100%);
+    opacity: 1;
+}
+.settings-sidebar input[type="radio"],
+.settings-option input[type="radio"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+.settings-nav-footer {
+    border-block-start: 1px solid #3a4357;
+    padding: 9px 2px 0;
+    margin-block-start: 4px;
+    position: relative;
+}
+.settings-sidebar .nav-version {
+    position: absolute;
+    inset-inline-end: 9px;
+    top: 16px;
+    color: #b8c4dc;
+    font:
+        11px / 1.5 var(--monospace),
+        monospace;
+    pointer-events: none;
+}
+.settings-sidebar > div:has(> button) button {
+    font-size: 12px;
+}
+.settings-main {
+    min-width: 0;
+    flex: 1;
+    overflow: auto;
+    scrollbar-gutter: stable;
+    container-type: inline-size;
+}
+.settings-content {
+    max-width: 1010px;
+    margin-inline: auto;
+    padding: clamp(24px, 4vw, 50px) clamp(18px, 3.4vw, 48px) 48px;
+}
+.settings-page > h1 {
+    margin: 0 0 21px;
+    font-size: clamp(26px, 3vw, 36px);
+    letter-spacing: -0.045em;
+    font-weight: 690;
+    line-height: 1.22;
+}
+.settings-page > h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 25px 0 10px;
+    color: var(--font-color);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.4;
+}
+.settings-page > h2::after {
+    content: "";
+    height: 1px;
+    background: var(--settings-line);
+    flex: 1;
+}
+.quick-settings {
+    display: grid;
+    grid-template-columns: minmax(0, 1.27fr) minmax(0, 1fr);
+    gap: 13px;
+}
+.settings-shell .quick-card {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    isolation: isolate;
+    overflow: hidden;
+    width: 100%;
+    height: auto;
+    min-height: 143px;
+    padding: 17px 20px 18px;
+    text-align: start;
+    outline: 0;
+    border: 1px solid transparent;
+    border-radius: 13px;
+    transition:
+        filter 0.15s,
+        box-shadow 0.15s;
+}
+.settings-shell .quick-card:hover {
+    filter: brightness(1.045);
+    box-shadow: 0 3px 12px #121b3521;
+}
+.settings-shell .quick-capture {
+    color: #fff;
+    background: linear-gradient(114deg, #364fb3 0%, #415fc7 53%, #526ed4 100%);
+}
+.quick-caption {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 550;
+    line-height: 1.3;
+    z-index: 1;
+}
+.quick-caption img {
+    width: 15px;
+    height: 15px;
+}
+.quick-capture .quick-caption {
+    color: #e4eaff;
+}
+.quick-capture .quick-caption img,
+.quick-capture .quick-arrow {
+    filter: brightness(0) invert(1);
+}
+.quick-card .quick-title {
+    font-size: clamp(18px, 2.15vw, 25px);
+    font-weight: 650;
+    line-height: 1.25;
+    letter-spacing: -0.025em;
+    margin: 9px 0 10px;
+    z-index: 1;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+.quick-arrow {
+    position: absolute;
+    inset-inline-end: 14px;
+    top: 15px;
+    width: 16px;
+    height: 16px;
+    opacity: 0.8;
+}
+.shortcut-caps {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    z-index: 1;
+}
+.quick-capture kbd {
+    font:
+        600 12px / 1.3 "Segoe UI",
+        sans-serif;
+    color: #fff;
+    padding: 3px 7px;
+    background: #ffffff21;
+    border: 1px solid #ffffff57;
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    box-shadow: none;
+}
+.capture-frame {
+    position: absolute;
+    bottom: -13px;
+    inset-inline-end: 10%;
+    width: 74px;
+    height: 73px;
+    transform: rotate(-13deg);
+    z-index: -1;
+    border-radius: 7px;
+    background:
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) left top / 19px 3px no-repeat,
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) left top / 3px 19px no-repeat,
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) right top / 19px 3px no-repeat,
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) right top / 3px 19px no-repeat,
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) left bottom / 19px 3px no-repeat,
+        linear-gradient(#c4d4ffaf, #c4d4ffaf) left bottom / 3px 19px no-repeat,
+        radial-gradient(circle, #d3deff80 1px, transparent 1.6px) 1px 1px / 8px
+        8px,
+        #b8c9ff18;
+}
+.capture-cross {
+    position: absolute;
+    inset: 30%;
+    background:
+        linear-gradient(#d9e2ff, #d9e2ff) center / 1px 14px no-repeat,
+        linear-gradient(#d9e2ff, #d9e2ff) center / 14px 1px no-repeat;
+}
+.settings-shell .quick-translate {
+    background: light-dark(#e5f2ef, #213933);
+    color: light-dark(#173f37, #e6faf1);
+    border-color: light-dark(#c2ded6, #39574d);
+}
+.quick-translate .quick-caption,
+.quick-detail {
+    color: light-dark(#385f54, #bedbcf);
+}
+.quick-translate .quick-caption img,
+.quick-translate .quick-arrow {
+    filter: var(--icon-color);
+}
+.quick-detail {
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.settings-group,
+.settings-about {
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--settings-line);
+    border-radius: 12px;
+    box-shadow: 0 2px 5px #10183105;
+}
+.settings-group.settings-favorites {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    background: transparent;
+    box-shadow: none;
+    border: none;
+}
+.settings-favorites.settings-group > .settings-row {
+    border: 1px solid var(--settings-line);
+    background: var(--surface);
+    border-radius: 10px;
+    grid-column: 1 / -1;
+}
+.settings-favorites
+    > :is(
+        [data-name="翻译.翻译器"],
+        [data-name="离线OCR"],
+        [data-name="AI.在线模型"],
+        [data-name^="快捷键."]
+    ).settings-row {
+    grid-column: auto;
+    align-content: space-between;
+    align-items: start;
+    min-height: 98px;
+}
+.settings-favorites
+    > :is(
+        [data-name="翻译.翻译器"],
+        [data-name="离线OCR"],
+        [data-name="AI.在线模型"],
+        [data-name^="快捷键."]
+    )
+    .row-caption {
+    flex-basis: 100%;
+}
+.settings-shell .settings-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 27px;
+    height: auto;
+    width: auto;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--soft);
+    color: var(--settings-muted);
+    outline: 1px dashed var(--settings-line);
+}
+.settings-add img {
+    width: 13px;
+    height: 13px;
+    filter: var(--icon-color);
+}
+.settings-list-item {
+    max-width: 100%;
+    background: var(--soft);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.settings-list-item span {
+    min-width: 0;
+    padding-inline: 5px;
+}
+.settings-group > .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    padding: 15px 19px;
+    min-width: 0;
+    min-height: 54px;
+    overflow-wrap: anywhere;
+}
+.settings-row + .settings-row {
+    border-top: 1px solid var(--settings-line);
+}
+.settings-row .row-caption {
+    min-width: 110px;
+    flex: 1 1 150px;
+}
+.setting-name {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+}
+.settings-row .row-caption p + p {
+    margin-top: 3px;
+}
+.settings-row > :last-child {
+    min-width: 0;
+    max-width: 100%;
+}
+.settings-group .settings-options {
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+    gap: 5px;
+    align-items: center;
+    max-width: 100%;
+}
+.settings-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 6px;
+    min-height: 28px;
+    cursor: pointer;
+    outline: 1px solid var(--settings-line);
+    outline-offset: -1px;
+    font-size: 13px;
+    line-height: 1.35;
+    background: var(--surface);
+}
+.settings-option:hover {
+    background: var(--soft);
+}
+.settings-options > .settings-option:has(input:checked) {
+    outline-color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--accent);
+    font-weight: 650;
+}
+.settings-row[data-name="OCR.类型"] > .settings-options {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    gap: 8px;
+}
+.settings-options .engine-choice {
+    display: grid;
+    grid-template-columns: 17px minmax(0, 1fr);
+    justify-content: start;
+    align-content: center;
+    gap: 3px 7px;
+    text-align: start;
+    min-height: 56px;
+    padding: 7px 10px;
+    position: relative;
+}
+.engine-choice::after {
+    content: "";
+    position: absolute;
+    top: 7px;
+    inset-inline-end: 7px;
+    border: 1px solid var(--settings-line);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+.engine-choice:has(:checked)::after {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+.engine-icon {
+    width: 16px;
+    height: 16px;
+    grid-column: 1;
+    filter: var(--icon-color);
+}
+.engine-source {
+    grid-column: 2;
+    font-size: 10px;
+    color: var(--settings-muted);
+    font-weight: 450;
+}
+.settings-shell input.settings-switch {
+    --m-color: var(--accent);
+    width: 35px;
+    height: 20px;
+    top: 0;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: 99px;
+    position: relative;
+    cursor: pointer;
+    outline: none;
+    background: color-mix(in srgb, var(--font-color) 32%, var(--surface));
+}
+.settings-shell .settings-switch::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    inset-inline-start: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px #0004;
+    transition: inset-inline-start 130ms;
+}
+.settings-shell .settings-switch:checked {
+    background-image: none;
+}
+.settings-shell .settings-switch:checked::before {
+    inset-inline-start: 18px;
+    background: light-dark(white, #263159);
+}
+.settings-content input:is([type="text"], [type="password"]),
+.settings-content textarea {
+    width: 300px;
+    max-width: 100%;
+    font-family: var(--monospace);
+}
+.settings-content input[type="number"] {
+    font-family: var(--monospace);
+}
+.settings-content
+    :is(
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea
+    ):not(:focus-visible) {
+    outline-color: var(--settings-line);
+}
+.settings-content button:not(.quick-card):not(:has(.icon)) {
+    font-size: 13px;
+}
+.settings-about {
+    padding: 22px;
+    gap: 16px;
+    overflow-wrap: anywhere;
+}
+.settings-about-header {
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--settings-line);
+    padding-bottom: 15px;
+}
+.settings-about-header span,
+.settings-links {
+    color: var(--settings-muted);
+}
+.settings-shell .settings-update {
+    height: 34px;
+    padding-inline: 15px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 650;
+    outline: none;
+}
+.settings-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    font-size: 13px;
+}
+.settings-shell a.settings-resource {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    text-decoration: none;
+    padding: 9px 11px;
+    border-radius: 6px;
+    background: var(--soft);
+    color: var(--font-color);
+}
+.settings-shell a.settings-resource:hover {
+    background: var(--accent-wash);
+    color: var(--accent);
+}
+.settings-resource img {
+    width: 15px;
+    height: 15px;
+    filter: var(--icon-color);
+}
+.settings-resource img:last-child {
+    width: 12px;
+    margin-inline-start: auto;
+    opacity: 0.65;
+}
+.settings-credits {
+    gap: 2px;
+    color: var(--settings-muted);
+    font-size: 11px;
+}
+.settings-credits a {
+    color: inherit;
+}
+.settings-shell a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+@container (max-width: 460px) {
+    .settings-content {
+        padding: 21px 14px 35px;
+    }
+    .quick-settings {
+        gap: 8px;
+        grid-template-columns: 1fr 1fr;
+    }
+    .settings-shell .quick-card {
+        padding: 13px 12px 14px;
+        min-height: 121px;
+        border-radius: 10px;
+    }
+    .capture-frame {
+        width: 51px;
+        height: 55px;
+        inset-inline-end: -14px;
+    }
+    .settings-group > .settings-row {
+        padding: 12px;
+        gap: 8px;
+    }
+    .settings-row .row-caption {
+        flex-basis: 115px;
+    }
+    .settings-favorites
+        > :is(
+            [data-name="翻译.翻译器"],
+            [data-name="离线OCR"],
+            [data-name="AI.在线模型"],
+            [data-name^="快捷键."]
+        ).settings-row {
+        grid-column: 1 / -1;
+        min-height: auto;
+    }
+}
+@media (max-width: 760px) {
+    .settings-sidebar {
+        flex-basis: 158px;
+        padding-inline: 8px;
+    }
+    .settings-sidebar .settings-brand {
+        min-height: 62px;
+        font-size: 19px;
+    }
+    .settings-sidebar label {
+        font-size: 12px;
+        min-height: 30px;
+        gap: 7px;
+    }
+    .settings-search-field > kbd {
+        display: none;
+    }
+    .settings-search-field > input {
+        padding-inline-end: 24px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .settings-shell *,
+    .settings-shell *::before {
+        transition: none !important;
+    }
+}
+`,
+    })
+    .addInto(document.head);
+
 const sideBar = view("y")
     .class("settings-sidebar")
     .attr({ role: "navigation", ariaLabel: t("设置") })
@@ -5915,15 +6599,15 @@ const sideBar = view("y")
 sideBar.add(
     view("x")
         .class("settings-brand")
-        .add([
-            image(logo, noI18n("")).style({ width: "28px", height: "28px" }),
-            txt("eSearch", true),
-        ]),
+        .add([image(logo, noI18n("")), txt("eSearch", true)]),
 );
 const sideBarG = radioGroup("侧栏", true);
-const searchBar = view().class("settings-search");
+const searchBar = view().class("settings-search").addInto(sideBar);
 const searchField = view("x").class("settings-search-field").addInto(searchBar);
 searchField.add(image(getImgUrl("search.svg"), noI18n("")));
+const settingsSearch = new Fuse([...Object.entries(s), ...Object.entries(xs)], {
+    keys: ["1.name", "1.desc", "0"],
+});
 const searchI = input()
     .attr({ placeholder: t("搜索设置"), ariaLabel: t("搜索设置") })
     .addInto(searchField)
@@ -5932,11 +6616,7 @@ const searchI = input()
             showPage(main.at(Number(sideBarG.get())));
             return;
         }
-        const fuse = new Fuse([...Object.entries(s), ...Object.entries(xs)], {
-            keys: ["1.name", "1.desc"],
-        });
-
-        const l = fuse.search(searchI.gv).map((i) => i.item[0]);
+        const l = settingsSearch.search(searchI.gv).map((i) => i.item[0]);
         if (l.length === 0) {
             mainView.clear().add(
                 xGroup("y")
@@ -5956,8 +6636,25 @@ const searchI = input()
             );
             return;
         }
-        renderSettingList(l);
+        renderSettingList(l, t("搜索结果"));
     });
+searchField.add(
+    button(image(getImgUrl("close.svg"), noI18n("")))
+        .class("search-clear")
+        .attr({ ariaLabel: t("清空") })
+        .on("click", () => {
+            searchI.sv("");
+            searchI.el.dispatchEvent(new Event("input"));
+            searchI.el.focus();
+        }),
+);
+searchI.on("keydown", (event) => {
+    if (event.key === "Escape" && searchI.gv) {
+        event.stopPropagation();
+        searchI.sv("");
+        searchI.el.dispatchEvent(new Event("input"));
+    }
+});
 searchField.add(
     ele("kbd").add(noI18n(process.platform === "darwin" ? "⌘ F" : "Ctrl F")),
 );
@@ -5972,7 +6669,10 @@ document.addEventListener("keydown", (event) => {
         searchI.el.select();
     }
 });
-const mainViewP = view().class("settings-main").addInto().add(searchBar);
+const mainViewP = view()
+    .class("settings-main")
+    .attr({ tabIndex: -1, role: "main" })
+    .addInto();
 const mainView = view().class("settings-content").addInto(mainViewP);
 const aboutPanel = about();
 
@@ -5998,6 +6698,12 @@ function showContextMenu(e: MouseEvent) {
     contextMenuP.el.showPopover();
 }
 
+const routes = view("y").class("settings-routes").addInto(sideBar);
+const navFooter = view("y").class("settings-nav-footer").addInto(sideBar);
+const featureNav = view("y").class("settings-nav-section");
+const appNav = view("y").class("settings-nav-section");
+featureNav.add(txt("功能").class("nav-heading"));
+appNav.add(txt("偏好设置").class("nav-heading"));
 for (const [i, page] of main.entries()) {
     const label = sideBarG
         .new(String(i), image(getImgUrl(`${page.icon}.svg`), noI18n("")))
@@ -6008,15 +6714,25 @@ for (const [i, page] of main.entries()) {
             showPage(page);
         }
     });
-    sideBar.add(label);
+    if (page.isMemo) routes.add(label);
+    else if (page.about)
+        navFooter.add([
+            label,
+            txt(packageJson.version, true).class("nav-version"),
+        ]);
+    else if (
+        ["save", "space", "main", "filters", "setting"].includes(page.icon)
+    )
+        appNav.add(label);
+    else featureNav.add(label);
 }
+routes.add([featureNav, appNav]);
 
 sideBarG.on(() => {
     searchI.sv("");
     showPage(main.at(Number(sideBarG.get())));
 });
 
-sideBar.add(spacer());
 sideBar.class(
     addClass(
         {},

@@ -972,5 +972,13 @@
     "986eff": "Este modo no puede cargar el motor OCR seleccionado.",
     "e9f9b6": "Claude está traduciendo la captura…",
     "b26fa6": "La imagen no contiene texto que necesite traducción.",
-    "eade95": "Pulsa Traducir para reintentar"
+    "eade95": "Pulsa Traducir para reintentar",
+    "00a420": "Configurar atajo",
+    "73a824": "Resultados de búsqueda",
+    "7070b1": "Ajustes generales",
+    "abbed4": "Opciones frecuentes",
+    "f314ac": "Funciones",
+    "828528": "Preferencias",
+    "cf208d": "OCR en la nube",
+    "21408f": "OCR local"
 }
