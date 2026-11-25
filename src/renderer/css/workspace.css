@@ -1,9 +1,11 @@
 /* Work surfaces share the user's theme; canvas and overlay coordinates stay independent. */
 .workspace {
-    --panel: color-mix(in srgb, var(--bg) 94%, var(--font-color));
-    --line: color-mix(in srgb, var(--bg) 83%, var(--font-color));
-    --muted: color-mix(in srgb, var(--font-color) 68%, var(--bg));
-    --focus: var(--fluent-accent);
+    --panel: var(--desk-raised);
+    --line: var(--desk-line);
+    --muted: var(--desk-muted);
+    --focus: var(--desk-clay);
+    color: var(--desk-ink);
+    background-color: var(--desk-paper);
     color-scheme: light dark;
     font-family: var(--main-font), "Segoe UI", "Microsoft YaHei UI", sans-serif;
 }
@@ -17,7 +19,7 @@ body.translation-window {
     box-sizing: border-box;
     padding: clamp(10px, 3vw, 24px);
     gap: 10px;
-    background: var(--bg);
+    background: var(--desk-paper);
 }
 .translation-window .translation-source {
     box-sizing: border-box;
@@ -25,7 +27,7 @@ body.translation-window {
     border: 1px solid var(--line) !important;
     border-radius: 10px;
     background: var(--panel);
-    color: var(--font-color);
+    color: var(--desk-ink);
     font: inherit;
     line-height: 1.55;
     resize: vertical;
@@ -42,7 +44,7 @@ body.translation-window {
     border: 1px solid var(--line);
     outline: 0;
     background: var(--panel);
-    color: var(--font-color);
+    color: var(--desk-ink);
     padding-inline: 7px;
 }
 .translation-window .translation-results {
@@ -77,7 +79,7 @@ body.translation-window {
     max-width: 860px;
     margin-inline: auto;
     padding: clamp(8px, 2vw, 20px);
-    gap: 10px;
+    gap: 14px;
 }
 .vision-workspace .chat-item {
     padding: 6px 12px;
@@ -94,8 +96,11 @@ body.translation-window {
 }
 .vision-composer {
     border: 1px solid var(--line);
-    border-radius: 12px;
+    border-radius: 17px;
+    padding: 12px 14px 10px;
+    gap: 6px;
     background: var(--panel);
+    box-shadow: 0 4px 16px #1b12080a;
 }
 .vision-composer :is(select, textarea) {
     min-width: 0;
@@ -105,15 +110,15 @@ body.translation-window {
 .vision-composer textarea {
     border: 0;
     outline: 0;
-    background: var(--bg);
-    color: var(--font-color);
+    background: var(--desk-paper);
+    color: var(--desk-ink);
     border-radius: 7px;
     min-height: 2.5lh;
 }
 .photo-inspector {
     box-sizing: border-box;
     width: clamp(205px, 29vw, 332px);
-    background: var(--bg);
+    background: var(--desk-paper);
     border-inline-end: 1px solid var(--line);
     gap: 10px !important;
 }
@@ -123,7 +128,7 @@ body.translation-window {
     border-top: 1px solid var(--line);
     padding-block-start: 10px;
     margin-block: 3px;
-    color: var(--font-color);
+    color: var(--desk-ink);
 }
 .photo-inspector input:not([type="checkbox"]):not([type="radio"]),
 .photo-inspector select {
@@ -212,7 +217,7 @@ body.translation-window {
     outline: 0;
     border: 1px solid var(--line);
     background: var(--panel);
-    color: var(--font-color);
+    color: var(--desk-ink);
     border-radius: 6px;
     padding: 3px 7px;
     font-size: 13px;
@@ -248,16 +253,103 @@ body.translation-window {
     width: 100%;
     height: 100%;
 }
-.vision-composer .b-like,
-.vision-composer :is(select, button) {
-    padding-inline: 8px;
-    border: 1px solid var(--line);
+.vision-heading {
+    margin: 0;
+    color: var(--desk-ink);
+    font: 500 clamp(27px, 5vw, 38px) / 1.25 var(--desk-display);
+    text-align: center;
+    letter-spacing: -0.025em;
+}
+.vision-workspace {
+    width: min(100%, 780px);
+    padding: clamp(10px, 3vw, 24px);
+}
+.vision-workspace:has(.vision-thread:empty) {
+    justify-content: center;
+}
+.vision-workspace:has(.vision-thread:empty) .vision-thread {
+    display: none !important;
+}
+.vision-workspace:has(.vision-thread:not(:empty)) .vision-heading {
+    display: none;
+}
+.vision-thread {
+    min-height: 0;
+}
+.vision-thread .assistant {
+    font-size: 15px;
+    line-height: 1.65;
+}
+body.workspace .vision-composer textarea {
+    min-height: 3.2em;
+    line-height: 1.5;
+    padding: 5px 3px;
+    resize: none;
+    border: 0;
     outline: 0;
-    min-height: 28px;
-    border-radius: 7px;
-    font-size: 13px;
+    background: transparent;
+    color: var(--desk-ink);
+    font-family: inherit;
 }
 
+.vision-composer:focus-within {
+    border-color: color-mix(in srgb, var(--desk-clay) 52%, var(--line));
+}
+.vision-tools {
+    gap: 6px;
+    align-items: center;
+}
+.vision-composer .b-like,
+.vision-tools :is(select, button) {
+    font: inherit;
+    font-size: 12px;
+    min-height: 28px;
+    height: auto;
+    padding: 4px 8px;
+    color: var(--desk-muted);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    outline: 0;
+    background: transparent;
+}
+.vision-tools :is(.b-like, select, button):hover {
+    background: var(--desk-paper);
+    color: var(--desk-ink);
+}
+.vision-tools select {
+    margin-inline-start: auto;
+    max-width: min(45%, 240px);
+    text-overflow: ellipsis;
+}
+.vision-tools .vision-stop[hidden],
+.vision-tools:has(.vision-stop:not([hidden])) .vision-send {
+    display: none;
+}
+.vision-tools button.vision-send {
+    width: 31px;
+    height: 31px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    background: var(--desk-clay);
+    color: var(--desk-paper);
+    padding: 7px;
+}
+.vision-tools button.vision-send .icon {
+    width: 16px;
+    height: 16px;
+    filter: brightness(0) invert(1);
+}
+@media (prefers-color-scheme: dark) {
+    .vision-tools button.vision-send .icon {
+        filter: brightness(0);
+    }
+}
+.vision-tools :is(button, select):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
 .vision-file {
     position: absolute;
     width: 1px !important;
@@ -270,7 +362,7 @@ body.translation-window {
 }
 
 body.window-chrome .photo-inspector {
-    background: color-mix(in srgb, var(--bg) 87%, transparent);
+    background: color-mix(in srgb, var(--desk-paper) 91%, transparent);
     border-start-end-radius: 8px;
 }
 body.workspace
@@ -281,5 +373,26 @@ body.workspace
     outline-offset: -2px;
 }
 body.workspace .video-playback {
-    background: var(--fluent-card);
+    background: var(--desk-raised);
+}
+
+@media (forced-colors: active) {
+    .vision-composer:focus-within {
+        outline: 1px solid Highlight;
+    }
+}
+
+/* The composer owns the focus ring for its text field. */
+body.workspace .vision-workspace .vision-composer textarea:focus-visible {
+    outline: none !important;
+    box-shadow: none;
+}
+body.workspace .vision-composer:has(textarea:focus-visible) {
+    border-color: var(--desk-clay);
+}
+
+.vision-tools button.vision-send:disabled {
+    background: var(--line);
+    opacity: 0.75;
+    cursor: default;
 }

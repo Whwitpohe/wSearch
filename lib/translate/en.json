@@ -1068,5 +1068,6 @@
     "5cfd31": "Type a question. Press Enter to send.",
     "723fa1": "Send a test message to check the model connection",
     "723fa2": "Add model request parameters as JSON",
-    "723fa3": "Make this model available for screenshot recognition"
+    "723fa3": "Make this model available for screenshot recognition",
+    "286f8a": "Send"
 }

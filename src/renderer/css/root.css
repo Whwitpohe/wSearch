@@ -1430,9 +1430,9 @@ body dialog.ocr-model-sheet[open] {
 }
 body.settings-shell dialog {
     --dialog-surface: var(--surface);
-    --dialog-field: color-mix(in srgb, var(--bg) 83%, var(--surface));
+    --dialog-field: var(--desk-paper);
     --dialog-muted: var(--settings-muted);
-    --dialog-ink: var(--font-color);
+    --dialog-ink: var(--desk-ink);
     --dialog-line: var(--settings-line);
     --dialog-accent: var(--accent);
 }
@@ -2199,6 +2199,38 @@ body.settings-shell
     grid-row: 1;
 }
 
+/* Application work surfaces. Keep capture overlays and exported pixels independent of the desktop palette. */
+:is(body.settings-shell, body.workspace) {
+    --desk-paper: light-dark(
+        color-mix(in srgb, #faf8f4 82%, var(--bg)),
+        color-mix(in srgb, #262522 86%, var(--bg))
+    );
+    --desk-rail: light-dark(
+        color-mix(in srgb, #eeece6 85%, var(--bg)),
+        color-mix(in srgb, #201f1d 88%, var(--bg))
+    );
+    --desk-raised: light-dark(
+        color-mix(in srgb, #fffefa 85%, var(--bg)),
+        color-mix(in srgb, #302e2b 88%, var(--bg))
+    );
+    --desk-ink: light-dark(
+        color-mix(in srgb, #302c28 87%, var(--font-color)),
+        color-mix(in srgb, #f3efe6 91%, var(--font-color))
+    );
+    --desk-muted: light-dark(#685f55, #b9b2a7);
+    --desk-line: color-mix(in srgb, var(--desk-ink) 14%, var(--desk-paper));
+    --desk-clay: light-dark(#984d36, #e29677);
+    --desk-sage: light-dark(#4e6b5e, #a3bb9d);
+    --desk-selection: color-mix(
+        in srgb,
+        var(--desk-clay) 12%,
+        var(--desk-rail)
+    );
+    --desk-display:
+        "Iowan Old Style", "Palatino Linotype", "Noto Serif CJK SC",
+        "Songti SC", "SimSun", Georgia, serif;
+    color-scheme: light dark;
+}
 /* Shared Windows frame; the caption buttons belong to the system. */
 :root {
     --fluent-accent: light-dark(
@@ -2291,29 +2323,46 @@ body.window-chrome .settings-sidebar {
     padding-top: 2px;
 }
 body.settings-shell .settings-main {
-    border: 1px solid var(--settings-line);
-    border-inline-end: 0;
-    border-bottom: 0;
-    border-start-start-radius: 9px;
-    background: color-mix(in srgb, var(--bg) 91%, transparent);
+    border: 0;
+    border-inline-start: 1px solid var(--desk-line);
+    background: var(--desk-paper);
+    color: var(--desk-ink);
 }
 body.settings-shell .settings-content {
-    padding-top: clamp(20px, 3vw, 32px);
-}
-body.settings-shell .settings-page > h1 {
-    font-size: clamp(24px, 3vw, 32px);
-    font-weight: 600;
-    letter-spacing: -0.025em;
-}
-body.settings-shell .settings-group {
-    border-radius: 8px;
+    max-width: 900px;
+    padding: clamp(22px, 3.6vw, 46px) clamp(18px, 4.2vw, 54px) 50px;
 }
 body.settings-shell .settings-search-field > input {
-    border-radius: 5px;
-    border-bottom-color: var(--settings-muted);
+    background: color-mix(in srgb, var(--desk-raised) 72%, transparent);
+    border: 1px solid var(--desk-line);
+    border-radius: 8px;
 }
 body.settings-shell .settings-search-field > input:focus {
-    border-bottom: 2px solid var(--accent);
+    border-color: var(--desk-clay);
+    outline: 1px solid var(--desk-clay);
+    outline-offset: 0;
+}
+body.settings-shell .settings-sidebar label:has(input:checked) {
+    background: var(--desk-selection);
+    color: var(--desk-ink);
+}
+body.settings-shell .settings-sidebar label:has(input:checked)::before {
+    background: var(--desk-clay);
+    height: 13px;
+}
+body.window-chrome:is(.settings-shell, .workspace) {
+    background-color: var(--desk-rail);
+}
+@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+    body.window-mica:is(.settings-shell, .workspace) {
+        background-color: color-mix(in srgb, var(--desk-rail) 72%, transparent);
+    }
+}
+body:is(.settings-shell, .workspace) .window-caption {
+    color: var(--desk-ink);
+    font-size: 13px;
+    font-weight: 550;
+    gap: 8px;
 }
 body.settings-shell .settings-nav-footer {
     padding-top: 4px;
@@ -2325,39 +2374,6 @@ body.settings-shell .settings-nav-footer .nav-version {
 body.settings-shell .settings-search-field > kbd {
     border: 0;
     background: var(--soft);
-    color: var(--settings-muted);
-}
-body.settings-shell .quick-card {
-    border-radius: 8px;
-    box-shadow: none;
-}
-body.settings-shell .quick-capture {
-    color: var(--font-color);
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-    border-color: var(--settings-line);
-}
-body.settings-shell .quick-capture .quick-caption {
-    color: var(--settings-muted);
-}
-body.settings-shell .quick-capture :is(.quick-caption img, .quick-arrow) {
-    filter: var(--icon-color);
-}
-body.settings-shell .quick-capture kbd {
-    background: var(--surface);
-    border: 1px solid var(--settings-line);
-    color: var(--font-color);
-    box-shadow: none;
-}
-body.settings-shell .quick-translate {
-    background: color-mix(
-        in srgb,
-        light-dark(#25836b, #68bc9f) 10%,
-        var(--surface)
-    );
-    border-color: var(--settings-line);
-    color: var(--font-color);
-}
-body.settings-shell .quick-translate .quick-detail {
     color: var(--settings-muted);
 }
 body.settings-shell :is(.settings-search, .settings-nav-footer) {
@@ -2380,10 +2396,13 @@ body.settings-shell :is(.settings-search, .settings-nav-footer) {
         outline: 1px solid Highlight;
     }
 }
-body .action-directory[popover] {
-    --directory-surface: var(--fluent-card);
-    --directory-line: var(--fluent-stroke);
-    --directory-top: var(--fluent-base);
+body.settings-shell .action-directory[popover] {
+    --directory-surface: var(--desk-raised);
+    --directory-line: var(--desk-line);
+    --directory-top: var(--desk-paper);
+    --directory-text: var(--desk-ink);
+    --directory-muted: var(--desk-muted);
+    --directory-focus: var(--desk-clay);
     border-radius: 10px;
 }
 @media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
@@ -2402,7 +2421,7 @@ body .action-directory[popover] {
 }
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
     body.settings-shell .settings-main {
-        background: var(--bg);
+        background: var(--desk-paper);
     }
 }
 
@@ -2434,5 +2453,29 @@ body.settings-shell .settings-main::-webkit-scrollbar-thumb:hover,
     body.settings-shell .settings-main::-webkit-scrollbar-thumb,
     .settings-routes::-webkit-scrollbar-thumb {
         background-color: ButtonText;
+    }
+}
+
+body.settings-shell
+    dialog.app-dialog
+    :is(.choice-trigger, .dialog-actions button, .dialog-test button) {
+    outline-color: transparent;
+    border-color: var(--desk-line);
+}
+body.settings-shell dialog.app-dialog .dialog-primary {
+    border-color: transparent;
+    color: light-dark(#fff, #2c211c);
+}
+body.settings-shell dialog.app-dialog button:focus-visible {
+    outline: 2px solid var(--desk-clay);
+    outline-offset: 2px;
+}
+@media (forced-colors: active) {
+    .settings-shell .quick-symbol::before {
+        forced-color-adjust: none;
+        background: ButtonText;
+    }
+    .settings-shell .quick-card:focus-visible {
+        outline-color: Highlight;
     }
 }

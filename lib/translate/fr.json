@@ -1068,5 +1068,6 @@
     "5cfd31": "Saisissez une question. Entrée pour envoyer.",
     "723fa1": "Envoyer un message de test pour vérifier la connexion au modèle",
     "723fa2": "Ajouter les paramètres de requête du modèle au format JSON",
-    "723fa3": "Rendre ce modèle disponible pour reconnaître les captures d’écran"
+    "723fa3": "Rendre ce modèle disponible pour reconnaître les captures d’écran",
+    "286f8a": "Envoyer"
 }

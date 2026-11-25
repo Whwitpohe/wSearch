@@ -2809,24 +2809,6 @@ const themes: Theme2[] = [
     },
 ];
 
-const xselectClass = addClass(
-    {
-        borderRadius: "var(--border-radius)",
-        transition: "background var(--transition)",
-        display: "inline-flex",
-        cursor: "pointer",
-    },
-    {
-        "&:not(:has(.icon))": {
-            paddingInline: "var(--o-padding)",
-        },
-        '&:has(input[type="radio"]:checked)': {
-            background: cssColor.main,
-            color: cssColor.font.main,
-        },
-    },
-);
-
 function getDefaultSetting() {
     if (defaultSetting) return defaultSetting;
     defaultSetting = renderSendSync("getDefaultSetting", []);
@@ -2988,7 +2970,7 @@ function xSelect<T extends string>(
     for (const option of options) {
         const choice = r
             .new(option.value, option.name)
-            .class(xselectClass, "settings-option");
+            .class("settings-option");
         if (name === "代理") {
             const help: Record<string, string> = {
                 system: "使用操作系统的代理设置",
@@ -6766,23 +6748,26 @@ function quickSettings() {
     if (!shortcut) keys.add(txt("设置快捷键"));
     const arrow = () =>
         image(getImgUrl("right.svg"), noI18n("")).class("quick-arrow");
-    const title = (icon: IconType, label: string) =>
-        view("x")
-            .class("quick-caption")
-            .add([image(getImgUrl(`${icon}.svg`), noI18n("")), txt(label)]);
+    const mark = (icon: IconType) => {
+        const symbol = ele("span")
+            .class("quick-symbol")
+            .attr({ ariaHidden: "true" });
+        symbol.el.style.setProperty(
+            "--glyph",
+            `url("${getImgUrl(`${icon}.svg`)}")`,
+        );
+        return symbol;
+    };
     const capture = button()
         .class("quick-card", "quick-capture")
         .attr({ title: "设置快捷键" })
         .on("click", () => openShortcutPage("space"))
         .add([
-            title("rect_select", "快捷键"),
+            mark("rect_select"),
+            txt("快捷键").class("quick-caption"),
             p(action).class("quick-title"),
             keys,
             arrow(),
-            view()
-                .class("capture-frame")
-                .attr({ ariaHidden: "true" })
-                .add(view().class("capture-cross")),
         ]);
     const language =
         getSet("屏幕翻译.语言.to") || getSet("语言.语言") || navigator.language;
@@ -6798,7 +6783,8 @@ function quickSettings() {
         .attr({ title: "屏幕翻译" })
         .on("click", () => openShortcutPage("translate"))
         .add([
-            title("translate", "屏幕翻译"),
+            mark("translate"),
+            txt("屏幕翻译").class("quick-caption"),
             p(target, true).class("quick-title"),
             txt(engine?.name || t("未配置翻译引擎"), true).class(
                 "quick-detail",
@@ -7220,12 +7206,12 @@ ele("style")
     .attr({
         textContent: `
 .settings-shell {
-    --accent: var(--fluent-accent);
+    --accent: var(--desk-clay);
     --accent-wash: color-mix(in srgb,var(--accent) 11%,var(--surface));
-    --stage: var(--fluent-base);
-    --surface: var(--fluent-card);
-    --settings-line: color-mix(in srgb, var(--font-color) 13%, var(--surface));
-    --settings-muted: color-mix(in srgb, var(--font-color) 68%, var(--surface));
+    --stage: var(--desk-rail);
+    --surface: var(--desk-raised);
+    --settings-line:var(--desk-line);
+    --settings-muted:var(--desk-muted);
     --soft: color-mix(in srgb, var(--font-color) 5%, var(--surface));
     display: flex;
     height: 100dvh;
@@ -7249,7 +7235,7 @@ ele("style")
     outline: none;
 }
 .settings-sidebar {
-    flex: 0 0 clamp(188px, 21vw, 232px);
+    flex: 0 0 clamp(184px, 21vw, 225px);
     min-width: 0;
     height: 100%;
     padding: 0 12px 12px;
@@ -7282,7 +7268,7 @@ ele("style")
 }
 
 .settings-search {
-    margin: 6px 4px 12px;
+    margin: 6px 4px 16px;
 }
 .settings-search-field {
     position: relative;
@@ -7382,7 +7368,7 @@ ele("style")
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
-    padding: 10px 10px 4px;
+    padding: 13px 12px 5px;
 }
 .settings-sidebar label {
     position: relative;
@@ -7409,7 +7395,7 @@ ele("style")
     color: var(--font-color);
 }
 .settings-sidebar label:has(input:checked) {
-    background: color-mix(in srgb,var(--font-color) 9%,transparent);
+    background: var(--desk-selection);
     color: var(--font-color);
     font-weight: 650;
 }
@@ -7470,209 +7456,59 @@ ele("style")
     padding: clamp(24px, 4vw, 50px) clamp(18px, 3.4vw, 48px) 48px;
 }
 .settings-page > h1 {
-    margin: 0 0 21px;
-    font-size: clamp(26px, 3vw, 36px);
-    letter-spacing: -0.045em;
-    font-weight: 690;
-    line-height: 1.22;
+    margin: 0 0 26px;
+    color:var(--desk-ink);
+    font-family:var(--desk-display);
+    font-size:clamp(32px,3.7vw,42px);
+    font-weight:550;line-height:1.22;letter-spacing:-.035em;
+    overflow-wrap:anywhere;
 }
 .settings-page > h2 {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 25px 0 10px;
-    color: var(--font-color);
-    font-size: 14px;
-    font-weight: 650;
-    line-height: 1.4;
-}
-.settings-page > h2::after {
-    content: "";
-    height: 1px;
-    background: var(--settings-line);
-    flex: 1;
+    margin:29px 0 10px;color:var(--desk-muted);
+    font-size:13px;font-weight:600;line-height:1.45;
 }
 .quick-settings {
-    display: grid;
-    grid-template-columns: minmax(0, 1.27fr) minmax(0, 1fr);
-    gap: 13px;
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
 }
 .settings-shell .quick-card {
-    display: flex;
-    position: relative;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: space-between;
-    isolation: isolate;
-    overflow: hidden;
-    width: 100%;
-    height: auto;
-    min-height: 143px;
-    padding: 17px 20px 18px;
-    text-align: start;
-    outline: 0;
-    border: 1px solid transparent;
-    border-radius: 13px;
-    transition:
-        filter 0.15s,
-        box-shadow 0.15s;
+    --mark-ink:var(--desk-clay);
+    --mark-bg:color-mix(in srgb,var(--mark-ink) 13%,var(--desk-raised));
+    display:grid;grid-template-columns:38px minmax(0,1fr) 14px;
+    grid-template-rows:auto auto 1fr;align-items:center;align-content:start;
+    column-gap:12px;row-gap:3px;position:relative;width:100%;height:auto;
+    min-height:112px;padding:16px 18px;text-align:start;border:1px solid var(--desk-line);
+    border-radius:13px;outline:0;box-shadow:0 1px 2px #160b0208;
+    background:linear-gradient(112deg,color-mix(in srgb,var(--mark-ink) 5%,var(--desk-raised)),var(--desk-raised) 80%);
+    color:var(--desk-ink);
+    transition:background-color 120ms,border-color 120ms,box-shadow 120ms;
 }
-.settings-shell .quick-card:hover {
-    filter: brightness(1.045);
-    box-shadow: 0 3px 12px #121b3521;
+.settings-shell .quick-translate {--mark-ink:var(--desk-sage)}
+.settings-shell .quick-card:enabled:hover {
+    border-color:color-mix(in srgb,var(--mark-ink) 48%,var(--desk-line));
+    box-shadow:0 2px 8px #20100412;
 }
-.settings-shell .quick-capture {
-    color: #fff;
-    background: linear-gradient(114deg, #364fb3 0%, #415fc7 53%, #526ed4 100%);
+.settings-shell .quick-card:focus-visible {outline:2px solid var(--desk-clay);outline-offset:2px}
+.quick-symbol {
+    grid-column:1;grid-row:1/3;display:grid;place-items:center;
+    width:38px;height:38px;border-radius:11px;color:var(--mark-ink);background:var(--mark-bg);
 }
-.quick-caption {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    font-weight: 550;
-    line-height: 1.3;
-    z-index: 1;
-}
-.quick-caption img {
-    width: 15px;
-    height: 15px;
-}
-.quick-capture .quick-caption {
-    color: #e4eaff;
-}
-.quick-capture .quick-caption img,
-.quick-capture .quick-arrow {
-    filter: brightness(0) invert(1);
-}
-.quick-card .quick-title {
-    font-size: clamp(18px, 2.15vw, 25px);
-    font-weight: 650;
-    line-height: 1.25;
-    letter-spacing: -0.025em;
-    margin: 9px 0 10px;
-    z-index: 1;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-}
-.quick-arrow {
-    position: absolute;
-    inset-inline-end: 14px;
-    top: 15px;
-    width: 16px;
-    height: 16px;
-    opacity: 0.8;
-}
-.shortcut-caps {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-wrap: wrap;
-    z-index: 1;
-}
-.quick-capture kbd {
-    font:
-        600 12px / 1.3 "Segoe UI",
-        sans-serif;
-    color: #fff;
-    padding: 3px 7px;
-    background: #ffffff21;
-    border: 1px solid #ffffff57;
-    border-bottom-width: 2px;
-    border-radius: 5px;
-    box-shadow: none;
-}
-.capture-frame {
-    position: absolute;
-    bottom: -13px;
-    inset-inline-end: 10%;
-    width: 74px;
-    height: 73px;
-    transform: rotate(-13deg);
-    z-index: -1;
-    border-radius: 7px;
-    background:
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) left top / 19px 3px no-repeat,
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) left top / 3px 19px no-repeat,
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) right top / 19px 3px no-repeat,
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) right top / 3px 19px no-repeat,
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) left bottom / 19px 3px no-repeat,
-        linear-gradient(#c4d4ffaf, #c4d4ffaf) left bottom / 3px 19px no-repeat,
-        radial-gradient(circle, #d3deff80 1px, transparent 1.6px) 1px 1px / 8px
-        8px,
-        #b8c9ff18;
-}
-.capture-cross {
-    position: absolute;
-    inset: 30%;
-    background:
-        linear-gradient(#d9e2ff, #d9e2ff) center / 1px 14px no-repeat,
-        linear-gradient(#d9e2ff, #d9e2ff) center / 14px 1px no-repeat;
-}
-.settings-shell .quick-translate {
-    background: light-dark(#e5f2ef, #213933);
-    color: light-dark(#173f37, #e6faf1);
-    border-color: light-dark(#c2ded6, #39574d);
-}
-.quick-translate .quick-caption,
-.quick-detail {
-    color: light-dark(#385f54, #bedbcf);
-}
-.quick-translate .quick-caption img,
-.quick-translate .quick-arrow {
-    filter: var(--icon-color);
-}
-.quick-detail {
-    font-size: 12px;
-    line-height: 1.45;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.settings-group,
-.settings-about {
-    min-width: 0;
-    background: var(--surface);
-    border: 1px solid var(--settings-line);
-    border-radius: 12px;
-    box-shadow: 0 2px 5px #10183105;
+.quick-symbol::before {content:"";width:21px;height:21px;background:currentColor;mask:var(--glyph) center/contain no-repeat}
+.quick-caption {grid-column:2;grid-row:1;font-size:11px;font-weight:500;color:var(--desk-muted)}
+.quick-card .quick-title {grid-column:2;grid-row:2;margin:0;min-width:0;font-size:19px;line-height:1.32;font-weight:600;overflow-wrap:anywhere;letter-spacing:-.025em}
+.quick-arrow {grid-column:3;grid-row:1/3;width:14px;height:14px;filter:var(--icon-color);opacity:.62}
+.shortcut-caps,.quick-detail {grid-column:2/4;grid-row:3;align-self:end;color:var(--desk-muted);font-size:12px;line-height:1.4;padding-top:5px}
+.shortcut-caps {display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.quick-detail {overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.quick-capture kbd {font:500 11px/1.4 var(--main-font),sans-serif;color:var(--desk-ink);padding:1px 6px;border-radius:4px;border:1px solid var(--desk-line);background:var(--desk-paper);box-shadow:none}
+.settings-group,.settings-about {
+    min-width:0;background:var(--desk-raised);border:1px solid var(--settings-line);
+    border-radius:12px;box-shadow:none;
 }
 .settings-group.settings-favorites {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    background: transparent;
-    box-shadow: none;
-    border: none;
+    display:block;background:transparent;border:none;border-block:1px solid var(--desk-line);border-radius:0;
 }
 .settings-favorites.settings-group > .settings-row {
-    border: 1px solid var(--settings-line);
-    background: var(--surface);
-    border-radius: 10px;
-    grid-column: 1 / -1;
-}
-.settings-favorites
-    > :is(
-        [data-name="翻译.翻译器"],
-        [data-name="离线OCR"],
-        [data-name="AI.在线模型"],
-        [data-name^="快捷键."]
-    ).settings-row {
-    grid-column: auto;
-    align-content: space-between;
-    align-items: start;
-    min-height: 98px;
-}
-.settings-favorites
-    > :is(
-        [data-name="翻译.翻译器"],
-        [data-name="离线OCR"],
-        [data-name="AI.在线模型"],
-        [data-name^="快捷键."]
-    )
-    .row-caption {
-    flex-basis: 100%;
+    border-radius:0;background:transparent;padding-inline:2px;
 }
 .settings-shell .settings-add {
     display: inline-flex;
@@ -7932,20 +7768,12 @@ ele("style")
     .settings-content {
         padding: 21px 14px 35px;
     }
-    .quick-settings {
-        gap: 8px;
-        grid-template-columns: 1fr 1fr;
-    }
-    .settings-shell .quick-card {
-        padding: 13px 12px 14px;
-        min-height: 121px;
-        border-radius: 10px;
-    }
-    .capture-frame {
-        width: 51px;
-        height: 55px;
-        inset-inline-end: -14px;
-    }
+    .quick-settings {gap:8px}
+    .settings-shell .quick-card {padding:12px;grid-template-columns:28px minmax(0,1fr) 10px;column-gap:7px;min-height:100px}
+    .quick-symbol {width:28px;height:28px;border-radius:8px}
+    .quick-symbol::before {width:17px;height:17px}
+    .quick-arrow {width:10px;height:10px}
+    .quick-card .quick-title {font-size:16px}
     .settings-group > .settings-row {
         padding: 12px;
         gap: 8px;
@@ -7953,16 +7781,10 @@ ele("style")
     .settings-row .row-caption {
         flex-basis: 115px;
     }
-    .settings-favorites
-        > :is(
-            [data-name="翻译.翻译器"],
-            [data-name="离线OCR"],
-            [data-name="AI.在线模型"],
-            [data-name^="快捷键."]
-        ).settings-row {
-        grid-column: 1 / -1;
-        min-height: auto;
-    }
+}
+@container (max-width: 350px) {
+    .quick-settings {grid-template-columns:minmax(0,1fr)}
+    .settings-shell .quick-card {min-height:80px}
 }
 @media (max-width: 760px) {
     .settings-sidebar {

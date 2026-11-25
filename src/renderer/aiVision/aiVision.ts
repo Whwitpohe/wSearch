@@ -6,7 +6,6 @@ import {
     image,
     input,
     label,
-    pack,
     select,
     textarea,
     view,
@@ -16,14 +15,7 @@ import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import type { IconType } from "../../iconTypes";
 import { type aiData, runAI } from "../lib/ai";
-import {
-    Class,
-    cssColor,
-    cssVar,
-    getImgUrl,
-    initStyle,
-    setTitle,
-} from "../root/root";
+import { Class, cssVar, getImgUrl, initStyle, setTitle } from "../root/root";
 
 initStyle(store);
 
@@ -75,20 +67,16 @@ const promptsEl = view("x")
 // todo 自定义
 
 const stopEl = iconEl("close")
+    .class("vision-stop")
     .attr({ title: "停止" })
     .bindSet((show: boolean, el) => {
-        const El = pack(el);
-        if (show) {
-            El.style({ display: "" });
-        } else {
-            El.style({ display: "none" });
-        }
+        el.hidden = !show;
     })
     .sv(false);
 
 let currentId = uuid();
 
-const showList = view("y").style({
+const showList = view("y").class("vision-thread").style({
     "flex-grow": 1,
     "overflow-y": "auto",
     "padding-inline": paddingVar,
@@ -117,6 +105,7 @@ function newChatItem(id: string) {
     toolBar.els.delete.on("click", () => {
         content.delete(id);
         chatItem.remove();
+        syncSend();
         setModelList(content.values().some((x) => x.content.img));
     });
     toolBar.els.edit.on("click", () => {
@@ -124,6 +113,7 @@ function newChatItem(id: string) {
         if (!c) return;
         inputEl.sv(c.content.text);
         currentId = id;
+        syncSend();
     });
     toolBar.els.reflash.on("click", () => {
         const keys = Array.from(content.keys());
@@ -238,6 +228,7 @@ function pickLastItem() {
         currentId = userId;
         setItem("", "text");
     }
+    syncSend();
 }
 
 function setItem(data: string, type: "text" | "image_url") {
@@ -261,7 +252,10 @@ function setItem(data: string, type: "text" | "image_url") {
         oldData.content.text = data;
     }
 
-    if (type === "image_url") setModelList(true);
+    if (type === "image_url") {
+        setModelList(true);
+        syncSend();
+    }
 }
 
 // @ts-ignore
@@ -272,21 +266,30 @@ window.setImg = (url: string) => {
     newChatItem(id);
 };
 
-inputEl
-    .on("input", () => {
-        const text = inputEl.gv;
-        const id = currentId;
-        setItem(text, "text");
-        newChatItem(id);
-    })
-    .on("keyup", (e) => {
-        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-            e.preventDefault();
-            runAIX();
-            inputEl.sv("");
-        }
-    });
-
+function submitDraft() {
+    if (!stopEl.el.hidden) return;
+    const text = inputEl.gv;
+    if (!text.trim() && !content.get(currentId)?.content.img) return;
+    setItem(text, "text");
+    newChatItem(currentId);
+    void runAIX();
+    inputEl.sv("");
+    syncSend();
+}
+function syncSend() {
+    sendEl.el.disabled =
+        !inputEl.gv.trim() && !content.get(currentId)?.content.img;
+}
+const sendEl = iconEl("up")
+    .class("vision-send")
+    .attr({ title: "发送", disabled: true })
+    .on("click", submitDraft);
+inputEl.on("input", syncSend).on("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        submitDraft();
+    }
+});
 fileInputEl.on("change", async (e) => {
     // @ts-ignore
     const file = e.target.files[0];
@@ -302,9 +305,6 @@ fileInputEl.on("change", async (e) => {
 });
 
 addStyle({
-    body: {
-        background: cssColor.bg,
-    },
     ".chat-item": {
         "max-width": "80%",
     },
@@ -337,27 +337,24 @@ view("y")
     .class("vision-workspace")
     .style({ height: "100vh" })
     .add([
+        ele("h1").class("vision-heading").add(t("AI 视觉")),
         showList,
         view("y")
             .class("vision-composer")
             .add([
+                inputEl,
                 view("x", "wrap")
-                    .style({ gap: paddingVar })
-                    .class(Class.smallSize)
+                    .class("vision-tools", Class.smallSize)
                     .add([
                         label([
                             fileInputEl.class("vision-file"),
                             t("上传图片"),
                         ]).class("b-like"),
-                        selectModelEl,
                         promptsEl,
+                        selectModelEl,
                         stopEl,
+                        sendEl,
                     ]),
-                inputEl,
-            ])
-            .style({
-                gap: paddingVar,
-                padding: paddingVar,
-            }),
+            ]),
     ])
     .addInto();

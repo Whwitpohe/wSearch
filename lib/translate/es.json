@@ -1068,5 +1068,6 @@
     "5cfd31": "Escribe una pregunta. Pulsa Intro para enviar.",
     "723fa1": "Envía un mensaje de prueba para comprobar la conexión al modelo",
     "723fa2": "Añade parámetros a la solicitud del modelo en formato JSON",
-    "723fa3": "Permite seleccionar este modelo para reconocer capturas de pantalla"
+    "723fa3": "Permite seleccionar este modelo para reconocer capturas de pantalla",
+    "286f8a": "Enviar"
 }
