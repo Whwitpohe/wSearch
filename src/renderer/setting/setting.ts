@@ -369,9 +369,17 @@ const s: Partial<settingItem<SettingPath>> = {
         name: "框选后默认操作",
         desc: "框选完鼠标松开一瞬间，执行操作",
         el: () =>
-            dialogSelect<SelectionAction | "no">(
-                [{ value: "no", name: "无" }, ...actionChoices(false)],
-                true,
+            actionPicker<SelectionAction | "no">(
+                () => [
+                    {
+                        value: "no",
+                        name: t("无"),
+                        group: t("框选后默认操作"),
+                        icon: "close",
+                    },
+                    ...actionChoices(false),
+                ],
+                "no",
             ).class("post-action-picker"),
     },
     "框选.识别窗口": {
@@ -3428,159 +3436,594 @@ function actionChoices(imageTranslation = true) {
     }));
 }
 
+type ActionChoice<T extends string> = {
+    value: T;
+    name: string;
+    group: string;
+    icon?: IconType;
+};
+
+function actionPicker<T extends string>(
+    options: () => ActionChoice<T>[],
+    initial: T,
+) {
+    const root = view().class("action-picker");
+    const trigger = button()
+        .class("action-trigger")
+        .attr({ ariaHasPopup: "listbox", ariaExpanded: "false" })
+        .addInto(root);
+    const listId = `actions-${crypto.randomUUID()}`;
+    const recentKey = "最近选择的动作";
+    let selected = initial;
+    let closeMenu: ((focus?: boolean) => void) | undefined;
+    function setValue(next: T) {
+        selected = next;
+        const entry = options().find((o) => o.value === next);
+        const name = entry?.name ?? t("选择动作");
+        trigger
+            .clear()
+            .add([
+                image(
+                    getImgUrl(
+                        `${entry?.icon ?? (entry ? "filters" : "add")}.svg`,
+                    ),
+                    noI18n(""),
+                ),
+                view("y")
+                    .class("action-trigger-label")
+                    .add([
+                        txt(name, true),
+                        entry?.group
+                            ? txt(entry.group, true).class("rule-category")
+                            : "",
+                    ]),
+                image(getImgUrl("down.svg"), noI18n("")).class(
+                    "action-chevron",
+                ),
+            ])
+            .attr({ ariaLabel: name, title: "选择动作" });
+    }
+    function open() {
+        if (closeMenu) return;
+        const entries = options();
+        if (!entries.length) return;
+        const byId = new Map(entries.map((e) => [e.value, e]));
+        const saved = safeJSONParse<unknown>(
+            localStorage.getItem(recentKey),
+            [],
+        );
+        const recent = Array.isArray(saved)
+            ? saved
+                  .filter((v): v is string => typeof v === "string")
+                  .slice(0, 6)
+            : [];
+        const menu = view("y")
+            .class("action-directory")
+            .attr({ popover: "manual" })
+            .addInto(root);
+        const query = input().attr({
+            role: "combobox",
+            ariaLabel: t("搜索动作"),
+            placeholder: t("搜索动作"),
+            autocomplete: "off",
+            spellcheck: false,
+            ariaAutoComplete: "list",
+        });
+        query.el.setAttribute("aria-expanded", "true");
+        query.el.setAttribute("aria-controls", listId);
+        trigger.el.setAttribute("aria-controls", listId);
+        const head = view("y").class("directory-head").addInto(menu);
+        head.add(
+            view("x")
+                .class("directory-search")
+                .add([image(getImgUrl("search.svg"), noI18n("")), query]),
+        );
+        const shortcuts = view("x", "wrap")
+            .class("directory-shortcuts")
+            .addInto(head);
+        const list = view()
+            .class("directory-columns")
+            .attr({ id: listId, role: "listbox", ariaLabel: t("选择动作") })
+            .addInto(menu);
+        const controller = new AbortController();
+        let frame = 0,
+            active = -1;
+        let rows: HTMLButtonElement[] = [];
+        let columns: HTMLButtonElement[][] = [];
+        function close(focus = false) {
+            if (controller.signal.aborted) return;
+            controller.abort();
+            cancelAnimationFrame(frame);
+            if (menu.el.matches(":popover-open")) menu.el.hidePopover();
+            menu.remove();
+            closeMenu = undefined;
+            trigger.el.setAttribute("aria-expanded", "false");
+            trigger.el.removeAttribute("aria-controls");
+            if (focus) trigger.el.focus({ preventScroll: true });
+        }
+        function choose(entry: ActionChoice<T>) {
+            if (entry.value !== "no") {
+                const ids = [
+                    entry.value,
+                    ...recent.filter((v) => v !== entry.value),
+                ].slice(0, 6);
+                localStorage.setItem(recentKey, JSON.stringify(ids));
+            }
+            setValue(entry.value);
+            close(true);
+            root.el.dispatchEvent(new Event("input"));
+        }
+        function chips(label: string, ids: string[]) {
+            const choices = ids.flatMap((id) => byId.get(id as T) ?? []);
+            if (!choices.length) return;
+            const group = view("x", "wrap")
+                .class("directory-chip-group")
+                .attr({ role: "group", ariaLabel: t(label) });
+            group.add(txt(label).class("directory-chip-label"));
+            for (const entry of choices)
+                group.add(
+                    button(noI18n(entry.name))
+                        .attr({ tabIndex: -1 })
+                        .on("mousedown", (e) => e.preventDefault())
+                        .on("click", () => choose(entry)),
+                );
+            shortcuts.add(group);
+        }
+        const recentChoices = recent
+            .filter((id) => byId.has(id as T))
+            .slice(0, 4);
+        chips(
+            "常用",
+            [
+                "draw.free",
+                "shape.arrow",
+                "filter.pixelate",
+                "translate",
+                "copy",
+                "save",
+            ]
+                .filter(
+                    (id) => byId.has(id as T) && !recentChoices.includes(id),
+                )
+                .slice(0, 4),
+        );
+        chips("最近选择", recentChoices);
+        function position() {
+            frame = 0;
+            if (!trigger.el.isConnected) {
+                close();
+                return;
+            }
+            const r = trigger.el.getBoundingClientRect(),
+                gap = 8;
+            const width = Math.min(756, innerWidth - gap * 2),
+                height = Math.min(490, innerHeight - gap * 2);
+            const left = Math.max(
+                gap,
+                Math.min(r.left, innerWidth - width - gap),
+            );
+            // A large directory can overlap the invoking row, like a desktop command menu.
+            const top = Math.max(
+                gap,
+                Math.min(r.bottom + 4, innerHeight - height - gap),
+            );
+            menu.style({
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                maxHeight: `${height}px`,
+            });
+        }
+        function schedule(e: Event) {
+            if (e.target instanceof Node && menu.el.contains(e.target)) return;
+            if (!frame) frame = requestAnimationFrame(position);
+        }
+        function highlight(index: number, scroll = false) {
+            if (!rows.length) return;
+            rows[active]?.classList.remove("directory-active");
+            active = Math.max(0, Math.min(rows.length - 1, index));
+            const row = rows[active];
+            row.classList.add("directory-active");
+            query.el.setAttribute("aria-activedescendant", row.id);
+            if (scroll) {
+                const r = row.getBoundingClientRect(),
+                    box = list.el.getBoundingClientRect();
+                if (r.top < box.top) list.el.scrollTop += r.top - box.top;
+                else if (r.bottom > box.bottom)
+                    list.el.scrollTop += r.bottom - box.bottom;
+            }
+        }
+        function render() {
+            const terms = query.gv
+                .trim()
+                .toLowerCase()
+                .split(/\s+/)
+                .filter(Boolean);
+            rows = [];
+            columns = [];
+            active = -1;
+            list.clear();
+            list.el.scrollTop = 0;
+            query.el.removeAttribute("aria-activedescendant");
+            const buckets = new Map<string, Map<string, ActionChoice<T>[]>>();
+            for (const entry of entries) {
+                const key = entry.value;
+                const family = key.startsWith("filter.")
+                    ? "图像滤镜"
+                    : /^(draw|shape)\./.test(key)
+                      ? "绘制"
+                      : "截屏";
+                let section = entry.group;
+                if (family === "图像滤镜") {
+                    if (["filter.blur", "filter.pixelate"].includes(key))
+                        section = t("常用");
+                    else if (key.startsWith("filter.gray_"))
+                        section = t("灰度");
+                    else if (
+                        [
+                            "filter.brightness",
+                            "filter.contrast",
+                            "filter.saturation",
+                            "filter.hue",
+                            "filter.gamma",
+                        ].includes(key)
+                    )
+                        section = t("色彩调整");
+                    else section = t("滤镜效果");
+                }
+                const keywords = [
+                    t(family),
+                    section,
+                    entry.group,
+                    entry.name,
+                    key,
+                ]
+                    .join(" ")
+                    .toLowerCase();
+                if (!terms.every((term) => keywords.includes(term))) continue;
+                const groups =
+                    buckets.get(family) ?? new Map<string, ActionChoice<T>[]>();
+                const items = groups.get(section) ?? [];
+                items.push(entry);
+                groups.set(section, items);
+                buckets.set(family, groups);
+            }
+            for (const [family, icon] of [
+                ["截屏", "rect_select"],
+                ["绘制", "draw"],
+                ["图像滤镜", "filters"],
+            ] as const) {
+                const groups = buckets.get(family);
+                if (!groups) continue;
+                const column = view("y")
+                    .class("directory-column")
+                    .attr({ role: "group", ariaLabel: t(family) })
+                    .addInto(list);
+                column.add(
+                    view("x")
+                        .class("directory-column-title")
+                        .add([
+                            image(getImgUrl(`${icon}.svg`), noI18n("")),
+                            txt(family),
+                        ]),
+                );
+                const lane: HTMLButtonElement[] = [];
+                columns.push(lane);
+                for (const [title, items] of groups) {
+                    const group = view("y")
+                        .class("directory-section")
+                        .attr({ role: "group", ariaLabel: title })
+                        .addInto(column);
+                    group.add(
+                        view("x")
+                            .class("directory-section-title")
+                            .add([
+                                txt(title, true),
+                                txt(String(items.length), true),
+                            ]),
+                    );
+                    for (const entry of items) {
+                        const row = button(noI18n(entry.name))
+                            .attr({
+                                role: "option",
+                                tabIndex: -1,
+                                id: `${listId}-${rows.length}`,
+                            })
+                            .data({ value: entry.value });
+                        row.el.setAttribute(
+                            "aria-selected",
+                            String(entry.value === selected),
+                        );
+                        group.add(row);
+                        lane.push(row.el);
+                        rows.push(row.el);
+                    }
+                }
+            }
+            if (!rows.length) {
+                list.add(
+                    txt("无结果，尝试其他关键词")
+                        .class("directory-empty")
+                        .attr({ role: "status" }),
+                );
+                return;
+            }
+            const current = rows.findIndex((b) => b.dataset.value === selected);
+            highlight(terms.length ? 0 : Math.max(0, current));
+        }
+        list.on("mousedown", (e) => e.preventDefault()).on("click", (e) => {
+            const id = (e.target as Element).closest<HTMLButtonElement>(
+                "[data-value]",
+            )?.dataset.value;
+            const entry = byId.get(id as T);
+            if (entry) choose(entry);
+        });
+        query.on("input", render).on("keydown", (e) => {
+            if (e.isComposing) return;
+            if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                close(true);
+                return;
+            }
+            if (e.key === "Tab") {
+                close(true);
+                return;
+            }
+            if (e.key === "Enter") {
+                e.preventDefault();
+                rows[active]?.click();
+                return;
+            }
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                highlight(active + (e.key === "ArrowDown" ? 1 : -1), true);
+                return;
+            }
+            if (
+                (e.key === "ArrowRight" || e.key === "ArrowLeft") &&
+                (!query.gv || e.altKey) &&
+                active >= 0
+            ) {
+                e.preventDefault();
+                const lane = columns.findIndex((c) => c.includes(rows[active]));
+                const next = columns[lane + (e.key === "ArrowRight" ? 1 : -1)];
+                if (next)
+                    highlight(
+                        rows.indexOf(
+                            next[
+                                Math.min(
+                                    columns[lane].indexOf(rows[active]),
+                                    next.length - 1,
+                                )
+                            ],
+                        ),
+                        true,
+                    );
+            }
+        });
+        closeMenu = close;
+        position();
+        menu.el.showPopover();
+        render();
+        trigger.el.setAttribute("aria-expanded", "true");
+        query.el.focus({ preventScroll: true });
+        const { signal } = controller;
+        menu.el.addEventListener(
+            "toggle",
+            () => {
+                if (!menu.el.matches(":popover-open")) close();
+            },
+            { signal },
+        );
+        document.addEventListener(
+            "pointerdown",
+            (e) => {
+                if (!root.el.contains(e.target as Node)) close();
+            },
+            { capture: true, signal },
+        );
+        document.addEventListener(
+            "focusin",
+            (e) => {
+                if (!root.el.contains(e.target as Node)) close();
+            },
+            { signal },
+        );
+        window.addEventListener("resize", schedule, { signal });
+        document.addEventListener("scroll", schedule, {
+            capture: true,
+            signal,
+        });
+        root.el
+            .closest("dialog")
+            ?.addEventListener("close", () => close(), { once: true, signal });
+    }
+    trigger
+        .on("click", () => (closeMenu ? closeMenu(true) : open()))
+        .on("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                open();
+            }
+        });
+    setValue(initial);
+    return Object.assign(root.bindGet(() => selected).bindSet(setValue), {
+        open,
+        close: () => closeMenu?.(),
+    });
+}
+
 function selectionShortcutEditor() {
     type Rules = setting["全局工具快捷键"];
+    type Action = SelectionAction | "";
     const root = view("y").class("selection-shortcuts"),
         list = view("y").class("selection-rule-list");
     const add = button([
         image(getImgUrl("add.svg"), noI18n("")),
         txt("添加动作"),
     ]).class("settings-add");
-    const status = ele("output")
-        .attr({ role: "status" })
-        .class("shortcut-feedback");
+    const available = actionChoices();
     let rules: Rules;
-    const options = actionChoices();
-    const legacy = captureTools.filter(
-        (t) => t.key === "close" || t.key === "screens",
-    );
+    let draft: ReturnType<typeof actionPicker<Action>> | undefined;
     function without(action: SelectionAction) {
         const next = { ...rules };
         if (isDrawingAction(action)) delete next[action];
         else next[action] = "";
         return next;
     }
-    function storeRules(next: Rules, retry?: SelectionAction) {
-        if (!setSet("全局工具快捷键", next, retry)) return false;
-        rules = next;
-        paint();
-        return true;
-    }
-    function edit(previous?: SelectionAction) {
-        const choices = options.filter(
-            (o) => o.value === previous || !rules[o.value],
+    function drawRow(
+        original: Action,
+        registered: Set<SelectionAction>,
+        replacing?: HTMLElement,
+    ) {
+        const row = view().class("selection-rule").data({ action: original });
+        if (replacing) replacing.replaceWith(row.el);
+        else list.add(row);
+        const choices = (): ActionChoice<Action>[] => {
+            const items: ActionChoice<Action>[] = available.filter(
+                (o) => o.value === original || !rules[o.value],
+            );
+            const legacy = captureTools.find(
+                (t) =>
+                    (t.key === "close" || t.key === "screens") &&
+                    t.key === original,
+            );
+            if (legacy)
+                items.push({
+                    value: legacy.key,
+                    name: t(legacy.title),
+                    group: t(legacy.group),
+                    icon: legacy.icon,
+                });
+            return items;
+        };
+        const choice = actionPicker<Action>(choices, original);
+        const chord = hotkey(true)
+            .sv(original ? (rules[original] ?? "") : "")
+            .class("inline-chord");
+        const recorder = chord.el.querySelector<HTMLElement>(".b-like")!;
+        recorder.setAttribute(
+            "aria-label",
+            original
+                ? t("快捷键") +
+                      " · " +
+                      choice.el.querySelector(".action-trigger-name")
+                          ?.textContent
+                : t("请录入快捷键"),
         );
-        const old = legacy.find((t) => t.key === previous);
-        if (old)
-            choices.unshift({
-                value: old.key,
-                icon: old.icon,
-                name: t(old.title),
-                group: t(old.group),
-            });
-        if (!choices.length) return;
-        const dialog = ele("dialog")
-            .attr({ ariaLabel: t(previous ? "编辑动作" : "添加动作") })
-            .addInto(root);
-        const initial =
-            previous ??
-            choices.find((o) => o.value === "draw.free")?.value ??
-            choices[0].value;
-        const choice = dialogSelect<SelectionAction>(choices, true).sv(initial);
-        const chord = hotkey(true).sv(previous ? (rules[previous] ?? "") : "");
-        const message = ele("output")
-            .attr({ role: "status" })
-            .class("shortcut-feedback");
-        dialogB(
-            dialog,
-            [field("动作", choice), field("快捷键", chord), message],
-            () => {},
-            () => {
-                const action = choice.gv,
-                    key = chord.gv;
-                if (!key) {
-                    message.el.textContent = t("请录入快捷键");
-                    return false;
+        const status = ele("output")
+            .class("rule-status")
+            .attr({ role: "status" });
+        function feedback(text: string, error = false) {
+            status.el.textContent = text;
+            status.el.classList.toggle("unavailable", error);
+        }
+        function commit() {
+            const action = choice.gv,
+                key = chord.gv;
+            if (!action) {
+                choice.open();
+                return;
+            }
+            if (!key) {
+                feedback(t("请录入快捷键"));
+                recorder.focus({ preventScroll: true });
+                return;
+            }
+            if (action !== original && rules[action]) {
+                choice.sv(original);
+                feedback(t("动作已存在"), true);
+                return;
+            }
+            const next =
+                original && original !== action
+                    ? without(original)
+                    : { ...rules };
+            next[action] = key;
+            if (!setSet("全局工具快捷键", next, action)) {
+                if (original) {
+                    choice.sv(original);
+                    chord.sv(rules[original] ?? "");
                 }
-                const next =
-                    previous && previous !== action
-                        ? without(previous)
-                        : { ...rules };
-                next[action] = key;
-                if (!storeRules(next, action)) {
-                    message.el.textContent = t(
-                        "快捷键注册失败，可能被其他程序占用",
-                    );
-                    return false;
-                }
-                return true;
-            },
-        );
-        dialog.on("close", () => {
-            dialog.remove();
-            add.el.focus({ preventScroll: true });
+                feedback(t("快捷键注册失败，可能被其他程序占用"), true);
+                return;
+            }
+            rules = next;
+            if (!original) draft = undefined;
+            if (document.activeElement === recorder) recorder.blur();
+            drawRow(action, new Set([action]), row.el);
+            updateAdd();
+            list.el
+                .querySelector<HTMLButtonElement>(
+                    `[data-action="${CSS.escape(action)}"] .action-trigger`,
+                )
+                ?.focus({ preventScroll: true });
+        }
+        choice.on("input", (e) => {
+            if (e.target === choice.el) commit();
         });
-        dialog.el.showModal();
+        chord.on("input", (e) => {
+            if (e.target === chord.el) commit();
+        });
+        const label =
+            choices().find((o) => o.value === original)?.name ?? t("添加动作");
+        const remove = button(iconEl("clear"))
+            .class("remove-action")
+            .attr({ title: "删除", ariaLabel: `${t("删除")} ${label}` })
+            .on("click", () => {
+                if (original) {
+                    const next = without(original);
+                    if (!setSet("全局工具快捷键", next)) return;
+                    rules = next;
+                }
+                if (!original) draft = undefined;
+                row.remove();
+                updateAdd();
+                add.el.focus({ preventScroll: true });
+            });
+        row.add([choice, chord, status, remove]);
+        if (original) {
+            const ok = registered.has(original);
+            feedback(
+                t(ok ? "已生效" : "快捷键注册失败，可能被其他程序占用"),
+                !ok,
+            );
+        } else {
+            draft = choice;
+            choice.open();
+        }
     }
     function paint() {
+        if (
+            list.el.contains(document.activeElement) &&
+            document.activeElement instanceof HTMLElement
+        )
+            document.activeElement.blur();
+        draft?.close();
+        draft = undefined;
+        list.clear();
         const registered = new Set(
             renderSendSync("selectionShortcutStatus", []),
         );
-        list.clear();
-        status.el.textContent = "";
-        // Only shortcuts the user can actually invoke occupy a row.
-        for (const tool of [...selectionTools, ...legacy]) {
-            const key = rules[tool.key];
-            if (!key) continue;
-            const title = t(
-                tool.key === "translate" ? "框选并翻译图片" : tool.title,
-            );
-            const ok = registered.has(tool.key);
-            const open = button()
-                .class("selection-rule-edit")
-                .attr({ ariaLabel: `${t("编辑")} ${title}` })
-                .on("click", () => edit(tool.key));
-            const caps = view("x").class("rule-caps");
-            for (const part of key.split("+")) {
-                const display = jsKeyCodeDisplay(ele2jsKeyCode(part));
-                caps.add(
-                    ele("kbd").add(
-                        noI18n(
-                            process.platform === "darwin"
-                                ? (display.symble ?? display.primary)
-                                : display.primary,
-                        ),
-                    ),
-                );
-            }
-            open.add([
-                image(getImgUrl(`${tool.icon ?? "filters"}.svg`), noI18n("")),
-                view("y").add([
-                    txt(title, true),
-                    txt(t(tool.group), true).class("rule-category"),
-                ]),
-                spacer(),
-                caps,
-            ]);
-            const row = view("x")
-                .class("selection-rule")
-                .data({ action: tool.key });
-            row.add([
-                open,
-                button(iconEl("clear"))
-                    .class("remove-action")
-                    .attr({ title: "删除", ariaLabel: `${t("删除")} ${title}` })
-                    .on("click", () => {
-                        if (!storeRules(without(tool.key)))
-                            status.el.textContent = t(
-                                "快捷键注册失败，可能被其他程序占用",
-                            );
-                    }),
-            ]);
-            list.add(row);
-            const state = txt(
-                ok ? "已生效" : "快捷键注册失败，可能被其他程序占用",
-            ).class("rule-status");
-            state.el.classList.toggle("unavailable", !ok);
-            row.add(state);
+        for (const tool of [
+            ...selectionTools,
+            ...captureTools.filter(
+                (t) => t.key === "close" || t.key === "screens",
+            ),
+        ]) {
+            if (rules[tool.key]) drawRow(tool.key, registered);
         }
-        add.el.disabled = options.every((option) =>
+        updateAdd();
+    }
+    function updateAdd() {
+        add.el.disabled = available.every((option) =>
             Boolean(rules[option.value]),
         );
     }
-    add.on("click", () => edit());
+    add.on("click", () => (draft ? draft.open() : drawRow("", new Set())));
     return root
-        .add([list, add, status])
+        .add([list, add])
         .bindGet(() => rules)
         .bindSet((value: Rules) => {
             rules = value;
@@ -3928,39 +4371,18 @@ function sortList<t>(
 }
 
 function dialogSelect<T extends string>(
-    options: {
-        value: T;
-        name?: Parameters<typeof txt>[0];
-        group?: string;
-        icon?: IconType;
-    }[],
+    options: { value: T; name?: Parameters<typeof txt>[0] }[],
     searchable = false,
     loadOptions?: (signal: AbortSignal) => Promise<T[]>,
 ) {
     const root = view().class("dialog-select");
-    const grouped = options.some((o) => o.group !== undefined);
-    const inputAnchor = grouped || Boolean(loadOptions);
     const manual = input().attr({ autocomplete: "off", spellcheck: false });
     const trigger = button().class("choice-trigger");
-    const anchor = inputAnchor ? manual.el : trigger.el;
-    if (inputAnchor)
-        manual.attr({
-            placeholder: t(grouped ? "搜索动作" : "输入或搜索模型"),
-            ariaAutoComplete: "list",
-        });
+    const anchor = loadOptions ? manual.el : trigger.el;
     const text = txt("", true);
-    if (inputAnchor) {
+    if (loadOptions) {
         root.class("editable-choice").add(manual);
-        const label = grouped ? "选择动作" : "获取模型列表";
-        trigger.attr({ title: label, ariaLabel: t(label) });
-        if (grouped) {
-            root.class("grouped-choice").add(
-                image(getImgUrl("search.svg"), noI18n("")).class(
-                    "action-search-icon",
-                ),
-            );
-            trigger.el.tabIndex = -1;
-        }
+        trigger.attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") });
     } else trigger.add(text);
     root.add(trigger.add(image(getImgUrl("down.svg"), noI18n(""))));
     const menu = view()
@@ -3978,92 +4400,36 @@ function dialogSelect<T extends string>(
         ariaLabel: t("搜索"),
         autocomplete: "off",
     });
-    if (searchable && !inputAnchor) {
+    if (searchable) {
         searchBar.add([image(getImgUrl("search.svg"), noI18n("")), filter]);
         menu.add(searchBar);
         filter.el.setAttribute("aria-controls", listId);
     }
     if (loadOptions)
-        root.add(
+        searchBar.add(
             button(image(getImgUrl("reload.svg"), noI18n("")))
-                .class("choice-refresh")
                 .attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") })
-                .on("mousedown", (e) => e.preventDefault())
-                .on("click", () => {
-                    manual.el.focus({ preventScroll: true });
-                    if (isOpen()) void fetchEntries();
-                    else {
-                        loaded = false;
-                        open(false);
-                    }
-                }),
+                .on("click", () => void fetchEntries()),
         );
-    const categories = view("y")
-        .class("action-categories")
-        .attr({ role: "group", ariaLabel: t("动作分类") });
-    if (grouped) menu.class("action-menu").add(categories);
     const list = view()
         .class("dialog-option-list")
         .attr({ id: listId, role: "listbox" })
         .addInto(menu);
-    type Entry = {
-        value: T;
-        name: string;
-        query: string;
-        group?: string;
-        icon?: IconType;
-    };
-    const rendered: HTMLButtonElement[] = [];
-    const entry = (
-        value: T,
-        name: string,
-        group?: string,
-        icon?: IconType,
-    ): Entry => ({
-        icon,
-        group,
+    type Entry = { value: T; name: string; query: string };
+    const entry = (value: T, name: string): Entry => ({
         value,
         name,
-        query: `${group ?? ""} ${name} ${value}`.toLowerCase(),
+        query: `${name} ${value}`.toLowerCase(),
     });
     let entries = options
         .filter((o) => o.value !== "")
         .map((o) =>
-            entry(
-                o.value,
-                txt(o.name ?? o.value).el.textContent || o.value,
-                o.group,
-                o.icon,
-            ),
+            entry(o.value, txt(o.name ?? o.value).el.textContent || o.value),
         );
     let shown: Entry[] = [],
         active = -1,
         count = 0,
         value: T = options[0]?.value ?? ("" as T);
-    const groupNames = [
-        ...new Set(entries.flatMap((e) => (e.group ? [e.group] : []))),
-    ];
-    let category: string | undefined;
-    function switchCategory(next: string | undefined) {
-        category = next;
-        populate();
-        anchor.focus({ preventScroll: true });
-    }
-    const categoryOrder = grouped ? [undefined, ...groupNames] : [];
-    const categoryButtons = categoryOrder.map((name) => {
-        const b = button(noI18n(name ?? t("全部动作")))
-            .attr({ tabIndex: -1 })
-            .on("mousedown", (e) => e.preventDefault())
-            .on("click", () => switchCategory(name));
-        b.el.setAttribute("aria-controls", listId);
-        categories.add(b);
-        return b;
-    });
-    if (grouped)
-        anchor.setAttribute(
-            "aria-keyshortcuts",
-            "Alt+ArrowLeft Alt+ArrowRight",
-        );
     let lifetime: AbortController | undefined,
         request: AbortController | undefined,
         loaded = !loadOptions;
@@ -4080,7 +4446,7 @@ function dialogSelect<T extends string>(
             roomAbove = Math.max(0, r.top - edge - gap);
         const width = Math.min(
             innerWidth - 2 * edge,
-            Math.max(r.width, grouped ? 368 : searchable ? 224 : 150),
+            Math.max(r.width, searchable ? 224 : 150),
         );
         const capacity = 280;
         const preferred = searchable
@@ -4091,7 +4457,6 @@ function dialogSelect<T extends string>(
         menu.style({
             width: `${width}px`,
             maxHeight: `${height}px`,
-            ...(grouped ? { height: `${height}px` } : {}),
             left: `${Math.max(edge, Math.min(innerWidth - edge - width, r.left))}px`,
             top: below ? `${r.bottom + gap}px` : "auto",
             bottom: below ? "auto" : `${innerHeight - r.top + gap}px`,
@@ -4109,7 +4474,6 @@ function dialogSelect<T extends string>(
         cancelAnimationFrame(frame);
         frame = 0;
         anchor.setAttribute("aria-expanded", "false");
-        if (grouped) manual.sv(selectedLabel());
         anchor.removeAttribute("aria-activedescendant");
         filter.el.removeAttribute("aria-activedescendant");
     }
@@ -4118,14 +4482,14 @@ function dialogSelect<T extends string>(
         clean();
         if (focus) anchor.focus({ preventScroll: true });
     }
-    function selectedLabel() {
-        return entries.find((e) => e.value === value)?.name || "";
-    }
     function setValue(next: T) {
         value = next;
-        if (grouped) manual.sv(selectedLabel());
-        else if (loadOptions) manual.sv(next);
-        else text.sv(selectedLabel() || t("选择引擎类型"));
+        if (loadOptions) manual.sv(next);
+        else
+            text.sv(
+                entries.find((e) => e.value === next)?.name ||
+                    t("选择引擎类型"),
+            );
     }
     function choose(next: T) {
         setValue(next);
@@ -4143,33 +4507,16 @@ function dialogSelect<T extends string>(
             });
             b.el.dataset.value = e.value;
             b.el.setAttribute("aria-selected", String(e.value === value));
-            if (
-                e.group &&
-                category === undefined &&
-                e.group !== shown[count - 1]?.group
-            )
-                fragment.append(
-                    txt(e.group, true).class("action-choice-heading").el,
-                );
-            if (grouped) {
-                const icon = e.icon ?? (e.value === "no" ? "close" : "filters");
-                b.el.prepend(
-                    image(getImgUrl(`${icon}.svg`), noI18n("")).class(
-                        "action-option-icon",
-                    ).el,
-                );
-            }
-            rendered.push(b.el);
             fragment.append(b.el);
         }
         list.el.append(fragment);
     }
     function move(index: number, scroll = true) {
         if (!shown.length) return;
-        rendered[active]?.classList.remove("option-active");
+        list.el.children[active]?.classList.remove("option-active");
         active = Math.min(shown.length - 1, Math.max(0, index));
         if (active >= count) append(active + 40);
-        const item = rendered[active];
+        const item = list.el.children[active] as HTMLElement;
         item.classList.add("option-active");
         anchor.setAttribute("aria-activedescendant", item.id);
         filter.el.setAttribute("aria-activedescendant", item.id);
@@ -4182,27 +4529,11 @@ function dialogSelect<T extends string>(
         }
     }
     function populate() {
-        const q = (inputAnchor ? (typed ? manual.gv : "") : filter.gv)
-            .trim()
-            .toLowerCase();
-        const matches =
-            request || error ? [] : entries.filter((e) => e.query.includes(q));
+        const q = filter.gv.trim().toLowerCase();
         shown =
-            category === undefined
-                ? matches
-                : matches.filter((e) => e.group === category);
-        if (grouped) {
-            for (const [i, b] of categoryButtons.entries()) {
-                const name = categoryOrder[i];
-                b.el.setAttribute("aria-pressed", String(name === category));
-                b.el.disabled =
-                    name !== undefined &&
-                    !matches.some((e) => e.group === name);
-            }
-        }
+            request || error ? [] : entries.filter((e) => e.query.includes(q));
         active = -1;
         count = 0;
-        rendered.length = 0;
         list.clear();
         list.el.scrollTop = 0;
         anchor.removeAttribute("aria-activedescendant");
@@ -4262,14 +4593,8 @@ function dialogSelect<T extends string>(
             }
         }
     }
-    let typed = false;
-    function open(useInput = false) {
-        typed = useInput;
+    function open() {
         if (isOpen()) return;
-        if (grouped)
-            category = useInput
-                ? undefined
-                : entries.find((e) => e.value === value)?.group;
         menu.el.showPopover();
         anchor.setAttribute("aria-expanded", "true");
         lifetime = new AbortController();
@@ -4292,10 +4617,7 @@ function dialogSelect<T extends string>(
         filter.sv("");
         if (!loaded) void fetchEntries();
         else populate();
-        if (inputAnchor) {
-            manual.el.focus({ preventScroll: true });
-            if (grouped && !useInput) manual.el.select();
-        } else if (searchable) filter.el.focus({ preventScroll: true });
+        if (searchable) filter.el.focus({ preventScroll: true });
     }
     menu.on("toggle", () => {
         if (!isOpen()) clean();
@@ -4309,20 +4631,8 @@ function dialogSelect<T extends string>(
         e.stopPropagation();
         populate();
     });
-    if (grouped)
-        manual
-            .on("click", () => {
-                if (!isOpen()) open();
-            })
-            .on("focus", () => manual.el.select());
     manual.on("input", () => {
-        if (grouped) category = undefined;
-        else value = manual.gv as T;
-        if (!isOpen()) open(true);
-        else {
-            typed = true;
-            populate();
-        }
+        value = manual.gv as T;
     });
     root.on("focusout", (e) => {
         if (e.relatedTarget && !root.el.contains(e.relatedTarget as Node))
@@ -4335,26 +4645,6 @@ function dialogSelect<T extends string>(
                 e.preventDefault();
                 open();
             }
-            return;
-        }
-        if (
-            grouped &&
-            e.altKey &&
-            (e.key === "ArrowRight" || e.key === "ArrowLeft")
-        ) {
-            e.preventDefault();
-            const available = categoryOrder.filter(
-                (_, i) => !categoryButtons[i]?.el.disabled,
-            );
-            const index = available.indexOf(category);
-            switchCategory(
-                available[
-                    (index +
-                        (e.key === "ArrowRight" ? 1 : -1) +
-                        available.length) %
-                        available.length
-                ],
-            );
             return;
         }
         if (e.key === "Tab") {
@@ -4375,11 +4665,8 @@ function dialogSelect<T extends string>(
                 return;
             e.preventDefault();
             if (shown[active]) choose(shown[active].value);
-            else if (inputAnchor) close(true);
             return;
         }
-        if (inputAnchor && (e.key === "Home" || e.key === "End") && !e.altKey)
-            return;
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
             e.preventDefault();
             move(
@@ -5300,7 +5587,7 @@ function hotkey(allowTabNavigation = false) {
             ev();
         });
     return el
-        .add([i, b])
+        .add(allowTabNavigation ? [i] : [i, b])
         .bindSet((v: string) => cvalue((v ?? "").split("+")))
         .bindGet(() => mainKey)
         .sv("");
