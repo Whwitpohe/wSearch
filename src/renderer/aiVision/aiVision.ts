@@ -16,11 +16,18 @@ import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import type { IconType } from "../../iconTypes";
 import { type aiData, runAI } from "../lib/ai";
-import { Class, cssColor, cssVar, getImgUrl, initStyle } from "../root/root";
+import {
+    Class,
+    cssColor,
+    cssVar,
+    getImgUrl,
+    initStyle,
+    setTitle,
+} from "../root/root";
 
 initStyle(store);
 
-document.title = t("AI 视觉");
+setTitle(t("AI 视觉"));
 
 const md = new Remarkable({ breaks: true });
 
@@ -41,11 +48,15 @@ const inputEl = textarea()
         "field-sizing": "content",
         padding: paddingVar,
     })
-    .attr({ autofocus: true });
+    .attr({
+        autofocus: true,
+        ariaLabel: t("AI 视觉"),
+        placeholder: t("输入问题，Enter 发送"),
+    });
 const fileInputEl = input("file");
 const selectModelEl = select(
     model.map((x) => ({ value: x.name, label: x.name })),
-);
+).attr({ title: "模型名称" });
 const promptsEl = view("x")
     .style({ gap: paddingVar })
     .add(
@@ -64,6 +75,7 @@ const promptsEl = view("x")
 // todo 自定义
 
 const stopEl = iconEl("close")
+    .attr({ title: "停止" })
     .bindSet((show: boolean, el) => {
         const El = pack(el);
         if (show) {
@@ -97,9 +109,9 @@ function newChatItem(id: string) {
     }
     const toolBar = frame("tool", {
         _: view("x").class(Class.smallSize).class(Class.transition),
-        reflash: iconEl("reload"),
-        edit: iconEl("super_edit"),
-        delete: iconEl("close"),
+        reflash: iconEl("reload").attr({ title: "重新生成" }),
+        edit: iconEl("super_edit").attr({ title: "编辑" }),
+        delete: iconEl("close").attr({ title: "删除" }),
     });
 
     toolBar.els.delete.on("click", () => {
@@ -151,7 +163,7 @@ function newChatItem(id: string) {
 }
 
 function setModelList(isVision: boolean) {
-    const oldData = selectModelEl.gv ?? model[0].name;
+    const oldData = selectModelEl.gv ?? model[0]?.name;
     const list = isVision ? model.filter((x) => x.supportVision) : model;
     const elList = list.map((x) =>
         ele("option").attr({
@@ -165,6 +177,16 @@ function setModelList(isVision: boolean) {
 
 async function runAIX(targetId?: string, force = false) {
     const x = model.find((x) => x.name === selectModelEl.gv) || model[0];
+    if (!x) {
+        const id = targetId ?? uuid();
+        content.set(id, {
+            role: "assistant",
+            content: { text: t("无视觉模型，请在设置中添加模型") },
+        });
+        newChatItem(id);
+        pickLastItem();
+        return;
+    }
     const clipContent: typeof content = new Map();
     for (const [id, c] of content) {
         clipContent.set(id, c);
@@ -258,7 +280,7 @@ inputEl
         newChatItem(id);
     })
     .on("keyup", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
             runAIX();
             inputEl.sv("");
@@ -312,17 +334,19 @@ addStyle({
 });
 
 view("y")
+    .class("vision-workspace")
     .style({ height: "100vh" })
     .add([
         showList,
         view("y")
+            .class("vision-composer")
             .add([
-                view("x")
+                view("x", "wrap")
                     .style({ gap: paddingVar })
                     .class(Class.smallSize)
                     .add([
                         label([
-                            fileInputEl.style({ display: "none" }),
+                            fileInputEl.class("vision-file"),
                             t("上传图片"),
                         ]).class("b-like"),
                         selectModelEl,

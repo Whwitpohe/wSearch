@@ -1,19 +1,17 @@
-# eSearch
+# wSearch
 
 ( [中文](README.md) | English )
 
-![LOGO](https://raw.githubusercontent.com/xushengfeng/eSearch-website/master/public/readme/title_photo.svg)
-[![license](https://img.shields.io/github/license/xushengfeng/eSearch)](LICENSE)
+[![license](https://img.shields.io/github/license/Whwitpohe/wSearch)](LICENSE)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
-![commit-activity](https://img.shields.io/github/commit-activity/m/xushengfeng/eSearch)
-[![release-date](https://img.shields.io/github/release-date/xushengfeng/eSearch)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![release](https://img.shields.io/github/v/release/xushengfeng/eSearch)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![](https://img.shields.io/github/downloads/xushengfeng/eSearch/total?color=brightgreen&label=Total%20downloads)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![aur](https://img.shields.io/badge/aur-e--search-blue?logo=archlinux)](https://aur.archlinux.org/packages/e-search)
-[![aur1](https://img.shields.io/badge/aur-e--search--git-blue?logo=archlinux)](https://aur.archlinux.org/packages/e-search-git)
+![commit-activity](https://img.shields.io/github/commit-activity/m/Whwitpohe/wSearch)
+[![release-date](https://img.shields.io/github/release-date/Whwitpohe/wSearch)](https://github.com/Whwitpohe/wSearch/releases/latest)
+[![release](https://img.shields.io/github/v/release/Whwitpohe/wSearch)](https://github.com/Whwitpohe/wSearch/releases/latest)
+[![](https://img.shields.io/github/downloads/Whwitpohe/wSearch/total?color=brightgreen&label=Total%20downloads)](https://github.com/Whwitpohe/wSearch/releases/latest)
 
-[![QQ Group](https://img.shields.io/badge/QQ群-1057170038-blue.svg?&color=12b7f5&logo=qq)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=1qoIvXZ5RAICkw_1DchHAaUdnck-wZwJ&authKey=tbBmRbmLJFIJi3dNbMROFpU%2B89V0J572DKUylwacd1%2FgCSg52Ql8Lu5RYGSZQkhc&noverify=0&group_code=1057170038)
 [linux.do](https://linux.do)
+
+wSearch is a fork of [eSearch](https://github.com/xushengfeng/eSearch).
 
 ## Introduction
 
@@ -31,23 +29,13 @@ Including **screenshot+OCR+search+translation+pasting+reverse image search+scree
 
 ![Text recognition main page](https://raw.githubusercontent.com/xushengfeng/eSearch-website/master/public/readme/8.webp)
 
-## Download and Installation
+## Download
 
-Download from the website [eSearch](https://esearch-app.netlify.app/#download)
-
-or open the [releases](https://github.com/xushengfeng/eSearch/releases) tab on the right, select the package that suits your system, and download and install it.
-
-For users in China, you can use [GitHub Proxy](https://ghfast.top/) to accelerate the download.
-
-For ArchLinux, you can search and install `e-search` or `e-search-git` from the AUR.
-
-Using winget: `winget install esearch`
-
-There is no Homebrew package available at the moment, and we welcome volunteer maintainers to provide support.
+See the [wSearch releases](https://github.com/Whwitpohe/wSearch/releases) for published builds.
 
 ## Launch
 
-Open eSearch from your launcher, and it will appear in the system tray.
+Open wSearch from your launcher, and it will appear in the system tray.
 
 The default shortcut key is <kbd>Alt</kbd>+<kbd>C</kbd> (you can also set the shortcut key in the settings).
 
@@ -203,8 +191,8 @@ Most buttons use icons, reducing unnecessary translation.
 ## Running & Compiling from Source Code
 
 ```shell
-git clone https://github.com/xushengfeng/eSearch.git
-cd eSearch
+git clone https://github.com/Whwitpohe/wSearch.git
+cd wSearch
 npm install
 # Compile
 npm run dist

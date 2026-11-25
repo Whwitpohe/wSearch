@@ -2,7 +2,7 @@
 
 ## 反馈&建议
 
-在[github](https://github.com/xushengfeng/eSearch/issues)提交反馈
+在[github](https://github.com/Whwitpohe/wSearch/issues)提交反馈
 
 遇到错误时，可以在 设置-高级-获取日志 中获取日志，附在反馈中。
 

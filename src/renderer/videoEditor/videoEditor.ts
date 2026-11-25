@@ -3181,6 +3181,7 @@ const drawPlayFrame = (frame: VideoFrame) => {
 };
 
 const stopPEl = view("y")
+    .class("record-stop-surface")
     .style({
         width: "100vw",
         height: "100vh",
@@ -3194,8 +3195,9 @@ const stopPEl = view("y")
     })
     .class(Class.gap)
     .addInto();
-view()
-    .style({ width: "80px", height: "80px" })
+button()
+    .class("recording-stop")
+    .attr({ title: "停止" })
     .add(iconEl("stop_record").style({ filter: "none" }))
     .addInto(stopPEl)
     .on("click", () => {
@@ -3311,6 +3313,7 @@ const clipEditor = view("y").style({
 });
 
 const canvasView = view("y")
+    .class("video-stage")
     .style({ flexGrow: 1, overflow: "hidden", alignItems: "center" })
     .add([canvasEl, clipEditor])
     .addInto()
@@ -3326,39 +3329,42 @@ const canvasView = view("y")
     .sv("play");
 
 const actionsEl = view("x")
+    .class("video-playback")
     .style({ justifyContent: "center", alignItems: "center" })
     .addInto();
 const playEl = check("", [
     iconEl("pause").style({ display: "block" }),
     iconEl("recume").style({ display: "block" }),
-]).on("input", async () => {
-    if (playEl.gv) {
-        // 启动/加入编辑处理但不等待完成——编辑期间脏区外即可播放
-        transform();
-        // afterTrans 可能正在对齐播放头，等它完成（快速，不等脏帧内容）
-        await afterTransTask;
-        if (isDirty(willPlayI)) {
-            // 起播点在编辑脏区：先不播放，处理到该帧后可再播
-            playEl.sv(false);
-            return;
-        }
-        isPlaying = true;
-        // 开启输出直通绘制（pause/playEnd 会关闭，防止迟到输出覆盖静止帧）
-        playFrameGet.setSink(drawPlayFrame);
-        if (playI === transformCs.length - 1) {
-            playI = 0 as TransId;
-        }
-        if (willPlayI !== playI) {
-            await playId(willPlayI);
-        }
+])
+    .attr({ title: "播放或暂停" })
+    .on("input", async () => {
+        if (playEl.gv) {
+            // 启动/加入编辑处理但不等待完成——编辑期间脏区外即可播放
+            transform();
+            // afterTrans 可能正在对齐播放头，等它完成（快速，不等脏帧内容）
+            await afterTransTask;
+            if (isDirty(willPlayI)) {
+                // 起播点在编辑脏区：先不播放，处理到该帧后可再播
+                playEl.sv(false);
+                return;
+            }
+            isPlaying = true;
+            // 开启输出直通绘制（pause/playEnd 会关闭，防止迟到输出覆盖静止帧）
+            playFrameGet.setSink(drawPlayFrame);
+            if (playI === transformCs.length - 1) {
+                playI = 0 as TransId;
+            }
+            if (willPlayI !== playI) {
+                await playId(willPlayI);
+            }
 
-        resetPlayTime();
-        audioStart(timestamp2ms(transformCs.at(playI)?.timestamp ?? 0));
-        play();
-    } else {
-        pause();
-    }
-});
+            resetPlayTime();
+            audioStart(timestamp2ms(transformCs.at(playI)?.timestamp ?? 0));
+            play();
+        } else {
+            pause();
+        }
+    });
 
 const lastFrame = iconBEl("last", "上一帧").on("click", (e) => {
     const x = e.shiftKey ? 100 : e.ctrlKey ? 10 : 1;

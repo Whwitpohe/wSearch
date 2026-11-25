@@ -1,0 +1,285 @@
+/* Work surfaces share the user's theme; canvas and overlay coordinates stay independent. */
+.workspace {
+    --panel: color-mix(in srgb, var(--bg) 94%, var(--font-color));
+    --line: color-mix(in srgb, var(--bg) 83%, var(--font-color));
+    --muted: color-mix(in srgb, var(--font-color) 68%, var(--bg));
+    --focus: var(--fluent-accent);
+    color-scheme: light dark;
+    font-family: var(--main-font), "Segoe UI", "Microsoft YaHei UI", sans-serif;
+}
+.workspace
+    :is(button, input, textarea, select, summary, .b-like):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+}
+body.translation-window {
+    margin: 0;
+    box-sizing: border-box;
+    padding: clamp(10px, 3vw, 24px);
+    gap: 10px;
+    background: var(--bg);
+}
+.translation-window .translation-source {
+    box-sizing: border-box;
+    padding: 12px 14px !important;
+    border: 1px solid var(--line) !important;
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--font-color);
+    font: inherit;
+    line-height: 1.55;
+    resize: vertical;
+}
+.translation-languages {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+}
+.translation-languages select {
+    max-width: 42%;
+    min-width: 0;
+    border: 1px solid var(--line);
+    outline: 0;
+    background: var(--panel);
+    color: var(--font-color);
+    padding-inline: 7px;
+}
+.translation-window .translation-results {
+    padding: 0 !important;
+    min-height: 0;
+    gap: 10px !important;
+}
+.translation-result {
+    box-sizing: border-box;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 14px;
+    line-height: 1.55;
+}
+.translation-result > :first-child {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+.translation-result button,
+.vision-workspace .chat-item button {
+    border: 0;
+    outline: 0;
+    background: transparent;
+}
+.translation-result button:hover,
+.vision-workspace .chat-item button:hover {
+    background: var(--panel);
+}
+.vision-workspace {
+    box-sizing: border-box;
+    max-width: 860px;
+    margin-inline: auto;
+    padding: clamp(8px, 2vw, 20px);
+    gap: 10px;
+}
+.vision-workspace .chat-item {
+    padding: 6px 12px;
+    border-radius: 12px;
+    overflow-wrap: anywhere;
+}
+.vision-workspace .chat-item.user {
+    background: var(--panel);
+    margin-inline-start: auto;
+}
+.vision-workspace .chat-item:focus-within #tool_tool {
+    opacity: 1;
+    pointer-events: auto;
+}
+.vision-composer {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+}
+.vision-composer :is(select, textarea) {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.vision-composer textarea {
+    border: 0;
+    outline: 0;
+    background: var(--bg);
+    color: var(--font-color);
+    border-radius: 7px;
+    min-height: 2.5lh;
+}
+.photo-inspector {
+    box-sizing: border-box;
+    width: clamp(205px, 29vw, 332px);
+    background: var(--bg);
+    border-inline-end: 1px solid var(--line);
+    gap: 10px !important;
+}
+.photo-inspector .sub-title {
+    font-size: 14px;
+    font-weight: 650;
+    border-top: 1px solid var(--line);
+    padding-block-start: 10px;
+    margin-block: 3px;
+    color: var(--font-color);
+}
+.photo-inspector input:not([type="checkbox"]):not([type="radio"]),
+.photo-inspector select {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.photo-preview,
+.video-stage {
+    background: var(--panel);
+}
+.video-playback {
+    flex-wrap: wrap;
+    gap: 12px;
+    border-block: 1px solid var(--line);
+    padding: 4px;
+    min-width: 0;
+}
+.editor-page #find,
+.editor-page #history_list {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    box-shadow: 0 5px 15px #0002;
+}
+.editor-page nav > button {
+    outline: 0;
+    background: transparent;
+}
+.editor-page nav > button:hover {
+    background: var(--panel);
+}
+.browser_bg-page {
+    margin: 0;
+    line-height: 1.5;
+}
+.browser_bg-page h1 {
+    font-size: clamp(20px, 4vw, 30px);
+    margin: 0;
+}
+.browser_bg-page h1 + div {
+    color: var(--muted);
+    max-width: 90vw;
+    overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+    .photoEditor-page {
+        flex-direction: column-reverse;
+    }
+    .photoEditor-page .photo-inspector {
+        width: 100%;
+        max-width: none !important;
+        min-width: 0 !important;
+        max-height: 48%;
+        border-inline: 0;
+        border-top: 1px solid var(--line);
+    }
+    .vision-workspace {
+        padding: 6px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .workspace *,
+    .workspace *::before {
+        scroll-behavior: auto !important;
+        transition-duration: 0s !important;
+    }
+}
+
+.photoEditor-page .photo-inspector {
+    padding: 12px 14px !important;
+}
+.photo-inspector .photo-number {
+    display: grid;
+    gap: 3px;
+    align-content: start;
+    flex: 1 1 55px;
+    max-width: 112px;
+    color: var(--muted);
+    font:
+        500 11px / 1.4 var(--main-font),
+        sans-serif;
+}
+.photo-inspector .photo-number input[type="number"] {
+    width: 100%;
+    height: 29px;
+    outline: 0;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--font-color);
+    border-radius: 6px;
+    padding: 3px 7px;
+    font-size: 13px;
+}
+.photo-inspector .photo-number input:focus-visible {
+    outline: 2px solid var(--focus);
+}
+.photo-inspector .sub-title {
+    margin-top: 5px;
+    padding-top: 12px;
+}
+.translation-languages[hidden] {
+    display: none !important;
+}
+.translation-results > p:only-child {
+    margin: 0;
+    padding: 10px 2px;
+    color: var(--muted);
+    font-size: 13px;
+}
+.videoEditor-page button.recording-stop {
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    padding: 13px;
+    border-radius: 50%;
+    outline: 0;
+    border: 1px solid color-mix(in srgb, #d95757 40%, var(--line));
+    background: color-mix(in srgb, #d95757 12%, var(--bg));
+}
+.videoEditor-page .recording-stop .icon {
+    width: 100%;
+    height: 100%;
+}
+.vision-composer .b-like,
+.vision-composer :is(select, button) {
+    padding-inline: 8px;
+    border: 1px solid var(--line);
+    outline: 0;
+    min-height: 28px;
+    border-radius: 7px;
+    font-size: 13px;
+}
+
+.vision-file {
+    position: absolute;
+    width: 1px !important;
+    height: 1px !important;
+    clip-path: inset(50%);
+    overflow: hidden;
+}
+.vision-composer label:has(.vision-file:focus-visible) {
+    outline: 2px solid var(--focus);
+}
+
+body.window-chrome .photo-inspector {
+    background: color-mix(in srgb, var(--bg) 87%, transparent);
+    border-start-end-radius: 8px;
+}
+body.workspace
+    :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not(
+        [type="range"]
+    ):focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+}
+body.workspace .video-playback {
+    background: var(--fluent-card);
+}

@@ -28,6 +28,7 @@ import {
 import { Remarkable } from "remarkable";
 import {
     fetchAppReleases,
+    projectUrl,
     releasePage,
     releasePath,
 } from "../../../lib/appRelease";
@@ -875,7 +876,7 @@ const s: Partial<settingItem<SettingPath>> = {
                         Promise.withResolvers<typeof v>();
 
                     const sample = () =>
-                        image(logo, noI18n("eSearch")).class(
+                        image(logo, noI18n("wSearch")).class(
                             "transform-sample",
                         );
                     const effect = sample();
@@ -1556,46 +1557,84 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     "代理.pacScript": {
         name: "PAC URL",
-        el: () => input(), // todo 跟随上面设置
+        el: () =>
+            input().attr({
+                placeholder: "https://…/proxy.pac",
+                ariaLabel: "PAC URL",
+                spellcheck: false,
+            }),
     },
     "代理.proxyRules": {
         name: "规则",
         el: () => {
-            const els = {
-                http: xGroup("y").add([noI18n("HTTP"), input()]),
-                https: xGroup("y").add([noI18n("HTTPS"), input()]),
-                ftp: xGroup("y").add([noI18n("FTP"), input()]),
-                socks: xGroup("y").add([noI18n("SOCKS"), input()]),
-            } as const;
-
-            const el = xGroup("y")
-                .class(blockSetting)
-                .add(Object.values(els))
-                .bindGet(() => {
-                    return Object.entries(els)
-                        .flatMap(([k, el]) => (el.gv ? `${k}=${el.gv}` : []))
-                        .join(";");
-                })
-                .bindSet((v: string) => {
-                    for (const rule of v.split(";")) {
-                        for (const [x, el] of Object.entries(els)) {
-                            if (rule.includes(`${x}=`)) {
-                                el.sv(rule.replace(`${x}=`, ""));
-                            }
-                        }
-                    }
-                });
-            for (const e of Object.values(els)) {
-                e.on("input", () =>
-                    el.el.dispatchEvent(new CustomEvent("input")),
+            const fields = (["http", "https", "ftp", "socks"] as const).map(
+                (protocol) => {
+                    const field = input().attr({
+                        spellcheck: false,
+                        placeholder: "host:port",
+                    });
+                    return {
+                        protocol,
+                        field,
+                        label: label([
+                            txt(protocol.toUpperCase(), true),
+                            field,
+                        ]),
+                    };
+                },
+            );
+            const raw = input().attr({
+                ariaLabel: t("规则"),
+                spellcheck: false,
+            });
+            const grid = view()
+                .class("proxy-protocols")
+                .add(fields.map((f) => f.label));
+            const form = view().class("proxy-rules").add([grid, raw]);
+            for (const field of [...fields.map((f) => f.field), raw])
+                field.on("input", () =>
+                    form.el.dispatchEvent(new Event("input")),
                 );
-            }
-            return el;
+            return form
+                .bindGet(() =>
+                    grid.el.hidden
+                        ? raw.gv
+                        : fields
+                              .filter((f) => f.field.gv.trim())
+                              .map((f) => `${f.protocol}=${f.field.gv.trim()}`)
+                              .join(";"),
+                )
+                .bindSet((v: string) => {
+                    const rules = new Map<string, string>();
+                    const parts = v
+                        .split(";")
+                        .map((p) => p.trim())
+                        .filter(Boolean);
+                    const simple = parts.every((part) => {
+                        const match = /^(http|https|ftp|socks)=(.+)$/i.exec(
+                            part,
+                        );
+                        if (!match || rules.has(match[1].toLowerCase()))
+                            return false;
+                        rules.set(match[1].toLowerCase(), match[2]);
+                        return true;
+                    });
+                    raw.sv(v);
+                    raw.el.hidden = simple;
+                    grid.el.hidden = !simple;
+                    for (const f of fields)
+                        f.field.sv(rules.get(f.protocol) ?? "");
+                });
         },
     },
     "代理.proxyBypassRules": {
         name: "排除规则",
-        el: () => input(),
+        el: () =>
+            input().attr({
+                placeholder: "localhost; *.example.com",
+                ariaLabel: t("排除规则"),
+                spellcheck: false,
+            }),
     },
     "网络.github镜像.启用": {
         name: "GitHub镜像",
@@ -1917,7 +1956,7 @@ const xs: Record<
                     view().add([
                         "临时目录：",
                         " ",
-                        pathEl(path.join(os.tmpdir(), "eSearch")),
+                        pathEl(path.join(os.tmpdir(), "wSearch")),
                     ]),
                     view().add(["运行目录：", " ", pathEl(runPath)]),
                 ]);
@@ -2707,9 +2746,9 @@ const editedItem = addClass(
 
 function setEidtedItem(el: ElType<HTMLElement>, x: boolean) {
     if (x) {
-        el.class(editedItem).attr({ title: "已修改，右键撤销" });
+        el.class(editedItem);
     } else {
-        el.attr({ title: "" }).el.classList.remove(editedItem);
+        el.el.classList.remove(editedItem);
     }
 }
 
@@ -2810,8 +2849,10 @@ function renderSetting(settingPath: KeyPath) {
         return null;
     }
     const el = setting.el(0 as never);
-    if (el.el.matches(".settings-switch"))
+    if (el.el.matches(".settings-switch")) {
         el.el.setAttribute("aria-label", setting.name);
+        if (setting.desc) el.el.dataset.title = setting.desc;
+    }
     // @ts-ignore
     scheduler.postTask(() => {
         if (Object.hasOwn(s, settingPath)) {
@@ -2850,24 +2891,13 @@ function renderSetting(settingPath: KeyPath) {
     }
     setEidtedItem(pel, nowStoreK.has(settingPath as SettingPath));
     pel.on("contextmenu", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        if (
+            (e.target as Element).closest(
+                "input, textarea, [contenteditable=true]",
+            )
+        )
+            return;
         contextMenu.clear();
-        let s = false;
-        if (nowStoreK.has(settingPath as SettingPath)) {
-            contextMenu.add(
-                view()
-                    .add("撤销修改")
-                    .on("click", () => {
-                        setSet(
-                            settingPath as SettingPath,
-                            getFromStore(oldStore, settingPath as SettingPath),
-                        );
-                        reRenderSetting(settingPath);
-                    }),
-            );
-            s = true;
-        }
         if (
             getSet(settingPath as SettingPath) !==
             getFromStore(getDefaultSetting(), settingPath as SettingPath)
@@ -2886,9 +2916,9 @@ function renderSetting(settingPath: KeyPath) {
                         reRenderSetting(settingPath);
                     }),
             );
-            s = true;
+            e.preventDefault();
+            showContextMenu(e);
         }
-        if (s) showContextMenu(e);
     });
     return pel;
 }
@@ -2959,6 +2989,16 @@ function xSelect<T extends string>(
         const choice = r
             .new(option.value, option.name)
             .class(xselectClass, "settings-option");
+        if (name === "代理") {
+            const help: Record<string, string> = {
+                system: "使用操作系统的代理设置",
+                fixed_servers: "按协议指定代理服务器",
+                pac_script: "通过 PAC 脚本选择代理",
+                auto_detect: "自动发现网络中的代理",
+                direct: "直接连接网络",
+            };
+            choice.el.dataset.title = t(help[option.value]);
+        }
         if (name === "OCR类型") {
             const online =
                 option.value.startsWith("ai-") ||
@@ -2983,7 +3023,7 @@ function xSelect<T extends string>(
     return el.bindGet(() => r.get()).bindSet((value: T) => r.set(value));
 }
 
-// todo 右键撤回 精度
+// todo 精度
 function xRange(
     op?: Partial<{ min: number; max: number; step: number; text: string }>,
 ) {
@@ -4869,25 +4909,27 @@ function modelDialog(
             supportVision: vision.gv,
         };
     }
-    const test = button("测试").on("click", async () => {
-        cancel();
-        const token = generation;
-        try {
-            const draft = readModel();
-            if (!draft.model) throw Error(t("请填写模型名称"));
-            status(t("正在测试..."));
-            const job = runAI(
-                [{ role: "user", content: { text: "Reply with OK." } }],
-                draft,
-            );
-            stopTest = job.stop;
-            await job.text;
-            if (token === generation) status(t("测试成功"));
-        } catch (err) {
-            if (token === generation)
-                status(`${t("测试失败")} · ${String(err)}`);
-        }
-    });
+    const test = button("测试")
+        .data({ title: t("发送一条测试消息以检查模型连接") })
+        .on("click", async () => {
+            cancel();
+            const token = generation;
+            try {
+                const draft = readModel();
+                if (!draft.model) throw Error(t("请填写模型名称"));
+                status(t("正在测试..."));
+                const job = runAI(
+                    [{ role: "user", content: { text: "Reply with OK." } }],
+                    draft,
+                );
+                stopTest = job.stop;
+                await job.text;
+                if (token === generation) status(t("测试成功"));
+            } catch (err) {
+                if (token === generation)
+                    status(`${t("测试失败")} · ${String(err)}`);
+            }
+        });
     const eye = secretEye(key);
     const secret = field("API Key", key, true)
         .add(eye.button)
@@ -4899,7 +4941,12 @@ function modelDialog(
     });
     const details = ele("details")
         .class("model-options")
-        .add([ele("summary").add("请求体自定义"), config]);
+        .add([
+            ele("summary")
+                .data({ title: t("以 JSON 格式添加模型请求参数") })
+                .add("请求体自定义"),
+            config,
+        ]);
     dialogB(
         dialog,
         [
@@ -4909,7 +4956,9 @@ function modelDialog(
             field("API URL", url, true),
             secret,
             field("模型名称", model),
-            label([vision, "支持图像识别"]).class("vision-option"),
+            label([vision, "支持图像识别"])
+                .class("vision-option")
+                .data({ title: t("允许选择此模型识别截图") }),
             details,
             view("x").class("dialog-test").add([test, result]),
         ],
@@ -5378,9 +5427,9 @@ function translatorD(
 }
 
 function transSaveHelp() {
-    return a(
-        `https://github.com/xushengfeng/eSearch/blob/${packageJson.version}/docs/use/translate.md#生词本`,
-    ).add("教程帮助");
+    return a(`${projectUrl}/blob/HEAD/docs/use/translate.md#生词本`).add(
+        "教程帮助",
+    );
 }
 
 function textStyle(mh: number) {
@@ -6962,7 +7011,7 @@ const updateLogClass = addClass(
 function about() {
     const releaseMarkdown = new Remarkable({ html: false });
     const el = view("y").class("settings-about");
-    const logoEl = image(logo, noI18n("eSearch")).style({
+    const logoEl = image(logo, noI18n("wSearch")).style({
         width: "48px",
         height: "48px",
     });
@@ -7023,7 +7072,7 @@ function about() {
                         if (i === 0) {
                             tags.add(txt("最新版本"));
                         }
-                        const baseName = `eSearch-${r.name}-${process.platform}-${process.arch}`;
+                        const baseName = `wSearch-${r.name}-${process.platform}-${process.arch}`;
                         const assets = r.assets.filter((i) =>
                             i.name.startsWith(baseName),
                         );
@@ -7091,12 +7140,11 @@ function about() {
             "text",
         ),
         resourceLink(
-            "https://github.com/xushengfeng/eSearch/tree/master/lib/translate",
+            `${projectUrl}/tree/master/lib/translate`,
             "改进翻译",
             "translate",
         ),
         resourceLink(packageJson.homepage, "为项目点亮星标🌟", "star"),
-        resourceLink("https://github.com/xushengfeng", "赞赏", "link"),
     ]);
     const credits = view("y")
         .class("settings-credits")
@@ -7172,10 +7220,10 @@ ele("style")
     .attr({
         textContent: `
 .settings-shell {
-    --accent: light-dark(#364ed1, #abb8ff);
-    --accent-wash: light-dark(#edf0ff, #2b3454);
-    --stage: color-mix(in srgb, var(--bg) 90%, light-dark(#aebbd5, #0b1019));
-    --surface: color-mix(in srgb, var(--bg) 94%, light-dark(white, #8794ad));
+    --accent: var(--fluent-accent);
+    --accent-wash: color-mix(in srgb,var(--accent) 11%,var(--surface));
+    --stage: var(--fluent-base);
+    --surface: var(--fluent-card);
     --settings-line: color-mix(in srgb, var(--font-color) 13%, var(--surface));
     --settings-muted: color-mix(in srgb, var(--font-color) 68%, var(--surface));
     --soft: color-mix(in srgb, var(--font-color) 5%, var(--surface));
@@ -7205,19 +7253,19 @@ ele("style")
     min-width: 0;
     height: 100%;
     padding: 0 12px 12px;
-    background: #20283b;
-    color: #e8edf8;
-    color-scheme: dark;
+    background: transparent;
+    color: var(--font-color);
+    color-scheme: inherit;
     gap: 0;
-    border-inline-end: 1px solid #141d30;
+    box-sizing:border-box;
 }
 .settings-sidebar .settings-brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 76px;
+    min-height: 62px;
     padding: 0 8px;
-    color: #fff;
+    color: var(--font-color);
     font:
         650 22px / 1 "Segoe UI Variable Display",
         "Segoe UI",
@@ -7225,7 +7273,7 @@ ele("style")
     letter-spacing: -0.85px;
 }
 .settings-brand img {
-    background: #f7f9ff;
+    background: transparent;
     padding: 4px;
     border-radius: 8px;
     box-sizing: content-box;
@@ -7234,7 +7282,7 @@ ele("style")
 }
 
 .settings-search {
-    margin: 0 2px 16px;
+    margin: 6px 4px 12px;
 }
 .settings-search-field {
     position: relative;
@@ -7247,7 +7295,7 @@ ele("style")
     height: 15px;
     position: absolute;
     inset-inline-start: 10px;
-    filter: brightness(0) invert(85%);
+    filter:var(--icon-color);
     pointer-events: none;
 }
 .settings-search-field > input {
@@ -7256,25 +7304,25 @@ ele("style")
     min-width: 0;
     padding: 0 44px 0 32px;
     border-radius: 7px;
-    border: 1px solid #48536a;
+    border: 1px solid var(--settings-line);
     outline: none;
-    background: #293246;
-    color: #f4f6ff;
+    background: var(--surface);
+    color: var(--font-color);
     font: inherit;
     font-size: 12px;
 }
 .settings-search-field > input::placeholder {
-    color: #bdc6d9;
+    color: var(--settings-muted);
 }
 .settings-search-field > kbd {
     position: absolute;
     inset-inline-end: 6px;
     padding: 1px 4px;
     pointer-events: none;
-    border: 1px solid #536079;
+    border: 1px solid var(--settings-line);
     border-radius: 4px;
     background: none;
-    color: #ccd5e7;
+    color: var(--settings-muted);
     box-shadow: none;
     font:
         500 10px / 1.5 "Segoe UI",
@@ -7297,7 +7345,7 @@ ele("style")
 .search-clear img {
     width: 15px;
     height: 15px;
-    filter: brightness(0) invert(90%);
+    filter:var(--icon-color);
 }
 .settings-search-field:has(input:not(:placeholder-shown)) > kbd {
     display: none;
@@ -7310,24 +7358,31 @@ ele("style")
     min-height: 0;
     overflow-y: auto;
     gap: 2px;
-    padding: 2px 2px 10px;
+    padding: 2px 0 7px 2px;scrollbar-gutter:stable;scroll-padding-block:4px;overscroll-behavior:contain;
 }
 .settings-nav-section {
     gap: 2px;
 }
 .settings-routes::-webkit-scrollbar {
-    width: 4px;
+    width: 10px;
 }
 .settings-routes::-webkit-scrollbar-thumb {
-    background: #58667f;
-    border-radius: 8px;
+    background:transparent;
+    border:4px solid transparent;
+    background-clip:padding-box;border-radius:99px;
+}
+.settings-routes:is(:hover,:focus-within,.is-scrolling)::-webkit-scrollbar-thumb {
+    background-color:color-mix(in srgb,var(--font-color) 37%,transparent);
+}
+.settings-routes::-webkit-scrollbar-thumb:hover,.settings-routes::-webkit-scrollbar-thumb:active {
+    border-width:2px;background-color:color-mix(in srgb,var(--font-color) 52%,transparent);
 }
 .settings-sidebar .nav-heading {
-    color: #abb8d1;
+    color: var(--settings-muted);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
-    padding: 14px 10px 5px;
+    padding: 10px 10px 4px;
 }
 .settings-sidebar label {
     position: relative;
@@ -7335,40 +7390,40 @@ ele("style")
     flex-shrink: 0;
     align-items: center;
     gap: 11px;
-    min-height: 31px;
-    padding: 5px 10px;
+    box-sizing:border-box;min-height:32px;
+    padding: 5px 12px;
     border-radius: 6px;
     cursor: pointer;
-    color: #d4daea;
+    color: var(--font-color);
     font-size: 13px;
     line-height: 1.42;
 }
 .settings-sidebar label > img {
     width: 16px;
     height: 16px;
-    filter: brightness(0) invert(86%);
+    filter:var(--icon-color);
     opacity: 0.88;
 }
 .settings-sidebar label:hover {
-    background: #303a50;
-    color: #fff;
+    background: var(--fluent-fill);
+    color: var(--font-color);
 }
 .settings-sidebar label:has(input:checked) {
-    background: #40547c;
-    color: white;
+    background: color-mix(in srgb,var(--font-color) 9%,transparent);
+    color: var(--font-color);
     font-weight: 650;
 }
 .settings-sidebar label:has(input:checked)::before {
     content: "";
     position: absolute;
-    inset-inline-start: 0;
+    inset-inline-start: 2px;
     width: 3px;
     height: 15px;
-    background: #9bb6ff;
+    background: var(--accent);
     border-radius: 3px;
 }
 .settings-sidebar label:has(input:checked) img {
-    filter: brightness(0) invert(100%);
+    filter:var(--icon-color);
     opacity: 1;
 }
 .settings-sidebar input[type="radio"],
@@ -7384,7 +7439,7 @@ ele("style")
     inset:0;margin:0;width:100%;height:100%;opacity:0;clip-path:none;cursor:pointer;
 }
 .settings-nav-footer {
-    border-block-start: 1px solid #3a4357;
+    border-block-start: 1px solid var(--settings-line);
     padding: 9px 2px 0;
     margin-block-start: 4px;
     position: relative;
@@ -7393,7 +7448,7 @@ ele("style")
     position: absolute;
     inset-inline-end: 9px;
     top: 16px;
-    color: #b8c4dc;
+    color: var(--settings-muted);
     font:
         11px / 1.5 var(--monospace),
         monospace;
@@ -7944,11 +7999,13 @@ const sideBar = view("y")
     .class("settings-sidebar")
     .attr({ role: "navigation", ariaLabel: t("设置") })
     .addInto();
-sideBar.add(
-    view("x")
-        .class("settings-brand")
-        .add([image(logo, noI18n("")), txt("eSearch", true)]),
-);
+if (!document.body.classList.contains("window-chrome")) {
+    sideBar.add(
+        view("x")
+            .class("settings-brand")
+            .add([image(logo, noI18n("")), txt("wSearch", true)]),
+    );
+}
 const sideBarG = radioGroup("侧栏", true);
 const searchBar = view().class("settings-search").addInto(sideBar);
 const searchField = view("x").class("settings-search-field").addInto(searchBar);
@@ -8064,6 +8121,19 @@ function showContextMenu(e: MouseEvent) {
 }
 
 const routes = view("y").class("settings-routes").addInto(sideBar);
+let navScrollEnd: ReturnType<typeof setTimeout>;
+routes.on(
+    "scroll",
+    () => {
+        routes.el.classList.add("is-scrolling");
+        clearTimeout(navScrollEnd);
+        navScrollEnd = setTimeout(
+            () => routes.el.classList.remove("is-scrolling"),
+            650,
+        );
+    },
+    { passive: true },
+);
 const navFooter = view("y").class("settings-nav-footer").addInto(sideBar);
 const featureNav = view("y").class("settings-nav-section");
 const appNav = view("y").class("settings-nav-section");
@@ -8096,6 +8166,8 @@ for (const [i, page] of main.entries()) {
 routes.add([featureNav, appNav]);
 
 sideBarG.on(() => {
+    const current = routes.el.querySelector("input:checked")?.closest("label");
+    current?.scrollIntoView({ block: "nearest", inline: "nearest" });
     searchI.sv("");
     showPage(main.at(Number(sideBarG.get())));
 });

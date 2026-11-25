@@ -294,8 +294,8 @@ const beforePack = async () => {
  */
 const build = {
     appId: "com.esearch.app",
-    publish: { provider: "github", owner: "Whwitpohe", repo: "eSearch" },
-    executableName: "e-search",
+    publish: { provider: "github", owner: "Whwitpohe", repo: "wSearch" },
+    executableName: "wSearch",
     directories: {
         output: "build",
     },
@@ -458,6 +458,7 @@ for (const i of nodeScreenshotsList) {
 const ignoreDir = [
     ".*",
     "tsconfig*",
+    "out/qa/**",
     "*.md",
     "*.js",
     "*.yaml",

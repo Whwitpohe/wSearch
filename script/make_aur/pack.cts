@@ -30,7 +30,7 @@ for (const size of iconList) {
     if (!fs.existsSync(toDir)) {
         fs.mkdirSync(toDir, { recursive: true });
     }
-    const to = path.join(toDir, "esearch.png");
+    const to = path.join(toDir, "wsearch.png");
     fs.copyFileSync(from, to);
     console.log(`Copied ${from} to ${to}`);
 }
@@ -75,12 +75,12 @@ const packageJSON = JSON.parse(
         .toString(),
 );
 
-execSync(`tar -czvf eSearch_${packageJSON.version}.aur e-search`, {
+execSync(`tar -czvf wSearch_${packageJSON.version}.aur e-search`, {
     stdio: "inherit",
     cwd: __dirname,
 });
 
-execSync(`sha512sum eSearch_${packageJSON.version}.aur`, {
+execSync(`sha512sum wSearch_${packageJSON.version}.aur`, {
     stdio: "inherit",
     cwd: __dirname,
 });

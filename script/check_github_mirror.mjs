@@ -15,10 +15,10 @@ const timeoutArg =
 const timeout =
     Number.isFinite(timeoutArg) && timeoutArg > 0 ? timeoutArg : 15_000;
 
-const apiTarget = "repos/xushengfeng/eSearch/releases/latest";
+const apiTarget = "repos/Whwitpohe/wSearch/releases/latest";
 const baseTarget =
     "xushengfeng/eSearch-OCR/releases/download/4.0.0/ppocr_v6_tiny.zip";
-const userAgent = "eSearch-github-mirror-check";
+const userAgent = "wSearch-github-mirror-check";
 
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);

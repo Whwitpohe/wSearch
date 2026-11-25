@@ -7,7 +7,7 @@ it("reads the fork and treats zero public releases as a successful check", async
     vi.stubGlobal("fetch", get);
     expect(await fetchAppReleases("https://mirror.invalid/api")).toEqual([]);
     expect(get.mock.calls[0]).toContain(
-        "https://api.github.com/repos/Whwitpohe/eSearch/releases",
+        "https://api.github.com/repos/Whwitpohe/wSearch/releases",
     );
     expect(get).toHaveBeenCalledTimes(1);
 });

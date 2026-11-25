@@ -1,8 +1,10 @@
-import { addClass, addStyle, initDKH, view } from "dkh-ui";
+import { addClass, addStyle, ele, image, initDKH, noI18n, view } from "dkh-ui";
 import { lan, t } from "../../../lib/translate/translate";
 import type { RawIconType } from "../../iconTypes";
+import brandIcon from "../assets/icon.svg";
 
 const fs = require("node:fs") as typeof import("node:fs");
+const { pathToFileURL } = require("node:url") as typeof import("node:url");
 const path = require("node:path") as typeof import("node:path");
 
 function initStyle(
@@ -12,16 +14,17 @@ function initStyle(
     function setCSSVar(name: string, value: string) {
         if (value) document.documentElement.style.setProperty(name, value);
     }
-    const 模糊 = store.get("全局.模糊");
+    const appearance = store.get("全局");
+    const 模糊 = appearance.模糊;
     if (模糊 !== 0) {
         setCSSVar("--blur", `blur(${模糊}px)`);
     } else {
         setCSSVar("--blur", "none");
     }
 
-    setCSSVar("--alpha", `${store.get("全局.不透明度") * 100}%`);
+    setCSSVar("--alpha", `${appearance.不透明度 * 100}%`);
 
-    const theme = store.get("全局.主题");
+    const theme = appearance.主题;
     setCSSVar("--bar-bg0", theme.light.barbg);
     setCSSVar("--bg", theme.light.bg);
     setCSSVar("--emphasis-color", theme.light.emphasis);
@@ -60,24 +63,26 @@ function initStyle(
         },
     });
 
+    const chrome = new URLSearchParams(location.search);
+    if (chrome.get("chrome") === "windows") {
+        const material = chrome.get("material");
+        document.body.classList.add("window-chrome");
+        if (material === "mica") document.body.classList.add("window-mica");
+        const accent = chrome.get("accent");
+        if (accent && /^[0-9a-f]{6}$/i.test(accent))
+            setCSSVar("--system-accent", `#${accent}`);
+        const caption = ele("header")
+            .class("window-caption")
+            .add([
+                image(brandIcon, noI18n("")),
+                ele("span").add(noI18n("wSearch")),
+            ]);
+        document.body.prepend(caption.el);
+    }
     const topTip = view()
-        .class(Class.glassBar)
-        .style({
-            position: "fixed",
-            pointerEvents: "none",
-            padding: "2px",
-            borderRadius: "4px",
-            width: "auto",
-            height: "auto",
-            zIndex: 9999,
-            transition: "var(--transition) opacity",
-            whiteSpace: "pre",
-        })
-        .addInto()
-        .bindSet((v: string, el) => {
-            el.innerText = v;
-        });
-
+        .class("app-tooltip")
+        .attr({ popover: "manual", role: "tooltip", id: "app-tooltip" })
+        .addInto();
     const tipDelay = 400;
     let tipEl: HTMLElement | null = null;
     let tipTimer: ReturnType<typeof setTimeout> | undefined;
@@ -85,18 +90,22 @@ function initStyle(
     function hideTip() {
         clearTimeout(tipTimer);
         tipTimer = undefined;
+        if (topTip.el.matches(":popover-open")) topTip.el.hidePopover();
         tipEl = null;
-        topTip.style({ opacity: 0 });
     }
 
     function showTip(el: HTMLElement) {
-        const title = el.getAttribute("data-title");
-        if (!title?.trim()) {
+        const title = el.dataset.title || el.getAttribute("aria-label");
+        if (!title?.trim() || !el.isConnected) {
             hideTip();
             return;
         }
+        // A tooltip hosted by its dialog stays in the same interactive top layer.
+        const host = el.closest("dialog[open], :popover-open") ?? document.body;
+        if (topTip.el.parentElement !== host) host.append(topTip.el);
+        topTip.el.textContent = title;
+        topTip.el.showPopover();
         const rect = el.getBoundingClientRect();
-        topTip.sv(title);
         const tw = topTip.el.offsetWidth;
         const th = topTip.el.offsetHeight;
         const ow = window.innerWidth;
@@ -110,28 +119,40 @@ function initStyle(
             top = rect.top - th - 4;
         }
         topTip.style({
-            opacity: 1,
             left: `${left}px`,
             top: `${Math.max(Math.min(top, oh - th), 0)}px`,
         });
     }
 
-    window.addEventListener("pointerover", (e) => {
-        const el = e.target as HTMLElement;
-        const tEl = el.closest<HTMLElement>("[data-title]");
-        if (!tEl) {
-            hideTip();
-            return;
-        }
-        if (tEl === tipEl) return;
+    function queueTip(target: EventTarget | null) {
+        const el =
+            target instanceof Element
+                ? target.closest<HTMLElement>(
+                      "[data-title], button[aria-label], [role=button][aria-label]",
+                  )
+                : null;
+        if (el === tipEl) return;
         hideTip();
-        tipEl = tEl;
+        if (!el) return;
+        tipEl = el;
         tipTimer = setTimeout(() => {
-            tipTimer = undefined;
-            if (tipEl === tEl) showTip(tEl);
+            if (tipEl === el) showTip(el);
         }, tipDelay);
+    }
+    window.addEventListener("pointerover", (e) => {
+        if (e.pointerType !== "touch") queueTip(e.target);
     });
-
+    window.addEventListener("focusin", (e) => {
+        if (e.target instanceof Element && e.target.matches(":focus-visible"))
+            queueTip(e.target);
+    });
+    window.addEventListener("focusout", hideTip);
+    window.addEventListener("pointerdown", hideTip, true);
+    window.addEventListener("scroll", hideTip, true);
+    window.addEventListener("resize", hideTip);
+    window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") hideTip();
+    });
     window.addEventListener("pointerout", (e) => {
         if (!tipEl) return;
         const to = e.relatedTarget as Node | null;
@@ -151,8 +172,9 @@ function getImgUrl(name: RawIconType) {
 }
 
 function setTitle(t: string) {
-    document.title = `eSearch ${t}`;
-    // todo 国际化
+    document.title = `wSearch ${t}`;
+    const caption = document.querySelector(".window-caption span");
+    if (caption) caption.textContent = document.title;
 }
 
 const cssColor = {
@@ -251,16 +273,12 @@ function initEmbeddedMonoFont() {
             .map((dir) => path.join(dir, file))
             .find((p) => fs.existsSync(p));
         if (!fontPath) continue;
-        const data = fs.readFileSync(fontPath);
+        const source =
+            location.protocol === "file:"
+                ? `url("${pathToFileURL(fontPath).href}")`
+                : `url("/@fs/${fontPath.replaceAll("\\", "/")}")`;
         document.fonts.add(
-            new FontFace(
-                embeddedMonoFont,
-                data.buffer.slice(
-                    data.byteOffset,
-                    data.byteOffset + data.byteLength,
-                ) as ArrayBuffer,
-                { weight },
-            ),
+            new FontFace(embeddedMonoFont, source, { weight, display: "swap" }),
         );
     }
 }

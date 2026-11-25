@@ -377,15 +377,24 @@ cEl.on("wheel", (e) => {
     cEl.style({ width: `${r.width * (1 + e.deltaY / 600)}px` });
 });
 
+let lastMouseX = Number.NaN,
+    lastMouseY = Number.NaN;
+let lastIgnore: boolean | undefined;
 setInterval(() => {
     const { x, y } = renderSendSync("getMousePos", []).po;
-    recorderMouseEl.style.left = `${x}px`;
-    recorderMouseEl.style.top = `${y}px`;
+    if (x !== lastMouseX || y !== lastMouseY) {
+        recorderMouseEl.style.left = `${x}px`;
+        recorderMouseEl.style.top = `${y}px`;
+        lastMouseX = x;
+        lastMouseY = y;
+    }
     const l = document.elementsFromPoint(x, y);
-    renderSend("windowIgnoreMouse", [
-        !(l.includes(cEl.el) || l.includes(controlBar.el)),
-    ]);
-}, 10);
+    const ignore = !(l.includes(cEl.el) || l.includes(controlBar.el));
+    if (ignore !== lastIgnore) {
+        renderSend("windowIgnoreMouse", [ignore]);
+        lastIgnore = ignore;
+    }
+}, 32);
 
 renderOn("recordTime", ([t]) => {
     timeEl.sv(t);

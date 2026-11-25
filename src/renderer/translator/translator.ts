@@ -43,43 +43,55 @@ const textColor = store.get("屏幕翻译.color.text") || "#000";
 
 let pause = false;
 
+const cropCanvas = document.createElement("canvas");
+const cropContext = cropCanvas.getContext("2d", { willReadFrequently: true });
 async function screenshot(id: number, rect: Rect) {
     const l = (await screenShots(display)).screen;
     const screen = l.find((i) => i.id === id) || l[0];
     if (!screen) return null;
     const img = (await screen.capture()).toImageData();
     if (!img) return null;
-    const canvas = document.createElement("canvas");
-
-    canvas.width = img.width;
-    canvas.height = img.height;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("can get canvas context");
-    ctx.putImageData(img, 0, 0);
-    return ctx.getImageData(rect.x, rect.y, rect.w, rect.h);
+    if (!cropContext || rect.w <= 0 || rect.h <= 0) return null;
+    if (cropCanvas.width !== rect.w || cropCanvas.height !== rect.h) {
+        cropCanvas.width = rect.w;
+        cropCanvas.height = rect.h;
+    } else {
+        cropContext.clearRect(0, 0, rect.w, rect.h);
+    }
+    cropContext.putImageData(
+        img,
+        -rect.x,
+        -rect.y,
+        rect.x,
+        rect.y,
+        rect.w,
+        rect.h,
+    );
+    return cropContext.getImageData(0, 0, rect.w, rect.h);
 }
 
 const tCache: Map<string, string> = new Map();
 
 async function translate(text: { text: string; el: ElType<HTMLDivElement> }[]) {
-    const toTran: typeof text = [];
-    for (const i of text) {
-        const t = tCache.get(i.text);
-        if (t) {
-            i.el.el.innerText = t;
-        } else {
-            toTran.push(i);
+    const missing = new Map<string, ElType<HTMLDivElement>[]>();
+    for (const item of text) {
+        const cached = tCache.get(item.text);
+        if (cached !== undefined) item.el.el.textContent = cached;
+        else {
+            const targets = missing.get(item.text);
+            if (targets) targets.push(item.el);
+            else missing.set(item.text, [item.el]);
         }
     }
-
-    const tt = await translateE(toTran.map((i) => i.text));
-    for (let i = 0; i < tt.length; i++) {
-        const tran = tt[i];
-        const text = toTran[i].text;
-        tCache.set(text, tran);
-        toTran[i].el.el.innerText = tran;
-    }
+    if (!missing.size) return;
+    const keys = Array.from(missing.keys());
+    const translated = await translateE(keys);
+    keys.forEach((key, index) => {
+        const value = translated[index];
+        if (value === undefined) return;
+        tCache.set(key, value);
+        for (const el of missing.get(key)!) el.el.textContent = value;
+    });
 }
 
 const sl = () =>
@@ -122,20 +134,24 @@ async function run() {
         textEl.add(item);
         textL.push({ el: item, text });
     }
-    translate(textL);
+    await translate(textL);
 }
 
 let refreshTimer: null | ReturnType<typeof setTimeout> = null;
-const runRun = () => {
+let currentRun: Promise<void> | undefined;
+function refresh(manual = false) {
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
-    if (pause) return;
-    run();
-    refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        runRun();
-    }, frequencyTime);
-};
+    if (currentRun || (pause && !manual)) return currentRun;
+    currentRun = run()
+        .catch((error) => console.error(error))
+        .finally(() => {
+            currentRun = undefined;
+            if (!pause)
+                refreshTimer = setTimeout(() => refresh(), frequencyTime);
+        });
+    return currentRun;
+}
 
 pack(document.body).style({
     overflow: "hidden",
@@ -150,7 +166,7 @@ const playEl = button(playIcon)
         playIcon.el.src = pause
             ? getImgUrl("recume.svg")
             : getImgUrl("pause.svg");
-        runRun();
+        void refresh();
     });
 
 const runEl = button(iconEl("ocr"))
@@ -159,7 +175,7 @@ const runEl = button(iconEl("ocr"))
         mainEl.el.style.opacity = "0";
         await sl();
         await sl();
-        await run();
+        await refresh(true);
         mainEl.el.style.opacity = "1";
     });
 
@@ -222,5 +238,5 @@ renderOn("translatorInit", ([id, _display, _rect]) => {
     display = _display;
     screenId = id;
     rect = _rect;
-    runRun();
+    void refresh();
 });

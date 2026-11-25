@@ -1,5 +1,5 @@
 {
-    "name": "eSearch",
+    "name": "wSearch",
     "version": "15.8.0",
     "description": "识屏 · 搜索",
     "main": "./out/main/main.js",
@@ -26,10 +26,10 @@
         "name": "xsf",
         "email": "xushengfeng_zg@163.com"
     },
-    "homepage": "https://github.com/Whwitpohe/eSearch/",
+    "homepage": "https://github.com/Whwitpohe/wSearch/",
     "repository": {
         "type": "git",
-        "url": "https://github.com/Whwitpohe/eSearch.git"
+        "url": "https://github.com/Whwitpohe/wSearch.git"
     },
     "license": "GPL-3.0",
     "packageManager": "pnpm@10.17.0",

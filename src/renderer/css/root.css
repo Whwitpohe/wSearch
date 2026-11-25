@@ -198,6 +198,38 @@ body textarea {
     width: 300px;
 }
 
+.app-tooltip[popover] {
+    pointer-events: none;
+    inset: auto;
+    margin: 0;
+    box-sizing: border-box;
+    width: max-content;
+    height: auto;
+    max-width: min(34ch, calc(100vw - 4px));
+    padding: 5px 9px;
+    border: 0;
+    border-radius: 7px;
+    background: rgb(32 36 44 / 94%);
+    color: #fff;
+    box-shadow: 0 3px 12px #0003;
+    font:
+        500 12px / 1.45 var(--main-font),
+        sans-serif;
+    text-align: start;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
+.app-tooltip:not(:popover-open) {
+    display: none;
+}
+@media (prefers-color-scheme: dark) {
+    .app-tooltip[popover] {
+        background: rgb(55 60 70 / 96%);
+        box-shadow:
+            inset 0 0 0 1px #ffffff21,
+            0 3px 12px #0004;
+    }
+}
 /* Application-owned dialogs share the same surface in every renderer. */
 body dialog {
     color-scheme: light dark;
@@ -1030,9 +1062,9 @@ body dialog button.danger-action {
     gap: 2px;
     padding: 4px;
     margin: 6px 1px;
-    border: 1px solid #475579;
+    border: 1px solid var(--settings-line);
     border-radius: 10px;
-    background: #2b3650;
+    background: var(--surface);
 }
 .change-actions[hidden] {
     display: none !important;
@@ -1053,37 +1085,37 @@ body dialog button.danger-action {
     background: transparent;
     outline: none;
     border: none;
-    color: #f2f5ff;
+    color: var(--font-color);
     white-space: normal;
 }
 .settings-shell .change-actions button:focus-visible {
-    outline: 2px solid #bac8ff;
+    outline: 2px solid var(--accent);
     outline-offset: -2px;
 }
 .settings-shell .change-actions button:hover {
-    background: #3d4c6e;
+    background: var(--soft);
 }
 .settings-shell .change-actions img {
     width: 15px;
     height: 15px;
     flex: none;
-    filter: brightness(0) invert(91%);
+    filter: var(--icon-color);
 }
 .settings-shell .change-actions .undo-changes {
-    color: #cbd5e8;
+    color: var(--settings-muted);
     font-weight: 450;
 }
 .settings-shell .change-actions .undo-changes:hover {
-    background: #4a3849;
-    color: #ffd1cd;
+    background: var(--soft);
+    color: var(--font-color);
 }
 .change-count {
     margin-inline-start: auto;
     min-width: 19px;
     padding: 1px 5px;
     border-radius: 6px;
-    background: #465779;
-    color: #eff4ff;
+    background: var(--accent-wash);
+    color: var(--accent);
     font:
         600 11px / 1.5 "Segoe UI",
         sans-serif;
@@ -1093,15 +1125,15 @@ body dialog button.danger-action {
 .settings-shell .settings-sidebar > div:not(.change-actions) > button {
     width: 100%;
     margin-block: 3px;
-    background: #34405a;
-    color: #e3eafb;
+    background: var(--surface);
+    color: var(--font-color);
     border: 0;
     outline: none;
     border-radius: 7px;
     padding: 6px 8px;
 }
 .settings-shell .settings-sidebar > div:not(.change-actions) > button:hover {
-    background: #465674;
+    background: var(--soft);
 }
 .settings-shell .measure-input {
     box-sizing: border-box;
@@ -1395,6 +1427,110 @@ body dialog.ocr-model-sheet[open] {
     box-shadow: none;
     border: 1px solid var(--settings-line);
     border-radius: 10px;
+}
+body.settings-shell dialog {
+    --dialog-surface: var(--surface);
+    --dialog-field: color-mix(in srgb, var(--bg) 83%, var(--surface));
+    --dialog-muted: var(--settings-muted);
+    --dialog-ink: var(--font-color);
+    --dialog-line: var(--settings-line);
+    --dialog-accent: var(--accent);
+}
+.ocr-engine-panel > h2 {
+    color: var(--settings-muted);
+    letter-spacing: 0.01em;
+}
+body.settings-shell .settings-options .engine-choice:has(input:checked) {
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    outline-color: color-mix(in srgb, var(--accent) 65%, var(--surface));
+    color: var(--font-color);
+}
+body.settings-shell
+    .settings-group:has([data-name="代理.mode"])
+    > .settings-row[data-name^="代理."] {
+    display: grid !important;
+    grid-template-columns: minmax(112px, 0.6fr) minmax(0, 2fr);
+    align-items: start !important;
+    gap: 8px 22px;
+}
+body.settings-shell .settings-row[data-name^="代理."] .row-caption {
+    min-width: 0;
+    padding-top: 5px;
+}
+body.settings-shell [data-name="代理.mode"] .settings-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 3px;
+    background: var(--stage);
+    border-radius: 9px;
+    width: fit-content;
+    max-width: 100%;
+}
+body.settings-shell [data-name="代理.mode"] .settings-option {
+    outline: 0;
+    background: transparent;
+    padding: 5px 9px;
+    color: var(--settings-muted);
+}
+body.settings-shell
+    [data-name="代理.mode"]
+    .settings-option:has(input:checked) {
+    background: var(--surface);
+    box-shadow: 0 1px 4px #0002;
+    color: var(--accent);
+}
+body.settings-shell
+    [data-name="代理.mode"]
+    .settings-option:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+}
+body.settings-shell
+    .settings-group:has([data-name="代理.mode"]):not(
+        :has(input[value="fixed_servers"]:checked)
+    )
+    > :is([data-name="代理.proxyRules"], [data-name="代理.proxyBypassRules"]),
+body.settings-shell
+    .settings-group:has([data-name="代理.mode"]):not(
+        :has(input[value="pac_script"]:checked)
+    )
+    > [data-name="代理.pacScript"],
+.proxy-rules [hidden] {
+    display: none !important;
+}
+.proxy-protocols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+.proxy-protocols label {
+    display: grid;
+    gap: 4px;
+    color: var(--settings-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+body.settings-shell
+    .settings-content
+    .settings-row[data-name^="代理."]
+    input:not([type="radio"]) {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+@container (max-width: 600px) {
+    body.settings-shell
+        .settings-group:has([data-name="代理.mode"])
+        > .settings-row[data-name^="代理."] {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+@container (max-width: 360px) {
+    .proxy-protocols {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 .ocr-catalogue {
     gap: 8px;
@@ -2061,4 +2197,242 @@ body.settings-shell
 .selection-rule:has(.unavailable) .remove-action {
     grid-column: -2;
     grid-row: 1;
+}
+
+/* Shared Windows frame; the caption buttons belong to the system. */
+:root {
+    --fluent-accent: light-dark(
+        color-mix(in srgb, var(--system-accent, #0078d4) 82%, #002e52),
+        color-mix(in srgb, var(--system-accent, #0078d4) 50%, white)
+    );
+    --fluent-base: color-mix(in srgb, var(--bg) 96%, var(--font-color));
+    --fluent-card: color-mix(in srgb, var(--bg) 94%, light-dark(white, #aaa));
+    --fluent-stroke: color-mix(
+        in srgb,
+        var(--font-color) 13%,
+        var(--fluent-card)
+    );
+    --fluent-fill: color-mix(in srgb, var(--font-color) 6%, transparent);
+}
+body.window-chrome {
+    --caption-height: env(titlebar-area-height, 40px);
+    box-sizing: border-box;
+    height: 100dvh;
+    margin: 0;
+    padding-block-start: var(--caption-height);
+    color-scheme: light dark;
+    background-color: var(--fluent-base);
+}
+body.window-mica {
+    background-color: transparent;
+}
+.window-caption {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline-start: env(titlebar-area-x, 0px);
+    width: env(titlebar-area-width, calc(100% - 140px));
+    height: var(--caption-height);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding-inline: 16px;
+    z-index: 12;
+    color: var(--font-color);
+    font:
+        400 12px / 1.4 var(--main-font),
+        "Segoe UI",
+        sans-serif;
+    -webkit-app-region: drag;
+    user-select: none;
+}
+.window-caption img {
+    width: 16px;
+    height: 16px;
+}
+.window-caption span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.window-chrome .record-stop-surface {
+    top: var(--caption-height) !important;
+    height: calc(100dvh - var(--caption-height)) !important;
+}
+.window-chrome .photo-preview {
+    height: 100%;
+    box-sizing: border-box;
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    body.window-mica {
+        background-color: var(--fluent-base);
+    }
+}
+body dialog {
+    --dialog-surface: var(--fluent-card);
+    --dialog-line: var(--fluent-stroke);
+    --dialog-accent: var(--fluent-accent);
+}
+body dialog::backdrop {
+    background: rgb(0 0 0 / 33%);
+    backdrop-filter: var(--blur);
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    body dialog::backdrop {
+        backdrop-filter: none;
+    }
+}
+
+body.window-chrome .settings-brand {
+    display: none;
+}
+body.window-chrome .settings-sidebar {
+    height: 100%;
+    padding-top: 2px;
+}
+body.settings-shell .settings-main {
+    border: 1px solid var(--settings-line);
+    border-inline-end: 0;
+    border-bottom: 0;
+    border-start-start-radius: 9px;
+    background: color-mix(in srgb, var(--bg) 91%, transparent);
+}
+body.settings-shell .settings-content {
+    padding-top: clamp(20px, 3vw, 32px);
+}
+body.settings-shell .settings-page > h1 {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+}
+body.settings-shell .settings-group {
+    border-radius: 8px;
+}
+body.settings-shell .settings-search-field > input {
+    border-radius: 5px;
+    border-bottom-color: var(--settings-muted);
+}
+body.settings-shell .settings-search-field > input:focus {
+    border-bottom: 2px solid var(--accent);
+}
+body.settings-shell .settings-nav-footer {
+    padding-top: 4px;
+    flex-shrink: 0;
+}
+body.settings-shell .settings-nav-footer .nav-version {
+    top: 12px;
+}
+body.settings-shell .settings-search-field > kbd {
+    border: 0;
+    background: var(--soft);
+    color: var(--settings-muted);
+}
+body.settings-shell .quick-card {
+    border-radius: 8px;
+    box-shadow: none;
+}
+body.settings-shell .quick-capture {
+    color: var(--font-color);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+    border-color: var(--settings-line);
+}
+body.settings-shell .quick-capture .quick-caption {
+    color: var(--settings-muted);
+}
+body.settings-shell .quick-capture :is(.quick-caption img, .quick-arrow) {
+    filter: var(--icon-color);
+}
+body.settings-shell .quick-capture kbd {
+    background: var(--surface);
+    border: 1px solid var(--settings-line);
+    color: var(--font-color);
+    box-shadow: none;
+}
+body.settings-shell .quick-translate {
+    background: color-mix(
+        in srgb,
+        light-dark(#25836b, #68bc9f) 10%,
+        var(--surface)
+    );
+    border-color: var(--settings-line);
+    color: var(--font-color);
+}
+body.settings-shell .quick-translate .quick-detail {
+    color: var(--settings-muted);
+}
+body.settings-shell :is(.settings-search, .settings-nav-footer) {
+    flex: none;
+}
+@media (max-height: 690px) {
+    body.settings-shell .settings-sidebar label {
+        min-height: 29px;
+        padding-block: 3px;
+    }
+    body.settings-shell .settings-sidebar .nav-heading {
+        padding-top: 7px;
+    }
+}
+@media (forced-colors: active) {
+    .settings-routes::-webkit-scrollbar-thumb {
+        background: ButtonText;
+    }
+    .settings-sidebar label:has(input:checked) {
+        outline: 1px solid Highlight;
+    }
+}
+body .action-directory[popover] {
+    --directory-surface: var(--fluent-card);
+    --directory-line: var(--fluent-stroke);
+    --directory-top: var(--fluent-base);
+    border-radius: 10px;
+}
+@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+    body .action-directory[popover],
+    body dialog .field-popover:popover-open,
+    body .app-tooltip[popover] {
+        backdrop-filter: var(--blur);
+    }
+    body .action-directory[popover] {
+        background: color-mix(
+            in srgb,
+            var(--directory-surface) 92%,
+            transparent
+        );
+    }
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+    body.settings-shell .settings-main {
+        background: var(--bg);
+    }
+}
+
+body.settings-shell .settings-main::-webkit-scrollbar,
+.workspace :is(.photo-inspector, .translation-results)::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+body.settings-shell .settings-main::-webkit-scrollbar-thumb,
+.workspace
+    :is(.photo-inspector, .translation-results)::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: 99px;
+    background: transparent;
+    background-clip: padding-box;
+}
+body.settings-shell .settings-main:hover::-webkit-scrollbar-thumb,
+.workspace
+    :is(.photo-inspector, .translation-results):hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--font-color) 34%, transparent);
+}
+body.settings-shell .settings-main::-webkit-scrollbar-thumb:hover,
+.workspace
+    :is(.photo-inspector, .translation-results)::-webkit-scrollbar-thumb:hover {
+    border-width: 2px;
+    background-color: color-mix(in srgb, var(--font-color) 52%, transparent);
+}
+@media (forced-colors: active) {
+    body.settings-shell .settings-main::-webkit-scrollbar-thumb,
+    .settings-routes::-webkit-scrollbar-thumb {
+        background-color: ButtonText;
+    }
 }

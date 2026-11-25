@@ -260,7 +260,7 @@ app.whenReady().then(async () => {
         height: HEIGHT,
         useContentSize: true,
         show: overlay || (visible && !offscreen),
-        title: "eSearch mock clip",
+        title: "wSearch mock clip",
         alwaysOnTop: overlay,
         skipTaskbar: !visible,
         transparent: overlay,

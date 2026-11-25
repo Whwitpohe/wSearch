@@ -1,9 +1,8 @@
 import { matchFitLan } from "xtranslator";
-import { Class, cssColor, getImgUrl, initStyle } from "../root/root";
+import { Class, cssColor, getImgUrl, initStyle, setTitle } from "../root/root";
 
 const fs = require("node:fs") as typeof import("fs");
 
-import { initFastText } from "@xushengfeng/fasttext_wasm";
 import {
     button,
     ele,
@@ -25,13 +24,14 @@ import { getEngineLans, getTranslators } from "../lib/translate";
 
 initStyle(store);
 
-document.title = t("翻译");
+setTitle(t("翻译"));
 
 function iconButton(img: IconType) {
     return button(image(getImgUrl(`${img}.svg`), "icon").class("icon"));
 }
 
 pack(document.body)
+    .class("translation-window")
     .style({
         display: "flex",
         flexDirection: "column",
@@ -39,19 +39,23 @@ pack(document.body)
     })
     .class(Class.gap);
 
-const input = ele("textarea").style({
-    width: "100%",
-    padding: "8px",
-    border: "none",
-    // @ts-ignore
-    "field-sizing": "content",
-    "min-height": "4lh",
-    maxHeight: "50%",
-    outline: "none",
-    transition: "none",
-    flexShrink: 0,
-});
+const input = ele("textarea")
+    .class("translation-source")
+    .attr({ ariaLabel: t("原文"), placeholder: t("输入要翻译的文字") })
+    .style({
+        width: "100%",
+        padding: "8px",
+        border: "none",
+        // @ts-ignore
+        "field-sizing": "content",
+        "min-height": "4lh",
+        maxHeight: "50%",
+        outline: "none",
+        transition: "none",
+        flexShrink: 0,
+    });
 const lans = view("x")
+    .class("translation-languages")
     .style({
         justifyContent: "center",
     })
@@ -66,25 +70,31 @@ const setLan = (el: HTMLSelectElement, lan: string) => {
 };
 
 const lansFrom = ele("select")
+    .attr({ title: "原文语言" })
     .on("change", () => {
+        ++inputRevision;
+        clearTimeout(lastTrans);
         translate(input.el.value);
     })
     .bindGet((el) => el.value)
     .bindSet((lan: string, el) => setLan(el, lan));
 const lansTo = ele("select")
+    .attr({ title: "译文语言" })
     .on("change", () => {
+        ++inputRevision;
+        clearTimeout(lastTrans);
         translate(input.el.value);
     })
     .bindGet((el) => el.value)
     .bindSet((lan: string, el) => setLan(el, lan));
 
-const results = view("y").style({
+const results = view("y").class("translation-results").style({
     gap: "16px",
     padding: "8px",
     overflow: "auto",
 });
 
-lans.add([lansFrom, lansTo]);
+lans.add([lansFrom, ele("span").attr({ ariaHidden: "true" }).add("→"), lansTo]);
 
 input.addInto();
 lans.addInto();
@@ -101,6 +111,10 @@ type saveData = {
 function translate(_text: string) {
     results.clear();
     const text = _text.trim();
+    if (!fyq.length) {
+        results.add(p(t("请在设置添加翻译器")));
+        return;
+    }
     if (!text) return;
 
     const fromLan = lansFrom.gv;
@@ -119,11 +133,13 @@ function translate(_text: string) {
             .on("click", () => {
                 f();
             });
-        const checkEl = iconButton("replace").style({
-            display: fromLan === "auto" ? "none" : "", // todo 读取自动语言
-        });
+        const checkEl = iconButton("replace")
+            .attr({ title: "反向翻译" })
+            .style({
+                display: fromLan === "auto" ? "none" : "", // todo 读取自动语言
+            });
         const e = frame(`result${i.id}`, {
-            _: view().style({ width: "100%" }),
+            _: view().class("translation-result").style({ width: "100%" }),
             title: {
                 _: view("x")
                     .style({ "align-items": "center" })
@@ -144,20 +160,23 @@ function translate(_text: string) {
         });
         results.add(e.el);
         const c = e.els.content;
+        let attempt = 0;
         const f = () => {
+            const current = ++attempt;
+            c.el.onclick = null;
+            e.els.reTrans.sv("");
             const ff = fanyiqi.get(i.id);
             if (!ff) throw `翻译器"${i.id}"不存在`;
             ff
                 // @ts-ignore
                 .run(text, fromLan, toLan)
                 .then((_ttext: string) => {
+                    if (current !== attempt || !e.el.el.isConnected) return;
                     e.el.style({ order: 0 });
                     const ttext = _ttext.trim();
                     c.sv(ttext);
-                    copy.on("click", () => {
-                        writeText(ttext);
-                    });
-                    save.on("click", () => {
+                    copy.el.onclick = () => writeText(ttext);
+                    save.el.onclick = () => {
                         saveW({
                             from: fromLan,
                             to: toLan,
@@ -165,15 +184,16 @@ function translate(_text: string) {
                             toT: ttext,
                             engine: i.name,
                         });
-                    });
-                    checkEl.on("click", async () => {
+                    };
+                    checkEl.el.onclick = async () => {
                         const t = await ff
                             // @ts-ignore
                             .run(ttext, toLan, fromLan);
-                        e.els.reTrans.sv(t);
-                    });
+                        if (current === attempt) e.els.reTrans.sv(t);
+                    };
                 })
                 .catch((err: Error) => {
+                    if (current !== attempt || !e.el.el.isConnected) return;
                     console.error(err);
                     e.el.style({ order: 1 });
                     if (err.message.includes("[1]")) {
@@ -203,10 +223,6 @@ function translate(_text: string) {
         "翻译.常用语言",
         [toLan, fromLan, ...cl].filter((i) => i !== "auto").slice(0, 5),
     );
-
-    if (fyq.length === 0) {
-        results.add(p(t("请在设置添加翻译器")));
-    }
 }
 
 function saveW(obj: saveData) {
@@ -250,14 +266,15 @@ function saveFetch(obj: saveData) {
     }
 }
 
+const mainLan = store.get("语言.语言");
+const trans = new Intl.DisplayNames(mainLan, { type: "language" });
+const languageOrder = new Intl.Collator(mainLan);
 function getLansName(l: string[]) {
-    const mainLan = store.get("语言.语言");
-    const trans = new Intl.DisplayNames(mainLan, { type: "language" });
     const lansName = l.map((i) => ({
         text: i === "auto" ? t("自动") : (trans.of(i) ?? i),
         lan: i,
     }));
-    return lansName.toSorted((a, b) => a.text.localeCompare(b.text, mainLan));
+    return lansName.toSorted((a, b) => languageOrder.compare(a.text, b.text));
 }
 
 function pick2First(list: { text: string; lan: string }[], toPick: string[]) {
@@ -268,15 +285,36 @@ function pick2First(list: { text: string; lan: string }[], toPick: string[]) {
     return first.concat(baseList);
 }
 
-function detectLan(text: string) {
-    const fromLan = fasttext.identify(text)?.alpha2 ?? "auto";
-    console.log("检测语言：", fromLan);
+async function loadDetector() {
+    const { initFastText } = await import("@xushengfeng/fasttext_wasm");
+    return (await initFastText()).FastText().loadModel();
+}
+let detector: ReturnType<typeof loadDetector> | undefined;
+let inputRevision = 0;
+let lastTrans: ReturnType<typeof setTimeout>;
+async function detectAndTranslate(text: string, revision: number) {
+    if (!text.trim() || !fyq.length) {
+        translate(text);
+        return;
+    }
+    let fromLan = "auto";
+    try {
+        detector ??= loadDetector().catch((error) => {
+            detector = undefined;
+            throw error;
+        });
+        fromLan = (await detector).identify(text)?.alpha2 ?? "auto";
+    } catch (error) {
+        console.warn("Language detection unavailable", error);
+    }
+    if (revision !== inputRevision) return;
 
     const m = matchFitLan(fromLan, c常用语言);
     const toLan =
         c常用语言.filter((i) => i !== m).at(0) ?? store.get("语言.语言");
     lansFrom.sv(fromLan);
     lansTo.sv(toLan);
+    translate(text);
 }
 
 const inputText = decodeURIComponent(
@@ -318,33 +356,29 @@ lansTo.add(
 
 input.el.value = inputText;
 
-const ft = (await initFastText()).FastText();
-const fasttext = await ft.loadModel();
+lansFrom.sv("auto");
+lansTo.sv(mainLan);
+if (!fyq.length) {
+    lans.el.hidden = true;
+    translate("");
+} else if (inputText) void detectAndTranslate(inputText, ++inputRevision);
 
-if (inputText) {
-    detectLan(inputText);
-    translate(inputText);
-} else {
-    lansFrom.sv("auto");
-    lansTo.sv(store.get("语言.语言"));
+function scheduleTranslation() {
+    const revision = ++inputRevision;
+    clearTimeout(lastTrans);
+    const text = input.el.value;
+    if (!text.trim()) {
+        translate("");
+        return;
+    }
+    lastTrans = setTimeout(() => void detectAndTranslate(text, revision), 2000);
 }
-
-let composing = false;
 input
     .on("compositionstart", () => {
-        composing = true;
+        ++inputRevision;
+        clearTimeout(lastTrans);
     })
-    .on("compositionend", () => {
-        composing = false;
+    .on("compositionend", scheduleTranslation)
+    .on("input", (event) => {
+        if (!(event as InputEvent).isComposing) scheduleTranslation();
     });
-
-let lastTrans: NodeJS.Timeout;
-
-input.on("input", () => {
-    if (composing) return;
-    if (lastTrans) clearTimeout(lastTrans);
-    lastTrans = setTimeout(() => {
-        translate(input.el.value);
-    }, 2000);
-    detectLan(input.el.value);
-});

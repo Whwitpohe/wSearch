@@ -1,19 +1,17 @@
-# eSearch
+# wSearch
 
 (中文 | [English](README_en.md))
 
-![LOGO](https://esearch-app.netlify.app/readme/title_photo.svg)
-[![license](https://img.shields.io/github/license/xushengfeng/eSearch)](LICENSE)
+[![license](https://img.shields.io/github/license/Whwitpohe/wSearch)](LICENSE)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
-![commit-activity](https://img.shields.io/github/commit-activity/m/xushengfeng/eSearch)
-[![release-date](https://img.shields.io/github/release-date/xushengfeng/eSearch)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![release](https://img.shields.io/github/v/release/xushengfeng/eSearch)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![](https://img.shields.io/github/downloads/xushengfeng/eSearch/total?color=brightgreen&label=总下载量)](https://github.com/xushengfeng/eSearch/releases/latest)
-[![aur](https://img.shields.io/badge/aur-e--search-blue?logo=archlinux)](https://aur.archlinux.org/packages/e-search)
-[![aur1](https://img.shields.io/badge/aur-e--search--git-blue?logo=archlinux)](https://aur.archlinux.org/packages/e-search-git)
+![commit-activity](https://img.shields.io/github/commit-activity/m/Whwitpohe/wSearch)
+[![release-date](https://img.shields.io/github/release-date/Whwitpohe/wSearch)](https://github.com/Whwitpohe/wSearch/releases/latest)
+[![release](https://img.shields.io/github/v/release/Whwitpohe/wSearch)](https://github.com/Whwitpohe/wSearch/releases/latest)
+[![](https://img.shields.io/github/downloads/Whwitpohe/wSearch/total?color=brightgreen&label=总下载量)](https://github.com/Whwitpohe/wSearch/releases/latest)
 
-[![QQ群](https://img.shields.io/badge/QQ群-1057170038-blue.svg?&color=12b7f5&logo=qq)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=1qoIvXZ5RAICkw_1DchHAaUdnck-wZwJ&authKey=tbBmRbmLJFIJi3dNbMROFpU%2B89V0J572DKUylwacd1%2FgCSg52Ql8Lu5RYGSZQkhc&noverify=0&group_code=1057170038)
 [linux.do](https://linux.do)
+
+wSearch 基于 [eSearch](https://github.com/xushengfeng/eSearch) 开发。
 
 ## 简介
 
@@ -33,21 +31,11 @@ eSearch 是[Information-portal](https://github.com/xushengfeng/Information-porta
 
 ## 下载安装
 
-到网站[eSearch](https://esearch-app.netlify.app/#download)下载
-
-或在右侧 [releases](https://github.com/xushengfeng/eSearch/releases) 打开标签，选择符合你系统的包并下载安装
-
-国内可以用[GitHub 镜像](https://ghfast.top/)加速下载
-
-ArchLinux 可在 AUR 查找安装 `e-search`或`e-search-git`
-
-winget `winget install esearch`
-
-暂时没有 Homebrew 包，欢迎有志愿的维护者提供支持
+已发布的安装包可在 [wSearch 版本发布页](https://github.com/Whwitpohe/wSearch/releases)查看。
 
 ## 启动
 
-在你的启动器打开 eSearch，他将出现在托盘。
+在你的启动器打开 wSearch，他将出现在托盘。
 
 默认快捷键为 <kbd>Alt</kbd>+<kbd>C</kbd>(你也可以在设置里设置快捷键)
 
@@ -203,8 +191,8 @@ https://user-images.githubusercontent.com/28475549/155870881-9b2fc1b3-77de-4a99-
 ## 源码运行&编译
 
 ```shell
-git clone https://github.com/xushengfeng/eSearch.git
-cd eSearch
+git clone https://github.com/Whwitpohe/wSearch.git
+cd wSearch
 npm install
 # 编译
 npm run dist

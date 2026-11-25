@@ -7,7 +7,7 @@
 
 你可以进一步了解 eSearch 的功能
 
-你现在看到的版本可能是与软件相适应的版本，如果你想看最新的文档版本（包括开发版甚至是正在开发的未发布的版本），请访问[GitHub master 分支](https://github.com/xushengfeng/eSearch/blob/master/docs/use/readme.md)。
+你现在看到的版本可能是与软件相适应的版本，如果你想看最新的文档版本（包括开发版甚至是正在开发的未发布的版本），请访问[GitHub master 分支](https://github.com/Whwitpohe/wSearch/blob/master/docs/use/readme.md)。
 
 在这之前，你需要安装 eSearch，如果有运行库按钮提示，请下载并按照提示安装。
 
@@ -17,7 +17,7 @@
 
 尽管 eSearch 尽量避免的一些问题并给予提示，但仍有一些[常见问题](qa.md)需要给出来参考。
 
-如果遇到操作上的问题，可以在[GitHub Discussions](https://github.com/xushengfeng/eSearch/discussions)进行反馈。如果软件有错误，或者有任何建议，欢迎在[GitHub Issues](https://github.com/xushengfeng/eSearch/issues)中提出。
+如果遇到操作上的问题，可以在[GitHub Issues](https://github.com/Whwitpohe/wSearch/issues)进行反馈。如果软件有错误，或者有任何建议，欢迎在[GitHub Issues](https://github.com/Whwitpohe/wSearch/issues)中提出。
 
 > [!TIP]
 >

@@ -140,7 +140,7 @@ addStyle({
     },
 });
 
-const preview = view().style({
+const preview = view().class("photo-preview").style({
     margin: 0,
     flex: 1,
     minWidth: 0,
@@ -175,7 +175,7 @@ const els = {
             el.value = v;
         }),
     bgColor: colorPicker({ live: true }),
-    bgUrl: input(),
+    bgUrl: input().attr({ title: "背景图片路径" }),
     bgGradient: flexLayout("y"),
     angle: input("number"),
     gx: input("number").attr({ max: "1", min: "0", step: "0.01" }),
@@ -216,21 +216,34 @@ const els = {
         ...(avifSupported
             ? [{ value: "avif" as const, name: noI18n("AVIF") }]
             : []),
-    ]).sv(
-        (() => {
-            const format = store.get("保存.默认格式");
-            if (format === "svg") return "png";
-            if (format === "avif" && !avifSupported) return "png";
-            return format;
-        })(),
-    ),
+    ])
+        .attr({ title: "格式" })
+        .sv(
+            (() => {
+                const format = store.get("保存.默认格式");
+                if (format === "svg") return "png";
+                if (format === "avif" && !avifSupported) return "png";
+                return format;
+            })(),
+        ),
     quality: input("number").attr({ max: "1", min: "0", step: "0.1" }).sv("1"),
     photoW: input("number"),
     photoH: input("number"),
 };
 
+function numberField(
+    field: ReturnType<typeof input>,
+    caption: string,
+    unit: string,
+) {
+    const name = [t(caption), unit].filter(Boolean).join(" · ");
+    field.el.dataset.title = name;
+    return label([txt(name, true), field]).class("photo-number");
+}
+
 const controls = frame("sidebar", {
     _: flexLayout("y")
+        .class("photo-inspector")
         .style({
             minWidth: "200px",
             maxWidth: "400px",
@@ -242,16 +255,18 @@ const controls = frame("sidebar", {
     configs: {
         _: view("x"),
         select: els.select,
-        addConf: button(icon("add")).on("click", () => {
-            const id = `${t("新配置")}${crypto.randomUUID().slice(0, 5)}`;
-            const newData = structuredClone(styleData);
-            newData.name = id;
-            pz.unshift(newData);
-            store.set("高级图片编辑.配置", pz);
-            store.set("高级图片编辑.默认配置", id);
-            els.select.sv(pz);
-            applyStyle(newData);
-        }),
+        addConf: button(icon("add"))
+            .attr({ title: "新配置" })
+            .on("click", () => {
+                const id = `${t("新配置")}${crypto.randomUUID().slice(0, 5)}`;
+                const newData = structuredClone(styleData);
+                newData.name = id;
+                pz.unshift(newData);
+                store.set("高级图片编辑.配置", pz);
+                store.set("高级图片编辑.默认配置", id);
+                els.select.sv(pz);
+                applyStyle(newData);
+            }),
     },
     controls: {
         _: flexLayout("y"),
@@ -260,7 +275,7 @@ const controls = frame("sidebar", {
             _title: subTitle("变换"),
             rotate: {
                 _: flexLayout("x"),
-                rotate: els.rotate,
+                rotate: numberField(els.rotate, "角度", "°"),
                 left: button(noI18n("↺"))
                     .attr({ title: "逆时针旋转90°" })
                     .on("click", () => addRotate(-90)),
@@ -285,7 +300,7 @@ const controls = frame("sidebar", {
         _raduis: {
             _: view("y"),
             _0: subTitle("圆角"),
-            raduis: els.raduis,
+            raduis: numberField(els.raduis, "半径", "px"),
             outerRadius: els.outerRadius,
         },
         background: {
@@ -295,9 +310,9 @@ const controls = frame("sidebar", {
             bgColor: els.bgColor,
             bgUrl: els.bgUrl,
             bgGradient: els.bgGradient.add([
-                els.angle,
-                els.gx,
-                els.gy,
+                numberField(els.angle, "角度", "°"),
+                numberField(els.gx, "X", ""),
+                numberField(els.gy, "Y", ""),
                 els.gColors,
             ]),
         },
@@ -306,9 +321,9 @@ const controls = frame("sidebar", {
             _2: subTitle("阴影"),
             shadow: {
                 _: flexLayout("x"),
-                sx: els.sx,
-                sy: els.sy,
-                blur: els.blur,
+                sx: numberField(els.sx, "偏移x", "px"),
+                sy: numberField(els.sy, "偏移y", "px"),
+                blur: numberField(els.blur, "模糊", "px"),
                 scolor: els.scolor,
             },
         },
@@ -317,8 +332,8 @@ const controls = frame("sidebar", {
             _3: subTitle("边距"),
             padding: {
                 _: flexLayout("x"),
-                px: els.px,
-                py: els.py,
+                px: numberField(els.px, "X", "px"),
+                py: numberField(els.py, "Y", "px"),
             },
         },
         magic: {
@@ -333,7 +348,7 @@ const controls = frame("sidebar", {
         _ex_edit: {
             _: flexLayout("y"),
             formart: els.formart,
-            quality: els.quality,
+            quality: numberField(els.quality, "质量", ""),
             phScale: {
                 _: flexLayout("x"),
                 _s0: button("原始").on("click", () => scale(1)),
@@ -351,39 +366,45 @@ const controls = frame("sidebar", {
             },
             _phWH: {
                 _: flexLayout("x"),
-                photoW: els.photoW,
-                photoH: els.photoH,
+                photoW: numberField(els.photoW, "宽度", "px"),
+                photoH: numberField(els.photoH, "高度", "px"),
             },
         },
         _ex_save: {
             _: flexLayout("x"),
-            save: button(icon("save")).on("click", async () => {
-                const path = renderSendSync("save_file_path", [els.formart.gv]);
-                if (!path) return;
-                try {
-                    writeFileSync(path, await getImgBytes());
-                } catch (e) {
-                    console.error("保存失败", e);
-                    return;
-                }
-                renderSend("ok_save", [path]);
-                renderSend("windowClose", []);
-            }),
-            copy: button(icon("copy")).on("click", async () => {
-                const format = clipboardImageFormat(
-                    els.formart.gv as ImageFormat,
-                );
-                try {
-                    const img = await getImgBytes(format);
-                    await writeImage(
-                        new Blob([img], { type: imageFormatMime[format] }),
+            save: button(icon("save"))
+                .attr({ title: "保存" })
+                .on("click", async () => {
+                    const path = renderSendSync("save_file_path", [
+                        els.formart.gv,
+                    ]);
+                    if (!path) return;
+                    try {
+                        writeFileSync(path, await getImgBytes());
+                    } catch (e) {
+                        console.error("保存失败", e);
+                        return;
+                    }
+                    renderSend("ok_save", [path]);
+                    renderSend("windowClose", []);
+                }),
+            copy: button(icon("copy"))
+                .attr({ title: "复制" })
+                .on("click", async () => {
+                    const format = clipboardImageFormat(
+                        els.formart.gv as ImageFormat,
                     );
-                } catch (e) {
-                    console.error("复制失败", e);
-                    return;
-                }
-                renderSend("windowClose", []);
-            }),
+                    try {
+                        const img = await getImgBytes(format);
+                        await writeImage(
+                            new Blob([img], { type: imageFormatMime[format] }),
+                        );
+                    } catch (e) {
+                        console.error("复制失败", e);
+                        return;
+                    }
+                    renderSend("windowClose", []);
+                }),
         },
     },
 });
@@ -406,15 +427,17 @@ function pzSelect() {
                             }),
                     )
                     .add(
-                        button(icon("close")).on("click", () => {
-                            pz.splice(
-                                pz.findIndex((x) => x.name === i.name),
-                                1,
-                            );
-                            store.set("高级图片编辑.配置", pz);
-                            store.set("高级图片编辑.默认配置", pz[0]?.name);
-                            els.select.sv(pz);
-                        }),
+                        button(icon("close"))
+                            .attr({ title: "删除" })
+                            .on("click", () => {
+                                pz.splice(
+                                    pz.findIndex((x) => x.name === i.name),
+                                    1,
+                                );
+                                store.set("高级图片编辑.配置", pz);
+                                store.set("高级图片编辑.默认配置", pz[0]?.name);
+                                els.select.sv(pz);
+                            }),
                     ),
             ),
         );
@@ -485,7 +508,7 @@ function getImgBytes(format: ImageFormat = els.formart.gv as ImageFormat) {
 function gColors() {
     const div = flexLayout("y");
     const list = flexLayout("y");
-    const add = button(noI18n("+"));
+    const add = button(noI18n("+")).attr({ title: "添加色标" });
     const rows = new Map<
         HTMLElement,
         {
@@ -505,11 +528,13 @@ function gColors() {
         const el = view("x").add([
             colorEl,
             offsetEl,
-            button(noI18n("-")).on("click", () => {
-                rows.delete(el.el);
-                el.remove();
-                binput();
-            }),
+            button(noI18n("-"))
+                .attr({ title: "移除色标" })
+                .on("click", () => {
+                    rows.delete(el.el);
+                    el.remove();
+                    binput();
+                }),
         ]);
         colorEl.on("input", binput);
         offsetEl.on("input", binput);
@@ -1592,6 +1617,7 @@ trackPoint(magicPenPreview, {
             magicPenPreview.el.height,
         );
         const items = button(icon("close"))
+            .attr({ title: "删除" })
             .on("click", () => {
                 maskPens.delete(id);
                 items.remove();

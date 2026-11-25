@@ -38,6 +38,7 @@ import {
     screen,
     session,
     shell,
+    systemPreferences,
     Tray,
     type View,
     WebContentsView,
@@ -46,6 +47,7 @@ import minimist from "minimist";
 import main from "xtranslator";
 import {
     fetchAppReleases,
+    projectUrl,
     releasePage,
     releasePath,
 } from "../../lib/appRelease";
@@ -79,7 +81,7 @@ import { initPinPanels } from "./pinPanel";
 import { registerScreenshotTranslation } from "./screenshotTranslation";
 
 const runPath = join(resolve(__dirname, ""), "../../");
-const tmpDir = join(tmpdir(), "eSearch");
+const tmpDir = join(tmpdir(), "wSearch");
 const clipboardDir = join(tmpDir, "clipboard");
 
 /** minimist 解析出的值：参数后没跟值时为 boolean，纯数字会被解析为 number */
@@ -122,6 +124,14 @@ function argPresent(argv: Argv, ...names: string[]): boolean {
     return names.some(
         (name) => argv[name] !== undefined && argv[name] !== false,
     );
+}
+
+const previousProfile = join(app.getPath("appData"), "eSearch");
+if (
+    !existsSync(join(app.getPath("userData"), "config.json")) &&
+    existsSync(join(previousProfile, "config.json"))
+) {
+    app.setPath("userData", previousProfile);
 }
 
 // 自定义用户路径
@@ -369,7 +379,7 @@ async function writeImageFileToClipboard(buffer: Buffer, type: string) {
     mkdirSync(clipboardDir, { recursive: true });
     const file = join(
         clipboardDir,
-        `eSearch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${imageExt[type] ?? "png"}`,
+        `wSearch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${imageExt[type] ?? "png"}`,
     );
     await writeFileAsync(file, buffer);
     // 剪贴板只保留当前文件，避免缓存目录堆积
@@ -813,9 +823,7 @@ process.on("unhandledRejection", (e) => {
 });
 
 app.whenReady().then(() => {
-    console.log(
-        `eSearch ${app.getVersion()} 启动\n项目地址：https://github.com/xushengfeng/eSearch`,
-    );
+    console.log(`wSearch ${app.getVersion()} 启动\n项目地址：${projectUrl}`);
 
     crashReporter.start({ uploadToServer: false });
 
@@ -1009,7 +1017,7 @@ app.whenReady().then(() => {
                 click: (_i, win) => {
                     shell.openExternal(
                         feedbackUrl({
-                            title: `[${win?.getTitle()?.replace("eSearch - ", "") ?? "……界面"}] 存在……问题`,
+                            title: `[${win?.getTitle()?.replace("wSearch ", "") ?? "……界面"}] 存在……问题`,
                         }),
                     );
                 },
@@ -1215,7 +1223,7 @@ function feedbackUrl(op?: {
     more?: string;
 }) {
     const url = new URL(
-        "https://github.com/xushengfeng/eSearch/issues/new?assignees=&labels=bug&projects=&template=bug_report.yaml",
+        `${projectUrl}/issues/new?assignees=&labels=bug&projects=&template=bug_report.yaml`,
     );
     url.searchParams.append("title", op?.title || "...存在...的错误");
     url.searchParams.append("main", op?.main || "");
@@ -1232,7 +1240,7 @@ function feedbackUrl(op?: {
 
 function feedbackUrl2(op?: { title?: string; main?: string }) {
     const url = new URL(
-        "https://github.com/xushengfeng/eSearch/issues/new?template=feature_request.yaml&labels=新需求",
+        `${projectUrl}/issues/new?template=feature_request.yaml&labels=新需求`,
     );
     if (op?.title) url.searchParams.append("title", op.title);
     url.searchParams.append("main", op?.main || "");
@@ -1266,6 +1274,50 @@ const baseWinConfig: () => Electron.BrowserWindowConstructorOptions = () => {
         },
     };
 };
+
+function createWorkspaceWindow(
+    options: Electron.BrowserWindowConstructorOptions = {},
+) {
+    if (process.platform !== "win32")
+        return new BrowserWindow({ ...baseWinConfig(), ...options });
+    const supportsMica = Number(release().split(".")[2]) >= 22621;
+    const overlay = () => ({
+        height: 40,
+        color: "#00000000",
+        symbolColor: nativeTheme.shouldUseDarkColors ? "#f3f3f3" : "#202020",
+    });
+    const win = new BrowserWindow({
+        ...baseWinConfig(),
+        ...options,
+        titleBarStyle: "hidden",
+        titleBarOverlay: overlay(),
+        ...(supportsMica
+            ? {
+                  backgroundMaterial: "mica" as const,
+                  backgroundColor: "#00000000",
+              }
+            : {}),
+    });
+    const update = () => {
+        if (!win.isDestroyed()) win.setTitleBarOverlay(overlay());
+    };
+    nativeTheme.on("updated", update);
+    win.once("closed", () => nativeTheme.off("updated", update));
+    return win;
+}
+
+function workspaceQuery(): Electron.LoadFileOptions {
+    if (process.platform !== "win32") return {};
+    const material =
+        Number(release().split(".")[2]) >= 22621 ? "mica" : "solid";
+    return {
+        query: {
+            chrome: "windows",
+            material,
+            accent: systemPreferences.getAccentColor().slice(0, 6),
+        },
+    };
+}
 
 mainOn("dialogMessage", ([arg0]) => {
     const id = dialog.showMessageBoxSync(arg0);
@@ -2060,9 +2112,9 @@ mainOnReflect("recordState", () => {
 });
 
 function createSuperRecorderWindow(fixed?: RecordRect) {
-    const recorder = new BrowserWindow(baseWinConfig());
+    const recorder = createWorkspaceWindow();
     recorder.minimize();
-    rendererPath(recorder, "videoEditor.html");
+    rendererPath(recorder, "videoEditor.html", workspaceQuery());
     if (dev) recorder.webContents.openDevTools();
     if (fixed) {
         _recorder = recorder;
@@ -2863,10 +2915,10 @@ function createTranslator(op: Omit<translateWinType, "type">) {
 }
 
 function createPhotoEditor(img: string) {
-    const win = new BrowserWindow(baseWinConfig());
+    const win = createWorkspaceWindow();
     win.maximize();
 
-    rendererPath(win, "photoEditor.html");
+    rendererPath(win, "photoEditor.html", workspaceQuery());
     if (dev) win.webContents.openDevTools();
 
     win.webContents.on("did-finish-load", () => {
@@ -2996,14 +3048,13 @@ async function createSettingWindow() {
         settingWindow.focus();
         return;
     }
-    settingWindow = new BrowserWindow({
+    settingWindow = createWorkspaceWindow({
         minWidth: 600,
         width: 900,
         height: 700,
-        ...baseWinConfig(),
     });
 
-    rendererPath(settingWindow, "setting.html");
+    rendererPath(settingWindow, "setting.html", workspaceQuery());
 
     await settingWindow.webContents.session.setProxy(store.get("代理"));
 
@@ -3015,9 +3066,7 @@ async function createSettingWindow() {
 }
 
 async function createHelpWindow() {
-    shell.openExternal(
-        `https://github.com/xushengfeng/eSearch/blob/${app.getVersion()}/docs/use/readme.md`,
-    );
+    shell.openExternal(`${projectUrl}/blob/HEAD/docs/use/readme.md`);
 }
 
 const searchWindowL: { [n: number]: WebContentsView } = {};

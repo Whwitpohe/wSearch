@@ -309,7 +309,7 @@ const defaultSetting: setting = {
         保存并复制: false,
         复制为文件: false,
     },
-    保存名称: { 前缀: "eSearch-", 时间: "YYYY-MM-DD-HH-mm-ss-S", 后缀: "" },
+    保存名称: { 前缀: "wSearch-", 时间: "YYYY-MM-DD-HH-mm-ss-S", 后缀: "" },
     框选后默认操作: "no",
     快速截屏: { 模式: "clip", 路径: "" },
     引擎: {

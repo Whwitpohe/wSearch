@@ -216,7 +216,6 @@ function rangeBar(
                 e.preventDefault();
                 setV(Number.parseFloat(i.gv));
                 useI(false);
-                valueHistory.push(value);
             } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 setV(value + step);
@@ -228,13 +227,6 @@ function rangeBar(
         .on("blur", () => {
             setV(Number.parseFloat(i.gv));
             useI(false);
-            valueHistory.push(value);
-        })
-        .on("mousedown", (e) => {
-            if (e.button === 2 && valueHistory.length) {
-                e.preventDefault();
-                setV(valueHistory.pop() as number);
-            }
         });
 
     useI(false);
@@ -257,8 +249,6 @@ function rangeBar(
 
     let value = min;
 
-    const valueHistory: number[] = [value];
-
     const range = max - min;
 
     function setV(v: number, noInput = false, event = true) {
@@ -269,21 +259,15 @@ function rangeBar(
     }
 
     trackPoint(p, {
-        start: () => {
-            if (type === "edit") return null;
+        start: (e) => {
+            if (e.button !== 0 || type === "edit") return null;
             return { x: 0, y: 0, data: value };
         },
         ing: (p, _e, { startData: oldV }) => {
             setV(oldV + (p.x / 200) * range);
         },
-        end(e, { moved }) {
-            if (!moved) {
-                if (e.button === 2 && valueHistory.length) {
-                    setV(valueHistory.pop() as number);
-                } else useI(true);
-            } else {
-                valueHistory.push(value);
-            }
+        end(_e, { moved }) {
+            if (!moved) useI(true);
         },
     });
 
@@ -764,7 +748,7 @@ function trackLocation() {
 function openApp() {
     const path = require("node:path");
     const os = require("node:os");
-    const tmpPhoto = path.join(os.tmpdir(), "/eSearch/tmp.png");
+    const tmpPhoto = path.join(os.tmpdir(), "/wSearch/tmp.png");
     const fs = require("node:fs");
     const c = getClipPhoto();
     const f = c.toDataURL().replace(/^data:image\/\w+;base64,/, "");
@@ -1760,13 +1744,13 @@ function getClipPhotoSVG() {
     if (typeof fabricCanvas === "undefined") {
         svg.innerHTML = `<!--?xml version="1.0" encoding="UTF-8" standalone="no" ?-->
             <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="${mainCanvas.width}" height="${mainCanvas.height}" viewBox="0 0 1920 1080" xml:space="preserve">
-            <desc>Created with eSearch</desc>
+            <desc>Created with wSearch</desc>
             </svg>`;
     } else {
         svg.innerHTML = fabricCanvas.toSVG();
         // @ts-ignore
         svg.querySelector("desc").innerHTML =
-            "Created with eSearch & Fabric.js";
+            "Created with wSearch & Fabric.js";
     }
     const svgEl = svg.querySelector("svg") as SVGElement;
     svgEl.setAttribute("viewBox", finalRect.join(" "));
