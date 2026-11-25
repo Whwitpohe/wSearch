@@ -3418,6 +3418,7 @@ function sortable() {
 function actionChoices(imageTranslation = true) {
     return selectionTools.map((tool) => ({
         value: tool.key,
+        icon: tool.icon,
         name: t(
             imageTranslation && tool.key === "translate"
                 ? "框选并翻译图片"
@@ -3463,6 +3464,7 @@ function selectionShortcutEditor() {
         if (old)
             choices.unshift({
                 value: old.key,
+                icon: old.icon,
                 name: t(old.title),
                 group: t(old.group),
             });
@@ -3926,23 +3928,39 @@ function sortList<t>(
 }
 
 function dialogSelect<T extends string>(
-    options: { value: T; name?: Parameters<typeof txt>[0]; group?: string }[],
+    options: {
+        value: T;
+        name?: Parameters<typeof txt>[0];
+        group?: string;
+        icon?: IconType;
+    }[],
     searchable = false,
     loadOptions?: (signal: AbortSignal) => Promise<T[]>,
 ) {
     const root = view().class("dialog-select");
+    const grouped = options.some((o) => o.group !== undefined);
+    const inputAnchor = grouped || Boolean(loadOptions);
     const manual = input().attr({ autocomplete: "off", spellcheck: false });
     const trigger = button().class("choice-trigger");
-    const anchor = loadOptions ? manual.el : trigger.el;
-    if (loadOptions)
+    const anchor = inputAnchor ? manual.el : trigger.el;
+    if (inputAnchor)
         manual.attr({
-            placeholder: t("输入或搜索模型"),
+            placeholder: t(grouped ? "搜索动作" : "输入或搜索模型"),
             ariaAutoComplete: "list",
         });
     const text = txt("", true);
-    if (loadOptions) {
+    if (inputAnchor) {
         root.class("editable-choice").add(manual);
-        trigger.attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") });
+        const label = grouped ? "选择动作" : "获取模型列表";
+        trigger.attr({ title: label, ariaLabel: t(label) });
+        if (grouped) {
+            root.class("grouped-choice").add(
+                image(getImgUrl("search.svg"), noI18n("")).class(
+                    "action-search-icon",
+                ),
+            );
+            trigger.el.tabIndex = -1;
+        }
     } else trigger.add(text);
     root.add(trigger.add(image(getImgUrl("down.svg"), noI18n(""))));
     const menu = view()
@@ -3960,7 +3978,7 @@ function dialogSelect<T extends string>(
         ariaLabel: t("搜索"),
         autocomplete: "off",
     });
-    if (searchable && !loadOptions) {
+    if (searchable && !inputAnchor) {
         searchBar.add([image(getImgUrl("search.svg"), noI18n("")), filter]);
         menu.add(searchBar);
         filter.el.setAttribute("aria-controls", listId);
@@ -3980,13 +3998,29 @@ function dialogSelect<T extends string>(
                     }
                 }),
         );
+    const categories = view("y")
+        .class("action-categories")
+        .attr({ role: "group", ariaLabel: t("动作分类") });
+    if (grouped) menu.class("action-menu").add(categories);
     const list = view()
         .class("dialog-option-list")
         .attr({ id: listId, role: "listbox" })
         .addInto(menu);
-    type Entry = { value: T; name: string; query: string; group?: string };
+    type Entry = {
+        value: T;
+        name: string;
+        query: string;
+        group?: string;
+        icon?: IconType;
+    };
     const rendered: HTMLButtonElement[] = [];
-    const entry = (value: T, name: string, group?: string): Entry => ({
+    const entry = (
+        value: T,
+        name: string,
+        group?: string,
+        icon?: IconType,
+    ): Entry => ({
+        icon,
         group,
         value,
         name,
@@ -3999,12 +4033,37 @@ function dialogSelect<T extends string>(
                 o.value,
                 txt(o.name ?? o.value).el.textContent || o.value,
                 o.group,
+                o.icon,
             ),
         );
     let shown: Entry[] = [],
         active = -1,
         count = 0,
         value: T = options[0]?.value ?? ("" as T);
+    const groupNames = [
+        ...new Set(entries.flatMap((e) => (e.group ? [e.group] : []))),
+    ];
+    let category: string | undefined;
+    function switchCategory(next: string | undefined) {
+        category = next;
+        populate();
+        anchor.focus({ preventScroll: true });
+    }
+    const categoryOrder = grouped ? [undefined, ...groupNames] : [];
+    const categoryButtons = categoryOrder.map((name) => {
+        const b = button(noI18n(name ?? t("全部动作")))
+            .attr({ tabIndex: -1 })
+            .on("mousedown", (e) => e.preventDefault())
+            .on("click", () => switchCategory(name));
+        b.el.setAttribute("aria-controls", listId);
+        categories.add(b);
+        return b;
+    });
+    if (grouped)
+        anchor.setAttribute(
+            "aria-keyshortcuts",
+            "Alt+ArrowLeft Alt+ArrowRight",
+        );
     let lifetime: AbortController | undefined,
         request: AbortController | undefined,
         loaded = !loadOptions;
@@ -4021,7 +4080,7 @@ function dialogSelect<T extends string>(
             roomAbove = Math.max(0, r.top - edge - gap);
         const width = Math.min(
             innerWidth - 2 * edge,
-            Math.max(r.width, searchable ? 224 : 150),
+            Math.max(r.width, grouped ? 368 : searchable ? 224 : 150),
         );
         const capacity = 280;
         const preferred = searchable
@@ -4032,6 +4091,7 @@ function dialogSelect<T extends string>(
         menu.style({
             width: `${width}px`,
             maxHeight: `${height}px`,
+            ...(grouped ? { height: `${height}px` } : {}),
             left: `${Math.max(edge, Math.min(innerWidth - edge - width, r.left))}px`,
             top: below ? `${r.bottom + gap}px` : "auto",
             bottom: below ? "auto" : `${innerHeight - r.top + gap}px`,
@@ -4049,6 +4109,7 @@ function dialogSelect<T extends string>(
         cancelAnimationFrame(frame);
         frame = 0;
         anchor.setAttribute("aria-expanded", "false");
+        if (grouped) manual.sv(selectedLabel());
         anchor.removeAttribute("aria-activedescendant");
         filter.el.removeAttribute("aria-activedescendant");
     }
@@ -4057,14 +4118,14 @@ function dialogSelect<T extends string>(
         clean();
         if (focus) anchor.focus({ preventScroll: true });
     }
+    function selectedLabel() {
+        return entries.find((e) => e.value === value)?.name || "";
+    }
     function setValue(next: T) {
         value = next;
-        if (loadOptions) manual.sv(next);
-        else
-            text.sv(
-                entries.find((e) => e.value === next)?.name ||
-                    t("选择引擎类型"),
-            );
+        if (grouped) manual.sv(selectedLabel());
+        else if (loadOptions) manual.sv(next);
+        else text.sv(selectedLabel() || t("选择引擎类型"));
     }
     function choose(next: T) {
         setValue(next);
@@ -4082,10 +4143,22 @@ function dialogSelect<T extends string>(
             });
             b.el.dataset.value = e.value;
             b.el.setAttribute("aria-selected", String(e.value === value));
-            if (e.group && e.group !== shown[count - 1]?.group)
+            if (
+                e.group &&
+                category === undefined &&
+                e.group !== shown[count - 1]?.group
+            )
                 fragment.append(
                     txt(e.group, true).class("action-choice-heading").el,
                 );
+            if (grouped) {
+                const icon = e.icon ?? (e.value === "no" ? "close" : "filters");
+                b.el.prepend(
+                    image(getImgUrl(`${icon}.svg`), noI18n("")).class(
+                        "action-option-icon",
+                    ).el,
+                );
+            }
             rendered.push(b.el);
             fragment.append(b.el);
         }
@@ -4109,11 +4182,24 @@ function dialogSelect<T extends string>(
         }
     }
     function populate() {
-        const q = (loadOptions ? (typed ? manual.gv : "") : filter.gv)
+        const q = (inputAnchor ? (typed ? manual.gv : "") : filter.gv)
             .trim()
             .toLowerCase();
-        shown =
+        const matches =
             request || error ? [] : entries.filter((e) => e.query.includes(q));
+        shown =
+            category === undefined
+                ? matches
+                : matches.filter((e) => e.group === category);
+        if (grouped) {
+            for (const [i, b] of categoryButtons.entries()) {
+                const name = categoryOrder[i];
+                b.el.setAttribute("aria-pressed", String(name === category));
+                b.el.disabled =
+                    name !== undefined &&
+                    !matches.some((e) => e.group === name);
+            }
+        }
         active = -1;
         count = 0;
         rendered.length = 0;
@@ -4180,6 +4266,10 @@ function dialogSelect<T extends string>(
     function open(useInput = false) {
         typed = useInput;
         if (isOpen()) return;
+        if (grouped)
+            category = useInput
+                ? undefined
+                : entries.find((e) => e.value === value)?.group;
         menu.el.showPopover();
         anchor.setAttribute("aria-expanded", "true");
         lifetime = new AbortController();
@@ -4202,8 +4292,10 @@ function dialogSelect<T extends string>(
         filter.sv("");
         if (!loaded) void fetchEntries();
         else populate();
-        if (loadOptions) manual.el.focus({ preventScroll: true });
-        else if (searchable) filter.el.focus({ preventScroll: true });
+        if (inputAnchor) {
+            manual.el.focus({ preventScroll: true });
+            if (grouped && !useInput) manual.el.select();
+        } else if (searchable) filter.el.focus({ preventScroll: true });
     }
     menu.on("toggle", () => {
         if (!isOpen()) clean();
@@ -4217,8 +4309,15 @@ function dialogSelect<T extends string>(
         e.stopPropagation();
         populate();
     });
+    if (grouped)
+        manual
+            .on("click", () => {
+                if (!isOpen()) open();
+            })
+            .on("focus", () => manual.el.select());
     manual.on("input", () => {
-        value = manual.gv as T;
+        if (grouped) category = undefined;
+        else value = manual.gv as T;
         if (!isOpen()) open(true);
         else {
             typed = true;
@@ -4236,6 +4335,26 @@ function dialogSelect<T extends string>(
                 e.preventDefault();
                 open();
             }
+            return;
+        }
+        if (
+            grouped &&
+            e.altKey &&
+            (e.key === "ArrowRight" || e.key === "ArrowLeft")
+        ) {
+            e.preventDefault();
+            const available = categoryOrder.filter(
+                (_, i) => !categoryButtons[i]?.el.disabled,
+            );
+            const index = available.indexOf(category);
+            switchCategory(
+                available[
+                    (index +
+                        (e.key === "ArrowRight" ? 1 : -1) +
+                        available.length) %
+                        available.length
+                ],
+            );
             return;
         }
         if (e.key === "Tab") {
@@ -4256,10 +4375,10 @@ function dialogSelect<T extends string>(
                 return;
             e.preventDefault();
             if (shown[active]) choose(shown[active].value);
-            else if (loadOptions) close(true);
+            else if (inputAnchor) close(true);
             return;
         }
-        if (loadOptions && (e.key === "Home" || e.key === "End") && !e.altKey)
+        if (inputAnchor && (e.key === "Home" || e.key === "End") && !e.altKey)
             return;
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
             e.preventDefault();
