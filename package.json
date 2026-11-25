@@ -1,6 +1,6 @@
 {
     "name": "wSearch",
-    "version": "15.8.0",
+    "version": "15.8.1",
     "description": "识屏 · 搜索",
     "main": "./out/main/main.js",
     "scripts": {

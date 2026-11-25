@@ -293,7 +293,7 @@ const beforePack = async () => {
  * @type import("electron-builder").Configuration
  */
 const build = {
-    appId: "com.esearch.app",
+    appId: "com.whwitpohe.wsearch",
     publish: { provider: "github", owner: "Whwitpohe", repo: "wSearch" },
     executableName: "wSearch",
     directories: {
