@@ -112,6 +112,9 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ needs.plan.outputs.tag }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           pattern: packages-*
@@ -119,8 +122,13 @@ jobs:
           merge-multiple: true
       - name: Publish the verified packages
         run: |
+          notes="$RUNNER_TEMP/release-notes.md"
           if ! gh release view "$TAG" >/dev/null; then
-            gh release create "$TAG" --verify-tag --title "wSearch $TAG" --generate-notes
+            bash script/release-notes.sh "$TAG" "$notes"
+            gh release create "$TAG" --verify-tag --title "wSearch $TAG" --notes-file "$notes"
+          elif test -f "docs/releases/$TAG.md"; then
+            bash script/release-notes.sh "$TAG" "$notes"
+            gh release edit "$TAG" --notes-file "$notes"
           fi
           for file in release-files/*; do
             name=$(basename "$file")

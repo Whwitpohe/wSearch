@@ -27,3 +27,9 @@ commit 命名我习惯使用`范围 修复/添加某某功能`，比如`截屏 �
 ## 感谢
 
 最后提前感谢你的贡献！
+
+## 发布说明 / Release notes
+
+在版本标签提交中将中英双语说明放在 `docs/releases/<版本号>.md`，使用 `## 中文` 和 `## English` 两个标题。发布工作流会读取该文件。
+
+Include both language sections in `docs/releases/<version>.md` in the release commit. For a new tag without a dedicated file, the workflow publishes a bilingual summary with a link to the changes.

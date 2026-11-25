@@ -1,7 +1,9 @@
 "use strict";
 
 const root = document.documentElement;
-const picker = document.getElementById("lang");
+const picker = document.getElementById("language-picker");
+const trigger = document.getElementById("lang-trigger");
+const languageOptions = [...picker.querySelectorAll("[data-lang]")];
 const slider = document.getElementById("compare");
 const art = document.getElementById("art");
 const systems = { win32: "Windows", darwin: "macOS", linux: "Linux" };
@@ -45,7 +47,10 @@ function renderPackages(moveFocus = false) {
   controls.setAttribute("role", "group");
   controls.setAttribute("aria-label", t.platform);
   for (const [key, name] of Object.entries(systems)) {
-    const button = element("button", "", name);
+    const button = element("button", "os-control");
+    const symbol = element("span", "os-icon " + key);
+    symbol.setAttribute("aria-hidden", "true");
+    button.append(symbol, document.createTextNode(name));
     button.type = "button";
     button.dataset.system = key;
     button.setAttribute("aria-pressed", String(system === key));
@@ -122,7 +127,18 @@ function setComparison() {
 function localize(next) {
   language = next;
   const t = messages[next];
-  picker.value = next;
+  for (const option of languageOptions) {
+    const chosen = option.dataset.lang === next;
+    option.setAttribute("aria-pressed", String(chosen));
+    if (chosen) {
+      document.getElementById("current-language").textContent =
+        option.textContent;
+      trigger.setAttribute(
+        "aria-label",
+        t.language + " · " + option.textContent,
+      );
+    }
+  }
   root.lang = next;
   root.dir = next === "ar" ? "rtl" : "ltr";
   document.title = "wSearch · " + t.hero1 + " " + t.hero2;
@@ -153,16 +169,62 @@ function localize(next) {
   renderPackages();
   setComparison();
 }
-picker.addEventListener("change", () => {
-  const tag = picker.value;
-  try {
-    localStorage.setItem("wsearch-language", tag);
-  } catch {}
-  const url = new URL(location.href);
-  url.searchParams.set("lang", tag);
-  history.replaceState(null, "", url);
-  localize(tag);
+function closePicker(restoreFocus = false) {
+  picker.open = false;
+  if (restoreFocus) trigger.focus({ preventScroll: true });
+}
+for (const option of languageOptions) {
+  option.addEventListener("click", () => {
+    const tag = option.dataset.lang;
+    try {
+      localStorage.setItem("wsearch-language", tag);
+    } catch {}
+    const url = new URL(location.href);
+    url.searchParams.set("lang", tag);
+    history.replaceState(null, "", url);
+    localize(tag);
+    closePicker(true);
+  });
+}
+picker.addEventListener("toggle", () => {
+  if (picker.open)
+    picker
+      .querySelector('[aria-pressed="true"]')
+      .focus({ preventScroll: true });
 });
+picker.addEventListener("keydown", (event) => {
+  if (!picker.open) return;
+  const i = languageOptions.indexOf(document.activeElement);
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePicker(true);
+    return;
+  }
+  const step = {
+    ArrowUp: -2,
+    ArrowDown: 2,
+    ArrowLeft: root.dir === "rtl" ? 1 : -1,
+    ArrowRight: root.dir === "rtl" ? -1 : 1,
+  }[event.key];
+  let next;
+  if (event.key === "Home") next = 0;
+  else if (event.key === "End") next = languageOptions.length - 1;
+  else if (step !== undefined)
+    next =
+      (Math.max(0, i) + step + languageOptions.length) % languageOptions.length;
+  if (next !== undefined) {
+    event.preventDefault();
+    languageOptions[next].focus();
+  }
+});
+document.addEventListener("pointerdown", (e) => {
+  if (picker.open && !picker.contains(e.target)) closePicker();
+});
+picker.addEventListener("focusout", (e) => {
+  if (picker.open && e.relatedTarget && !picker.contains(e.relatedTarget))
+    closePicker();
+});
+picker.hidden = false;
 slider.addEventListener("input", setComparison);
 document.querySelectorAll("[data-pos]").forEach((button) =>
   button.addEventListener("click", () => {

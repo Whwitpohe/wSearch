@@ -21,12 +21,6 @@ const messages = {
     satellite: "地球的天然卫星",
     distance: "平均距离",
     featuresTitle: "从截图开始，接着处理。",
-    f1: "文字识别",
-    f1Body: "提取截图中的文字。使用本地 OCR 离线识别，或选择已配置的在线模型。",
-    f2: "标注与贴图",
-    f2Body: "用画笔、箭头、文字和马赛克标注截图，也可以把参考图钉在桌面。",
-    f3: "长截图与录屏",
-    f3Body: "滚动拼接超出一屏的内容，或录下操作过程，用画面说明步骤。",
     guideTitle: "给每次框选指定一个动作。",
     s1: "选择视觉模型",
     s1Body:
@@ -57,6 +51,39 @@ const messages = {
       "DMG 用于安装，ZIP 用于解压。此版本未使用 Apple Developer ID 签名，也未公证。",
     linuxInstall: "按发行版选择 DEB 或 RPM，也可使用 AppImage 或 tar.gz。",
     checksums: "校验文件",
+    star: "在 GitHub 上 Star",
+    starTitle: "喜欢 wSearch？",
+    starBody: "在 GitHub 点个 Star 收藏这个项目，或在 Issues 分享你的建议。",
+    captureGroup: "截图与编辑",
+    readGroup: "识别与翻译",
+    flowGroup: "桌面工作流",
+    region: "选区、取色与长截图",
+    regionBody: "框选或自由裁切，读取像素色值；横向或纵向滚动可拼接长图。",
+    annotate: "标注与遮挡",
+    annotateBody: "用画笔、箭头、编号和文字说明重点，用马赛克或模糊遮住细节。",
+    polish: "图片美化与导出",
+    polishBody: "调整圆角、阴影、渐变背景和分辨率，旋转或翻转后保存、复制。",
+    ocrText: "离线与在线 OCR",
+    ocrTextBody:
+      "本地识别段落、竖排文字和旋转图片，也可切换百度、有道或视觉模型。",
+    visionTrans: "整图翻译与 AI 问答",
+    visionTransBody:
+      "把框选图像发给自己的 OpenAI 兼容、Anthropic 或 Gemini 模型，在图上读译文，也能继续就图提问。",
+    lookUp: "以图搜图与二维码",
+    lookUpBody:
+      "用 Google、百度或 Yandex 查找相似图片，或直接读取选区里的二维码。",
+    offline: "文本翻译",
+    offlineBody:
+      "对比多个引擎的译文。下载对应语言模型后，也可使用 Firefox 离线翻译。",
+    pinLive: "静态与动态贴图",
+    pinLiveBody:
+      "把参考图钉到桌面，或固定窗口的实时画面；可缩放、调整透明度和鼠标穿透。",
+    video: "录屏与剪辑",
+    videoBody:
+      "录制选区、麦克风和系统声音，剪辑、变速后导出 MP4、WebM、GIF 或动画图片。",
+    shortcuts: "快捷键与工具栏",
+    shortcutsBody:
+      "给翻译、画笔、保存等框选动作分别绑键；拖动工具，在主栏、“更多”和隐藏区之间移动。",
   },
   "zh-TW": {
     skip: "跳到主要內容",
@@ -80,13 +107,6 @@ const messages = {
     satellite: "地球的天然衛星",
     distance: "平均距離",
     featuresTitle: "從截圖開始，接著處理。",
-    f1: "文字辨識",
-    f1Body:
-      "從截圖擷取文字。可使用本機 OCR 離線辨識，也可選擇已設定的線上模型。",
-    f2: "標註與釘圖",
-    f2Body: "使用畫筆、箭頭、文字與馬賽克標註截圖，也能將參考圖釘在桌面上。",
-    f3: "長截圖與螢幕錄影",
-    f3Body: "捲動拼接超出一頁的內容，或錄下操作過程，用畫面說明步驟。",
     guideTitle: "為每次框選指定一個動作。",
     s1: "選擇視覺模型",
     s1Body:
@@ -117,6 +137,39 @@ const messages = {
       "可使用 DMG 安裝或解壓縮 ZIP。此版本未使用 Apple Developer ID 簽章，也未經公證。",
     linuxInstall: "依發行版選擇 DEB 或 RPM，亦可使用 AppImage 或 tar.gz。",
     checksums: "校驗檔案",
+    star: "在 GitHub 給星",
+    starTitle: "喜歡 wSearch 嗎？",
+    starBody: "到 GitHub 加星收藏專案，或在 Issues 分享建議。",
+    captureGroup: "截圖與編輯",
+    readGroup: "辨識與翻譯",
+    flowGroup: "桌面工作流程",
+    region: "選取、取色與長截圖",
+    regionBody: "框選或自由裁切、讀取像素色值，也能水平或垂直捲動拼接長圖。",
+    annotate: "標註與遮擋",
+    annotateBody: "用畫筆、箭頭、編號和文字標示重點，以馬賽克或模糊遮住細節。",
+    polish: "圖片美化與匯出",
+    polishBody: "調整圓角、陰影、漸層背景和解析度，旋轉或翻轉後儲存或複製。",
+    ocrText: "離線與線上 OCR",
+    ocrTextBody:
+      "在本機辨識段落、直排文字和旋轉圖片，亦可改用百度、有道或視覺模型。",
+    visionTrans: "整圖翻譯與 AI 問答",
+    visionTransBody:
+      "將選取的圖片交給你的 OpenAI 相容、Anthropic 或 Gemini 模型，在原圖閱讀譯文，也能針對圖片提問。",
+    lookUp: "以圖搜圖與 QR 碼",
+    lookUpBody:
+      "用 Google、百度或 Yandex 尋找相似圖片，或直接讀取選取範圍內的 QR 碼。",
+    offline: "文字翻譯",
+    offlineBody:
+      "比較多個引擎的譯文。下載對應的語言模型後，也能使用 Firefox 離線翻譯。",
+    pinLive: "靜態與動態釘圖",
+    pinLiveBody:
+      "將參考圖或視窗的即時畫面釘在桌面；支援縮放、透明度和滑鼠穿透。",
+    video: "螢幕錄影與剪輯",
+    videoBody:
+      "錄下選取範圍、麥克風與系統音訊，裁切或調速後匯出 MP4、WebM、GIF 或動畫圖片。",
+    shortcuts: "快捷鍵與工具列",
+    shortcutsBody:
+      "為翻譯、畫筆和儲存等動作設定各自的快捷鍵，拖曳工具到主列、「更多」或隱藏區。",
   },
   en: {
     skip: "Skip to content",
@@ -140,15 +193,6 @@ const messages = {
     satellite: "Earth’s natural satellite",
     distance: "Mean distance",
     featuresTitle: "Tools for what’s on your screen.",
-    f1: "Text recognition",
-    f1Body:
-      "Extract text from screenshots. Run OCR offline on your device or choose a configured online model.",
-    f2: "Annotate and pin",
-    f2Body:
-      "Add arrows, brush strokes, text or mosaics. Pin a reference image to keep it in view.",
-    f3: "Scroll and record",
-    f3Body:
-      "Stitch content that extends beyond one screen or record a workflow to show each step.",
     guideTitle: "Give each selection an action.",
     s1: "Choose a vision model",
     s1Body:
@@ -180,6 +224,43 @@ const messages = {
     linuxInstall:
       "Choose DEB or RPM for your distribution, or use AppImage or tar.gz.",
     checksums: "SHA-256 checksums",
+    star: "Star on GitHub",
+    starTitle: "Enjoying wSearch?",
+    starBody:
+      "Star the repository to find it again, or share an idea in GitHub Issues.",
+    captureGroup: "Capture & edit",
+    readGroup: "Read & translate",
+    flowGroup: "Desktop workflows",
+    region: "Select, sample and stitch",
+    regionBody:
+      "Crop a rectangle or a freehand region, sample pixel colors, and stitch content by scrolling horizontally or vertically.",
+    annotate: "Annotate and redact",
+    annotateBody:
+      "Mark details with a brush, arrows, numbered labels or text. Obscure sensitive areas with blur or mosaic.",
+    polish: "Style and export images",
+    polishBody:
+      "Set rounded corners, shadows, gradient backgrounds and resolution. Rotate or flip the result, then copy or save it.",
+    ocrText: "Offline and online OCR",
+    ocrTextBody:
+      "Recognize paragraphs, vertical text and rotated images locally, or switch to Baidu, Youdao or a vision model.",
+    visionTrans: "Image translation and AI chat",
+    visionTransBody:
+      "Send a selection to your OpenAI-compatible, Anthropic or Gemini model. Read translations in place or ask questions about the image.",
+    lookUp: "Image search and QR codes",
+    lookUpBody:
+      "Look up similar images with Google, Baidu or Yandex, or read a QR code directly from a selection.",
+    offline: "Text translation",
+    offlineBody:
+      "Compare results from several engines. Download a language model to translate offline with Firefox Translations.",
+    pinLive: "Pinned images and live views",
+    pinLiveBody:
+      "Keep a reference image or a live window crop on your desktop. Adjust zoom, opacity and click-through.",
+    video: "Record and edit",
+    videoBody:
+      "Capture a region with microphone and system audio. Trim, change speed and export to MP4, WebM, GIF or animated images.",
+    shortcuts: "Shortcuts and toolbars",
+    shortcutsBody:
+      "Bind separate keys for translation, drawing or saving. Drag tools between the main bar, More menu and hidden area.",
   },
   es: {
     skip: "Saltar al contenido",
@@ -203,15 +284,6 @@ const messages = {
     satellite: "El satélite natural de la Tierra",
     distance: "Distancia media",
     featuresTitle: "Herramientas para tu pantalla.",
-    f1: "Reconocimiento de texto",
-    f1Body:
-      "Extrae texto de capturas con OCR local sin conexión o con un modelo en línea que hayas configurado.",
-    f2: "Anotaciones e imágenes fijas",
-    f2Body:
-      "Añade flechas, trazos, texto o mosaicos. Fija una imagen de referencia en el escritorio.",
-    f3: "Capturas largas y grabación",
-    f3Body:
-      "Une contenido que supera la altura de la pantalla o graba un proceso paso a paso.",
     guideTitle: "Asigna una acción a cada selección.",
     s1: "Elige un modelo visual",
     s1Body:
@@ -245,6 +317,43 @@ const messages = {
     linuxInstall:
       "Elige DEB o RPM según tu distribución, o utiliza AppImage o tar.gz.",
     checksums: "Sumas SHA-256",
+    star: "Dar una estrella en GitHub",
+    starTitle: "¿Te gusta wSearch?",
+    starBody:
+      "Guarda el proyecto con una estrella o comparte una idea en GitHub Issues.",
+    captureGroup: "Captura y edición",
+    readGroup: "Lectura y traducción",
+    flowGroup: "Flujos de escritorio",
+    region: "Selección, color y capturas largas",
+    regionBody:
+      "Recorta a mano alzada o en un rectángulo, toma muestras de color y une capturas al desplazarte en horizontal o vertical.",
+    annotate: "Anotaciones y ocultación",
+    annotateBody:
+      "Destaca detalles con trazos, flechas, números o texto. Oculta zonas con desenfoque o mosaico.",
+    polish: "Estilo y exportación",
+    polishBody:
+      "Ajusta esquinas, sombras, degradados y resolución. Gira o voltea el resultado y guárdalo o cópialo.",
+    ocrText: "OCR local y en línea",
+    ocrTextBody:
+      "Reconoce párrafos, texto vertical e imágenes giradas localmente, o usa Baidu, Youdao o un modelo visual.",
+    visionTrans: "Traducción de imágenes y chat",
+    visionTransBody:
+      "Envía la selección a tu modelo compatible con OpenAI, Anthropic o Gemini. Lee la traducción sobre la imagen o pregunta por su contenido.",
+    lookUp: "Búsqueda por imagen y QR",
+    lookUpBody:
+      "Busca imágenes similares con Google, Baidu o Yandex, o lee un código QR dentro de la selección.",
+    offline: "Traducción de texto",
+    offlineBody:
+      "Compara varios motores. Descarga un modelo de idioma para traducir sin conexión con Firefox Translations.",
+    pinLive: "Imágenes fijas y ventanas en vivo",
+    pinLiveBody:
+      "Fija una imagen o parte de una ventana en vivo. Ajusta el zoom, la opacidad y el paso de clics.",
+    video: "Grabación y edición",
+    videoBody:
+      "Graba un área con el micrófono y el audio del sistema. Recorta, cambia la velocidad y exporta a MP4, WebM, GIF o imágenes animadas.",
+    shortcuts: "Atajos y barras de herramientas",
+    shortcutsBody:
+      "Asigna teclas a traducir, dibujar o guardar. Arrastra herramientas entre la barra principal, el menú Más y la zona oculta.",
   },
   fr: {
     skip: "Aller au contenu",
@@ -268,15 +377,6 @@ const messages = {
     satellite: "Le satellite naturel de la Terre",
     distance: "Distance moyenne",
     featuresTitle: "Des outils pour votre écran.",
-    f1: "Reconnaissance de texte",
-    f1Body:
-      "Extrayez du texte avec l’OCR local hors ligne ou choisissez un modèle en ligne déjà configuré.",
-    f2: "Annoter et épingler",
-    f2Body:
-      "Ajoutez des flèches, des traits, du texte ou une mosaïque. Épinglez une image de référence sur le bureau.",
-    f3: "Captures longues et vidéo",
-    f3Body:
-      "Assemblez le contenu qui dépasse l’écran ou filmez une manipulation pour en montrer les étapes.",
     guideTitle: "Associez une action à chaque sélection.",
     s1: "Choisir un modèle de vision",
     s1Body:
@@ -310,6 +410,43 @@ const messages = {
     linuxInstall:
       "Choisissez DEB ou RPM pour votre distribution, ou utilisez AppImage ou tar.gz.",
     checksums: "Sommes SHA-256",
+    star: "Ajouter une étoile sur GitHub",
+    starTitle: "wSearch vous plaît ?",
+    starBody:
+      "Ajoutez une étoile pour retrouver le projet ou partagez une idée sur GitHub Issues.",
+    captureGroup: "Capture et édition",
+    readGroup: "Lecture et traduction",
+    flowGroup: "Outils de bureau",
+    region: "Sélection, couleurs et défilement",
+    regionBody:
+      "Découpez un rectangle ou une zone à main levée, prélevez une couleur et assemblez des captures en défilant dans les deux axes.",
+    annotate: "Annotations et masquage",
+    annotateBody:
+      "Ajoutez des traits, des flèches, des numéros ou du texte. Masquez certaines zones par flou ou mosaïque.",
+    polish: "Mise en forme et export",
+    polishBody:
+      "Réglez les coins, les ombres, le dégradé de fond et la résolution. Faites pivoter ou retournez l’image avant de la copier ou de l’enregistrer.",
+    ocrText: "OCR local et en ligne",
+    ocrTextBody:
+      "Reconnaissez localement paragraphes, texte vertical et images pivotées, ou utilisez Baidu, Youdao ou un modèle de vision.",
+    visionTrans: "Traduction d’image et dialogue IA",
+    visionTransBody:
+      "Envoyez la sélection à votre modèle compatible OpenAI, Anthropic ou Gemini. Lisez la traduction sur l’image ou posez des questions.",
+    lookUp: "Recherche par image et codes QR",
+    lookUpBody:
+      "Recherchez une image avec Google, Baidu ou Yandex ou lisez un code QR directement dans la sélection.",
+    offline: "Traduction de texte",
+    offlineBody:
+      "Comparez plusieurs moteurs. Téléchargez un modèle de langue pour traduire hors ligne avec Firefox Translations.",
+    pinLive: "Images épinglées et vues en direct",
+    pinLiveBody:
+      "Épinglez une image ou une zone de fenêtre en direct. Réglez le zoom, l’opacité et le passage des clics.",
+    video: "Enregistrement et montage",
+    videoBody:
+      "Filmez une zone avec le micro et le son système. Coupez, ajustez la vitesse et exportez en MP4, WebM, GIF ou image animée.",
+    shortcuts: "Raccourcis et barres d’outils",
+    shortcutsBody:
+      "Associez des touches à la traduction, au pinceau ou à l’enregistrement. Déplacez les outils entre la barre, le menu Plus et la zone masquée.",
   },
   ru: {
     skip: "К содержимому",
@@ -333,15 +470,6 @@ const messages = {
     satellite: "Естественный спутник Земли",
     distance: "Среднее расстояние",
     featuresTitle: "Инструменты для работы с экраном.",
-    f1: "Распознавание текста",
-    f1Body:
-      "Извлекайте текст со снимков локально без интернета или с помощью настроенной онлайн-модели.",
-    f2: "Пометки и закрепление",
-    f2Body:
-      "Добавляйте стрелки, штрихи, текст или мозаику. Закрепляйте нужные изображения на рабочем столе.",
-    f3: "Длинные снимки и запись",
-    f3Body:
-      "Объединяйте прокручиваемые фрагменты или записывайте свои действия на видео.",
     guideTitle: "Назначьте действие для выделения.",
     s1: "Выберите модель",
     s1Body:
@@ -373,6 +501,43 @@ const messages = {
     linuxInstall:
       "Выберите DEB или RPM для своего дистрибутива либо используйте AppImage или tar.gz.",
     checksums: "Контрольные суммы SHA-256",
+    star: "Поставить звезду",
+    starTitle: "Нравится wSearch?",
+    starBody:
+      "Добавьте проект в избранное на GitHub или предложите улучшение в Issues.",
+    captureGroup: "Снимки и редактор",
+    readGroup: "Распознавание и перевод",
+    flowGroup: "Рабочий стол",
+    region: "Выделение, цвет и прокрутка",
+    regionBody:
+      "Выделяйте прямоугольник или произвольную область, снимайте цвет пикселя и объединяйте снимки при прокрутке по горизонтали или вертикали.",
+    annotate: "Пометки и скрытие деталей",
+    annotateBody:
+      "Добавляйте штрихи, стрелки, номера и текст. Закрывайте нужные участки мозаикой или размытием.",
+    polish: "Оформление и экспорт",
+    polishBody:
+      "Настраивайте скругление, тень, градиентный фон и разрешение. Поворачивайте и отражайте изображения перед сохранением или копированием.",
+    ocrText: "Локальное и сетевое OCR",
+    ocrTextBody:
+      "Распознавайте абзацы, вертикальный текст и повёрнутые изображения локально либо используйте Baidu, Youdao или модель с поддержкой изображений.",
+    visionTrans: "Перевод снимков и чат с ИИ",
+    visionTransBody:
+      "Отправьте фрагмент модели через API OpenAI, Anthropic или Gemini. Читайте перевод на месте или задавайте вопросы об изображении.",
+    lookUp: "Поиск по картинке и QR-коды",
+    lookUpBody:
+      "Находите похожие изображения через Google, Baidu или Yandex либо читайте QR-код из выделенной области.",
+    offline: "Перевод текста",
+    offlineBody:
+      "Сравнивайте результаты нескольких движков. Загрузите языковую модель для работы без сети через Firefox Translations.",
+    pinLive: "Закреплённые снимки и окна",
+    pinLiveBody:
+      "Закрепите изображение или фрагмент окна в реальном времени. Меняйте масштаб, прозрачность и режим пропуска нажатий.",
+    video: "Запись и монтаж",
+    videoBody:
+      "Записывайте область с микрофоном и системным звуком. Обрезайте, меняйте скорость и сохраняйте в MP4, WebM, GIF или анимированное изображение.",
+    shortcuts: "Клавиши и панели",
+    shortcutsBody:
+      "Назначьте сочетания для перевода, кисти или сохранения. Перетаскивайте инструменты между панелью, меню «Ещё» и скрытой областью.",
   },
   ar: {
     skip: "انتقل إلى المحتوى",
@@ -396,14 +561,6 @@ const messages = {
     satellite: "القمر الطبيعي للأرض",
     distance: "متوسط المسافة",
     featuresTitle: "أدوات للتعامل مع محتوى شاشتك.",
-    f1: "التعرّف على النص",
-    f1Body:
-      "استخرج النص من الصور محليًا دون اتصال، أو اختر نموذجًا على الإنترنت سبق إعداده.",
-    f2: "التعليق والتثبيت",
-    f2Body:
-      "أضف أسهمًا أو نصوصًا أو ارسم أو موّه أجزاء من الصورة. ثبّت صورة مرجعية على سطح المكتب.",
-    f3: "اللقطات الطويلة والتسجيل",
-    f3Body: "ادمج المحتوى الممتد خارج الشاشة أو سجّل خطوات العمل في فيديو.",
     guideTitle: "عيّن إجراءً لكل تحديد.",
     s1: "اختر نموذج رؤية",
     s1Body:
@@ -434,6 +591,43 @@ const messages = {
       "ثبّت التطبيق من DMG أو فك ضغط ZIP. لم يُوقّع هذا الإصدار بشهادة Apple Developer ID ولم يخضع لتوثيق Apple.",
     linuxInstall: "اختر DEB أو RPM حسب توزيعتك، أو استخدم AppImage أو tar.gz.",
     checksums: "بصمات SHA-256",
+    star: "ميّز المشروع بنجمة",
+    starTitle: "هل يعجبك wSearch؟",
+    starBody:
+      "أضف نجمة إلى المستودع للرجوع إليه، أو شارك اقتراحًا في GitHub Issues.",
+    captureGroup: "الالتقاط والتحرير",
+    readGroup: "القراءة والترجمة",
+    flowGroup: "أدوات سطح المكتب",
+    region: "التحديد والألوان والتمرير",
+    regionBody:
+      "اقتصّ مستطيلًا أو مساحة حرة، والتقط لون بكسل وادمج اللقطات بالتمرير أفقيًا أو رأسيًا.",
+    annotate: "التعليق وإخفاء التفاصيل",
+    annotateBody:
+      "حدّد التفاصيل بالفرشاة والأسهم والأرقام والنصوص، واستخدم التمويه أو الفسيفساء لإخفاء مناطق من الصورة.",
+    polish: "تنسيق الصور وتصديرها",
+    polishBody:
+      "اضبط استدارة الزوايا والظلال والخلفيات المتدرجة والدقة. دوّر النتيجة أو اعكسها ثم انسخها أو احفظها.",
+    ocrText: "التعرّف على النص محليًا وعبر الإنترنت",
+    ocrTextBody:
+      "تعرّف محليًا على الفقرات والنصوص الرأسية والصور المدورة، أو استخدم Baidu أو Youdao أو نموذج رؤية.",
+    visionTrans: "ترجمة الصور ومحادثة الذكاء الاصطناعي",
+    visionTransBody:
+      "أرسل الجزء المحدد إلى نموذجك عبر واجهة متوافقة مع OpenAI أو Anthropic أو Gemini. اقرأ الترجمة في مكانها أو اسأل عن الصورة.",
+    lookUp: "البحث بالصور ورموز QR",
+    lookUpBody:
+      "ابحث عن صور مشابهة باستخدام Google أو Baidu أو Yandex، أو اقرأ رمز QR داخل التحديد.",
+    offline: "ترجمة النصوص",
+    offlineBody:
+      "قارن بين عدة محرّكات. نزّل نموذج اللغة المطلوب للترجمة دون اتصال عبر Firefox Translations.",
+    pinLive: "تثبيت الصور والنوافذ الحية",
+    pinLiveBody:
+      "ثبّت صورة مرجعية أو جزءًا حيًا من نافذة، واضبط التكبير والشفافية ومرور النقرات.",
+    video: "التسجيل والمونتاج",
+    videoBody:
+      "سجّل منطقة مع الميكروفون وصوت النظام، ثم اقتطع وعدّل السرعة وصدّر إلى MP4 أو WebM أو GIF أو صور متحركة.",
+    shortcuts: "الاختصارات وأشرطة الأدوات",
+    shortcutsBody:
+      "خصص مفاتيح للترجمة أو الرسم أو الحفظ، واسحب الأدوات بين الشريط الرئيسي وقائمة المزيد والمنطقة المخفية.",
   },
   eo: {
     skip: "Iri al la enhavo",
@@ -457,15 +651,6 @@ const messages = {
     satellite: "La natura satelito de la Tero",
     distance: "Meza distanco",
     featuresTitle: "Iloj por la enhavo de via ekrano.",
-    f1: "Tekstorekono",
-    f1Body:
-      "Eltiru tekston el ekrankopioj per loka senreta OCR aŭ per agordita reta modelo.",
-    f2: "Komenti kaj alpingli",
-    f2Body:
-      "Aldonu sagojn, strekojn, tekston aŭ mozaikon. Alpinglu referencan bildon al la labortablo.",
-    f3: "Longaj ekrankopioj kaj registrado",
-    f3Body:
-      "Kunigu rulumitajn partojn aŭ registru laborfluon por montri ĉiun paŝon.",
     guideTitle: "Elektu agon por ĉiu markita regiono.",
     s1: "Elektu vidkapablan modelon",
     s1Body:
@@ -499,5 +684,42 @@ const messages = {
     linuxInstall:
       "Elektu DEB aŭ RPM laŭ via distribuo, aŭ uzu AppImage aŭ tar.gz.",
     checksums: "SHA-256-kontrolsumoj",
+    star: "Stelumi en GitHub",
+    starTitle: "Ĉu vi ŝatas wSearch?",
+    starBody:
+      "Stelumu la deponejon por retrovi ĝin aŭ proponu ideon per GitHub Issues.",
+    captureGroup: "Kapti kaj redakti",
+    readGroup: "Legi kaj traduki",
+    flowGroup: "Labortablaj iloj",
+    region: "Elekti, mezuri koloron kaj rulumi",
+    regionBody:
+      "Tondu rektangulon aŭ libermanan areon, mezuru la koloron de pikselo kaj kunigu kaptojn per horizontala aŭ vertikala rulumado.",
+    annotate: "Komenti kaj kaŝi detalojn",
+    annotateBody:
+      "Marku detalojn per peniko, sagoj, numeroj aŭ teksto. Kaŝu regionojn per malklarigo aŭ mozaiko.",
+    polish: "Stiligi kaj eksporti",
+    polishBody:
+      "Agordu rondajn angulojn, ombrojn, gradientan fonon kaj distingivon. Rotaciu aŭ spegulu la bildon, poste kopiu aŭ konservu ĝin.",
+    ocrText: "Loka kaj reta tekstorekono",
+    ocrTextBody:
+      "Rekonu alineojn, vertikalan tekston kaj turnitajn bildojn loke aŭ elektu Baidu, Youdao aŭ vidkapablan modelon.",
+    visionTrans: "Bildotraduko kaj AI-babilado",
+    visionTransBody:
+      "Sendu elekton al via modelo per interfaco kongrua kun OpenAI, Anthropic aŭ Gemini. Legu la tradukon surloke aŭ faru demandojn pri la bildo.",
+    lookUp: "Bildoserĉo kaj QR-kodoj",
+    lookUpBody:
+      "Serĉu similajn bildojn per Google, Baidu aŭ Yandex aŭ legu QR-kodon rekte el elekto.",
+    offline: "Teksta traduko",
+    offlineBody:
+      "Komparu rezultojn de pluraj tradukiloj. Elŝutu lingvan modelon por traduki senrete per Firefox Translations.",
+    pinLive: "Alpinglitaj bildoj kaj vivaj vidoj",
+    pinLiveBody:
+      "Alpinglu referencan bildon aŭ vivan parton de fenestro. Ŝanĝu skalon, travideblon kaj klakotralason.",
+    video: "Registri kaj redakti",
+    videoBody:
+      "Registru regionon kun mikrofona kaj sistema sono. Tondu, ŝanĝu rapidecon kaj eksportu al MP4, WebM, GIF aŭ animacia bildo.",
+    shortcuts: "Klavkombinoj kaj ilobretoj",
+    shortcutsBody:
+      "Asignu klavojn al traduko, desegno aŭ konservado. Trenu ilojn inter la ĉefa breto, la menuo Pli kaj la kaŝita areo.",
   },
 };

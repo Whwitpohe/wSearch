@@ -2,7 +2,7 @@
 
 ## 15.8.1 · 2026-11-25
 
-[发布日志及下载](https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1) · [多语言介绍页](https://whwitpohe.github.io/wSearch/#changes)
+[中英双语发布说明](docs/releases/15.8.1.md) · [发布日志及下载](https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1) · [多语言介绍页](https://whwitpohe.github.io/wSearch/#changes)
 
 - **整图翻译**。配置支持图像的 OpenAI 兼容、Anthropic 或 Gemini 模型后，框选屏幕区域即可将译文显示在原图对应的位置。发送给模型的内容为选中的截图。
 - **框选后执行动作**。在快捷键设置中给翻译、画笔、复制或保存分别绑定组合键。动作选择器支持分类和搜索。

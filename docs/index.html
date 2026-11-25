@@ -28,21 +28,105 @@
           ><a href="#changes" data-t="changes">更新记录</a>
         </nav>
         <div class="tools">
-          <label class="language"
-            ><span class="ico globe" aria-hidden="true"></span
-            ><select id="lang" aria-label="Language" data-aria="language">
-              <option value="zh-CN">简体中文</option>
-              <option value="zh-TW">繁體中文</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="ru">Русский</option>
-              <option value="ar">العربية</option>
-              <option value="eo">Esperanto</option>
-            </select></label
-          >
-          <a class="repo" href="https://github.com/Whwitpohe/wSearch"
-            >GitHub <span aria-hidden="true">↗</span></a
+          <details class="language" id="language-picker" hidden>
+            <summary id="lang-trigger" aria-controls="lang-panel">
+              <span class="ico globe" aria-hidden="true"></span
+              ><span id="current-language">简体中文</span>
+            </summary>
+            <div
+              class="language-panel"
+              id="lang-panel"
+              role="group"
+              data-aria="language"
+              aria-label="语言"
+            >
+              <p data-t="language">语言</p>
+              <div class="language-grid">
+                <button
+                  type="button"
+                  data-lang="zh-CN"
+                  lang="zh-CN"
+                  dir="auto"
+                  aria-pressed="true"
+                >
+                  简体中文
+                </button>
+                <button
+                  type="button"
+                  data-lang="zh-TW"
+                  lang="zh-TW"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  繁體中文
+                </button>
+                <button
+                  type="button"
+                  data-lang="en"
+                  lang="en"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  data-lang="es"
+                  lang="es"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  Español
+                </button>
+                <button
+                  type="button"
+                  data-lang="fr"
+                  lang="fr"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  Français
+                </button>
+                <button
+                  type="button"
+                  data-lang="ru"
+                  lang="ru"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  Русский
+                </button>
+                <button
+                  type="button"
+                  data-lang="ar"
+                  lang="ar"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  العربية
+                </button>
+                <button
+                  type="button"
+                  data-lang="eo"
+                  lang="eo"
+                  dir="auto"
+                  aria-pressed="false"
+                >
+                  Esperanto
+                </button>
+              </div>
+            </div>
+          </details>
+          <a
+            class="repo"
+            href="https://github.com/Whwitpohe/wSearch"
+            data-aria="star"
+            aria-label="在 GitHub 上 Star"
+            ><span class="ico github" aria-hidden="true"></span
+            ><span class="repo-name">GitHub</span
+            ><span class="repo-star"
+              ><span class="ico star" aria-hidden="true"></span>Star</span
+            ></a
           >
         </div>
       </div>
@@ -62,8 +146,7 @@
               ><span class="ico download" aria-hidden="true"></span
               ><span data-t="get">下载 wSearch</span></a
             ><a class="textlink" href="#guide"
-              ><span data-t="how">查看用法</span
-              ><span aria-hidden="true">↗</span></a
+              ><span data-t="how">查看用法</span></a
             >
           </div>
           <div class="edition">
@@ -113,7 +196,7 @@
             <div class="crop" aria-hidden="true">
               <i></i><i></i><i></i><i></i>
             </div>
-            <div class="seam" aria-hidden="true"><span>‹ ›</span></div>
+            <div class="seam" aria-hidden="true"><span></span></div>
             <input
               id="compare"
               type="range"
@@ -129,7 +212,7 @@
               ><span class="blue-dot"></span
               ><span data-t="demo">拖动对比 · 翻译示意</span></span
             ><a href="https://images.nasa.gov/details/PIA00405"
-              >NASA/JPL/USGS ↗</a
+              >NASA/JPL/USGS</a
             >
           </figcaption>
         </figure>
@@ -138,27 +221,102 @@
         <div class="shell">
           <h2 data-t="featuresTitle">一套工具，处理屏幕上的内容。</h2>
           <div class="features">
-            <article>
-              <span class="feature-icon ocr"></span>
-              <h3 data-t="f1">文字识别</h3>
-              <p data-t="f1Body">
-                提取截图中的文字。使用本地 OCR
-                离线识别，或选择已配置的在线模型。
-              </p>
+            <article class="capability capture">
+              <div class="cap-visual" aria-hidden="true">
+                <div class="mini-selection"><i></i></div>
+              </div>
+              <div class="cap-content">
+                <h3 data-t="captureGroup">截图与编辑</h3>
+                <dl>
+                  <div>
+                    <dt data-t="region">选区、取色与长截图</dt>
+                    <dd data-t="regionBody">
+                      框选或自由裁切，读取像素色值；横向或纵向滚动可拼接长图。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="annotate">标注与遮挡</dt>
+                    <dd data-t="annotateBody">
+                      用画笔、箭头、编号和文字说明重点，用马赛克或模糊遮住细节。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="polish">图片美化与导出</dt>
+                    <dd data-t="polishBody">
+                      调整圆角、阴影、渐变背景和分辨率，旋转或翻转后保存、复制。
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </article>
-            <article>
-              <span class="feature-icon draw"></span>
-              <h3 data-t="f2">标注与贴图</h3>
-              <p data-t="f2Body">
-                用画笔、箭头、文字和马赛克标注截图，也可以把参考图钉在桌面。
-              </p>
+            <article class="capability recognize">
+              <div class="cap-visual" aria-hidden="true">
+                <div class="mini-text">
+                  <b>Aa</b><span></span><span></span><span></span>
+                </div>
+              </div>
+              <div class="cap-content">
+                <h3 data-t="readGroup">识别与翻译</h3>
+                <dl>
+                  <div>
+                    <dt data-t="ocrText">离线与在线 OCR</dt>
+                    <dd data-t="ocrTextBody">
+                      本地识别段落、竖排文字和旋转图片，也可切换百度、有道或视觉模型。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="visionTrans">整图翻译与 AI 问答</dt>
+                    <dd data-t="visionTransBody">
+                      把框选图像发给自己的 OpenAI 兼容、Anthropic 或 Gemini
+                      模型，在图上读译文，也能继续就图提问。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="lookUp">以图搜图与二维码</dt>
+                    <dd data-t="lookUpBody">
+                      用 Google、百度或 Yandex
+                      查找相似图片，或直接读取选区里的二维码。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="offline">文本翻译</dt>
+                    <dd data-t="offlineBody">
+                      对比多个引擎的译文。下载对应语言模型后，也可使用 Firefox
+                      离线翻译。
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </article>
-            <article>
-              <span class="feature-icon film"></span>
-              <h3 data-t="f3">长截图与录屏</h3>
-              <p data-t="f3Body">
-                滚动拼接超出一屏的内容，或录下操作过程，用画面说明步骤。
-              </p>
+            <article class="capability workflow">
+              <div class="cap-visual" aria-hidden="true">
+                <div class="mini-frame"><i></i></div>
+                <div class="mini-track"><i></i><i></i><i></i></div>
+              </div>
+              <div class="cap-content">
+                <h3 data-t="flowGroup">桌面工作流</h3>
+                <dl>
+                  <div>
+                    <dt data-t="pinLive">静态与动态贴图</dt>
+                    <dd data-t="pinLiveBody">
+                      把参考图钉到桌面，或固定窗口的实时画面；可缩放、调整透明度和鼠标穿透。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="video">录屏与剪辑</dt>
+                    <dd data-t="videoBody">
+                      录制选区、麦克风和系统声音，剪辑、变速后导出
+                      MP4、WebM、GIF 或动画图片。
+                    </dd>
+                  </div>
+                  <div>
+                    <dt data-t="shortcuts">快捷键与工具栏</dt>
+                    <dd data-t="shortcutsBody">
+                      给翻译、画笔、保存等框选动作分别绑键；拖动工具，在主栏、“更多”和隐藏区之间移动。
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </article>
           </div>
         </div>
@@ -218,12 +376,11 @@
               class="textlink"
               href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
               ><span data-t="allFiles">查看全部发布文件</span>
-              ↗</a
-            >
+            </a>
           </div>
           <div class="packages" id="packages">
             <a href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
-              >GitHub Releases ↗</a
+              >GitHub Releases</a
             >
           </div>
         </div>
@@ -247,9 +404,23 @@
             class="textlink"
             href="https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1"
             ><span data-t="notes">完整发布日志</span>
-            ↗</a
-          >
+          </a>
         </div>
+      </section>
+      <section class="community shell">
+        <div class="community-copy">
+          <span class="project-mark ico github" aria-hidden="true"></span>
+          <div>
+            <h2 data-t="starTitle">喜欢 wSearch？</h2>
+            <p data-t="starBody">
+              在 GitHub 点个 Star 收藏这个项目，或在 Issues 分享你的建议。
+            </p>
+          </div>
+        </div>
+        <a class="star-link" href="https://github.com/Whwitpohe/wSearch"
+          ><span class="ico star" aria-hidden="true"></span
+          ><span data-t="star">在 GitHub 上 Star</span></a
+        >
       </section>
     </main>
     <footer>
