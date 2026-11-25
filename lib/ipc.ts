@@ -142,6 +142,7 @@ type Message = {
     tabView: (id: number, type: BrowserAction) => void;
     tabViewSize: (size: { top: number; bottom: number }) => void;
     viewEvent: (type: BrowserAction | "add_history" | "browser") => void;
+    hotkeyStatus: (path: string) => boolean;
     hotkey:
         | ((
               type: "快捷键",

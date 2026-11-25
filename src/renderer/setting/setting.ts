@@ -2,8 +2,8 @@ import {
     a,
     addClass,
     addStyle,
-    button,
     check,
+    button as dkhButton,
     dynamicList,
     dynamicSelect,
     type ElType,
@@ -25,6 +25,12 @@ import {
     txt,
     view,
 } from "dkh-ui";
+import { Remarkable } from "remarkable";
+import {
+    fetchAppReleases,
+    releasePage,
+    releasePath,
+} from "../../../lib/appRelease";
 import {
     endpoints,
     listModels,
@@ -131,6 +137,10 @@ type settingItem<t extends SettingPath> = {
     };
 };
 
+function button(content?: Parameters<typeof dkhButton>[0]) {
+    return dkhButton(content).class("settings-btn");
+}
+
 const oldStore = store.getAll();
 const nowStore = structuredClone(oldStore);
 const nowStoreK = new Set<SettingPath>();
@@ -202,42 +212,107 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     "工具栏.布局": {
         name: "按钮显示和排序",
-        desc: "拖动按钮可排序，也可移到另一栏或隐藏区。",
+        desc: "拖动按钮排序。放入“更多”的按钮只在展开时显示，放入“隐藏”的按钮不显示。",
         el: () => sortTool().class(blockSetting),
     },
     "工具栏.初始位置": {
         name: "工具栏位置",
         el: (v) => {
-            const el = xGroup("y").class(blockSetting);
-            const iEvent = () => el.el.dispatchEvent(new CustomEvent("input"));
-            const l = input().addInto(el).on("input", iEvent);
-            const t = input().addInto(el).on("input", iEvent);
-            const b = xGroup("x").addInto(el);
-            button("左上")
-                .addInto(b)
-                .on("click", () => {
-                    l.sv("10px");
-                    t.sv("100px");
-                    iEvent();
+            const panel = view().class(blockSetting, "position-editor");
+            const left = input().attr({ spellcheck: false }),
+                top = input().attr({ spellcheck: false });
+            const presets = view("x")
+                .class("position-presets")
+                .attr({ role: "group", ariaLabel: t("工具栏位置") });
+            const leftPreset = button("左上"),
+                rightPreset = button("右上");
+            const marker = view().class("position-marker");
+            const screen = view()
+                .class("position-map")
+                .attr({ ariaHidden: "true" })
+                .add(marker);
+            const horizontal = field("距左侧", left),
+                vertical = field("距顶部", top);
+            let right = false;
+            function refresh() {
+                leftPreset.el.setAttribute("aria-pressed", String(!right));
+                rightPreset.el.setAttribute("aria-pressed", String(right));
+                horizontal.el.querySelector("label")!.textContent = t(
+                    right ? "距右侧" : "距左侧",
+                );
+                const offset = (css: string, size: number) => {
+                    const value = parseFloat(css);
+                    if (!Number.isFinite(value)) return 0;
+                    return Math.max(
+                        0,
+                        Math.min(
+                            1,
+                            css.endsWith("%") || /v[wh]$/.test(css)
+                                ? value / 100
+                                : value / size,
+                        ),
+                    );
+                };
+                const x = Math.min(
+                    86,
+                    offset(left.gv, window.screen.width) * 100,
+                );
+                marker.style({
+                    left: `${right ? 86 - x : x}%`,
+                    top: `${Math.min(62, offset(top.gv, window.screen.height) * 100)}%`,
                 });
-            button("右上")
-                .addInto(b)
-                .on("click", () => {
-                    const size = getSet("工具栏.按钮大小");
-                    l.sv(`calc(100vw - 10px - ${size} * 2 - 8px)`);
-                    t.sv("100px");
-                    iEvent();
-                });
-            return el
-                .bindGet(() => {
-                    return {
-                        left: l.gv,
-                        top: t.gv,
-                    };
-                })
-                .bindSet((_v: typeof v) => {
-                    l.sv(_v.left);
-                    t.sv(_v.top);
+            }
+            function changed() {
+                refresh();
+                if (
+                    CSS.supports("left", left.gv) &&
+                    CSS.supports("top", top.gv)
+                )
+                    panel.el.dispatchEvent(new CustomEvent("input"));
+            }
+            leftPreset.on("click", () => {
+                right = false;
+                changed();
+            });
+            rightPreset.on("click", () => {
+                right = true;
+                changed();
+            });
+            left.on("input", changed);
+            top.on("input", changed);
+            panel.add([
+                screen,
+                view("y")
+                    .class("position-fields")
+                    .add([
+                        presets.add([leftPreset, rightPreset]),
+                        view()
+                            .class("position-coordinates")
+                            .add([horizontal, vertical]),
+                    ]),
+            ]);
+            return panel
+                .bindGet(() => ({
+                    left: right
+                        ? `calc(100vw - var(--bar-size) * 2 - 8px - ${left.gv})`
+                        : left.gv,
+                    top: top.gv,
+                }))
+                .bindSet((value: typeof v) => {
+                    const stored =
+                        /^calc\(100vw - var\(--bar-size\) \* 2 - 8px - (.+)\)$/.exec(
+                            value.left,
+                        );
+                    const legacy =
+                        /^calc\(100vw - 10px - [\d.]+(?:px)? \* 2 - 8px\)$/.test(
+                            value.left,
+                        ) ||
+                        value.left ===
+                            "calc(100vw - var(--bar-size) * 2 - 18px)";
+                    right = Boolean(stored || legacy);
+                    left.sv(stored?.[1] ?? (legacy ? "10px" : value.left));
+                    top.sv(value.top);
+                    refresh();
                 });
         },
     },
@@ -799,47 +874,59 @@ const s: Partial<settingItem<SettingPath>> = {
                     const { promise, resolve } =
                         Promise.withResolvers<typeof v>();
 
-                    function setStyle() {
-                        const style = t.gv;
-                        preview.el.setAttribute("style", style);
-                    }
-
-                    const t = textarea()
+                    const sample = () =>
+                        image(logo, noI18n("eSearch")).class(
+                            "transform-sample",
+                        );
+                    const effect = sample();
+                    const code = textarea()
                         .attr({
-                            placeholder:
-                                "CSS key: value;\ntransform: rotate(0deg);",
+                            spellcheck: false,
+                            placeholder: "transform: rotate(0deg);",
                         })
-                        .sv(v ?? "")
-                        .on("input", () => {
-                            setStyle();
-                        });
-                    const preview = view().add(
-                        image(logo, noI18n("logo")).style({ width: "200px" }),
-                    );
-
+                        .class("transform-code")
+                        .sv(v ?? "");
+                    function update() {
+                        effect.el.style.cssText = code.gv;
+                    }
+                    code.on("input", update);
+                    update();
+                    const comparison = view().class("transform-compare");
+                    for (const [caption, graphic] of [
+                        ["原图", sample()],
+                        ["效果预览", effect],
+                    ] as const) {
+                        comparison.add(
+                            view("y")
+                                .class("transform-tile")
+                                .add([
+                                    txt(caption),
+                                    view()
+                                        .class("transform-stage")
+                                        .add(graphic),
+                                ]),
+                        );
+                    }
+                    const refs = view("x", "wrap")
+                        .class("transform-links")
+                        .add([
+                            txt("参考"),
+                            a(
+                                "https://developer.mozilla.org/zh-CN/docs/Web/CSS/transform",
+                            ).add(noI18n("transform")),
+                            a(
+                                "https://developer.mozilla.org/zh-CN/docs/Web/CSS/filter",
+                            ).add(noI18n("filter")),
+                            a(
+                                "https://developer.mozilla.org/en-US/docs/Web/SVG/Guides/SVG_filters",
+                            ).add(noI18n("SVG filters")),
+                        ]);
                     dialogB(
                         m,
-                        [
-                            t,
-                            xGroup().add([
-                                "参考：",
-                                a(
-                                    "https://developer.mozilla.org/zh-CN/docs/Web/CSS/transform",
-                                ).add(noI18n("MDN transform")),
-                                a(
-                                    "https://developer.mozilla.org/zh-CN/docs/Web/CSS/filter",
-                                ).add(noI18n("MDN filter")),
-                                a(
-                                    "https://developer.mozilla.org/en-US/docs/Web/SVG/Guides/SVG_filters",
-                                ).add(noI18n("MDN SVG filters")),
-                            ]),
-                            preview,
-                        ],
+                        [comparison, field("CSS", code, true), refs],
                         () => resolve(null),
-                        () => resolve(t.gv),
+                        () => resolve(code.gv),
                     );
-
-                    setStyle();
 
                     return promise;
                 },
@@ -1185,7 +1272,8 @@ const s: Partial<settingItem<SettingPath>> = {
         el: () => hotkeyP("save"),
     },
     "工具快捷键.translate": {
-        name: getToolsN("translate"),
+        name: "截图窗口内翻译",
+        desc: "仅在截图窗口中使用；桌面框选翻译请到翻译页设置。",
         el: () => hotkeyP("translate"),
     },
     "工具快捷键.editor": {
@@ -1496,13 +1584,17 @@ const s: Partial<settingItem<SettingPath>> = {
                 el.el.dispatchEvent(new CustomEvent("input"));
             }
             const themeSelect = xGroup().add(
-                themes.map((i) =>
+                themes.map((i, index) =>
                     button()
-                        .style({
-                            width: "var(--base-size2)",
-                            height: "var(--base-size2)",
-                            backgroundColor: `light-dark(${i.light.emphasis}, ${i.dark.emphasis})`,
-                        })
+                        .class("theme-preset")
+                        .add([
+                            view()
+                                .class("theme-swatch")
+                                .style({
+                                    backgroundColor: `light-dark(${i.light.emphasis}, ${i.dark.emphasis})`,
+                                }),
+                            txt(["中性灰", "雾蓝", "浅绿"][index]),
+                        ])
                         .on("click", () => {
                             el.sv(i);
                             change();
@@ -1891,28 +1983,34 @@ const xs: Record<
     _clear_history: {
         name: "清空所有文字记录",
         el: () =>
-            button("清空").on("click", async () => {
-                const c = await confirm(
-                    "这将清除所有的历史记录\n且不能复原\n确定清除？",
-                );
-                const configPath = renderSendSync("userDataPath", []);
-                if (c)
-                    fs.writeFileSync(
-                        path.join(configPath, "history.json"),
-                        JSON.stringify({ 历史记录: {} }, null, 2),
+            button("清空")
+                .class("danger-action")
+                .on("click", async () => {
+                    const c = await confirm(
+                        "这将清除所有的历史记录\n且不能复原\n确定清除？",
                     );
-            }),
+                    const configPath = renderSendSync("userDataPath", []);
+                    if (c)
+                        fs.writeFileSync(
+                            path.join(configPath, "history.json"),
+                            JSON.stringify({ 历史记录: {} }, null, 2),
+                        );
+                }),
     },
     _clear_browswer: {
         name: "清除数据",
         el: () =>
             xGroup("x").add([
-                button("Cookie 等存储数据").on("click", () => {
-                    renderSend("clearStorage", []);
-                }),
-                button("缓存").on("click", () => {
-                    renderSend("clearCache", []);
-                }),
+                button("Cookie 等存储数据")
+                    .class("danger-action")
+                    .on("click", () => {
+                        renderSend("clearStorage", []);
+                    }),
+                button("缓存")
+                    .class("danger-action")
+                    .on("click", () => {
+                        renderSend("clearCache", []);
+                    }),
             ]),
     },
     _setting_file: {
@@ -1932,15 +2030,17 @@ const xs: Record<
         name: "恢复默认设置",
         el: () =>
             xGroup().add([
-                button("恢复").on("click", () => {
-                    const defaultSetting = getDefaultSetting();
-                    for (const [x] of Object.entries(s)) {
-                        setSet(
-                            x as SettingPath,
-                            getFromStore(defaultSetting, x as SettingPath),
-                        );
-                    }
-                }),
+                button("恢复")
+                    .class("danger-action")
+                    .on("click", () => {
+                        const defaultSetting = getDefaultSetting();
+                        for (const [x] of Object.entries(s)) {
+                            setSet(
+                                x as SettingPath,
+                                getFromStore(defaultSetting, x as SettingPath),
+                            );
+                        }
+                    }),
                 button("显示更改的设置").on("click", () => {
                     const defaultSetting = getDefaultSetting();
                     const ss = Object.entries(s).filter(
@@ -2714,6 +2814,24 @@ function getSet<t extends SettingPath>(k: t): GetValue<setting, t> {
 function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
     const old = getSet(k);
     if (old === v) return;
+    if (typeof v === "string") {
+        const globalAction = /^全局工具快捷键\.(.+)$/.exec(k);
+        const globalCommand = /^快捷键\.(.+)\.key$/.exec(k);
+        if (
+            globalAction &&
+            !renderSendSync("hotkey", ["快捷键2", globalAction[1] as 功能, v])
+        )
+            return;
+        if (
+            globalCommand &&
+            !renderSendSync("hotkey", [
+                "快捷键",
+                globalCommand[1] as keyof setting["快捷键"],
+                v,
+            ])
+        )
+            return;
+    }
     const initV = getFromStore(oldStore, k);
     const isSame = isSettingItemSame(initV, v);
     nowStoreK.delete(k);
@@ -2727,20 +2845,8 @@ function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
     ].slice(0, 24);
     localStorage.setItem(settingMemKey, JSON.stringify(nSettingMemo));
 
-    historyEl.clear();
-    if (nowStoreK.size > 0) {
-        historyEl.add([
-            button("更改的设置").on("click", () => {
-                renderSettingList(Array.from(nowStoreK));
-            }),
-            button("放弃本次修改").on("click", () => {
-                for (const x of Array.from(nowStoreK)) {
-                    setSet(x, getFromStore(oldStore, x));
-                    reRenderSetting(x);
-                }
-            }),
-        ]);
-    }
+    historyEl.el.hidden = nowStoreK.size === 0;
+    changeCount.sv(String(nowStoreK.size));
 
     const el = mainView.query(
         `[data-name="${k}"]`,
@@ -2752,6 +2858,10 @@ function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
 
     xset(nowStore as unknown as Record<string, unknown>, k, v);
     store.set(k, v);
+    if (k === "OCR.类型" || k === "AI.在线模型")
+        document
+            .getElementById("ocr-engine-panel")
+            ?.dispatchEvent(new Event("change"));
     if (k === "字体.主要字体") setSettingsFont();
     if (
         k.startsWith("快捷键.") ||
@@ -3171,16 +3281,15 @@ function xNumber(
     if (op?.min !== undefined) el.attr({ min: String(op.min) });
     if (op?.step !== undefined) el.attr({ step: String(op.step) });
     const pel = view("x")
-        .class(Class.group)
-        .style({ paddingInline: cssVar("o-padding"), alignItems: "center" })
-        .add([el.style({ paddingInline: 0 }), noI18n(dw) ?? ""])
-        .bindGet(() => Number(el.gv))
-        .bindSet((v: number) => {
-            el.sv(String(v));
-        });
+        .class("measure-input")
+        .add([el, dw ? txt(dw, true).class("measure-unit") : ""])
+        .bindGet(() => el.el.valueAsNumber)
+        .bindSet((v: number) => el.sv(String(v)));
     el.on("input", () => {
-        pel.el.dispatchEvent(new CustomEvent("input"));
+        if (Number.isFinite(el.el.valueAsNumber))
+            pel.el.dispatchEvent(new CustomEvent("input"));
     });
+
     return pel;
 }
 
@@ -3205,6 +3314,10 @@ function xPath(dir: boolean) {
         el.el.dispatchEvent(new CustomEvent("input"));
     });
     const b = button(iconEl("file"))
+        .attr({
+            title: dir ? "选择目录" : "选择文件",
+            ariaLabel: t(dir ? "选择目录" : "选择文件"),
+        })
         .on("click", () => {
             const path = renderSendSync("selectPath", [
                 i.gv,
@@ -3232,15 +3345,35 @@ function xPath(dir: boolean) {
         .bindSet((v: string) => i.sv(v));
 }
 
-function xSecret() {
-    const el = input("password")
-        .on("focus", () => {
-            el.attr({ type: "text" });
-        })
-        .on("blur", () => {
-            el.attr({ type: "password" });
+function secretEye(control: ReturnType<typeof input>) {
+    const icon = image(getImgUrl("eye.svg"), noI18n(""));
+    const toggle = button(icon).class("secret-eye");
+    function mask(masked: boolean) {
+        control.el.type = masked ? "password" : "text";
+        icon.el.src = getImgUrl(masked ? "eye.svg" : "hide.svg");
+        toggle.attr({
+            title: masked ? "显示" : "隐藏",
+            ariaLabel: t(masked ? "显示" : "隐藏"),
         });
-    return el;
+        toggle.el.setAttribute("aria-pressed", String(!masked));
+    }
+    mask(true);
+    toggle
+        .on("mousedown", (e) => e.preventDefault())
+        .on("click", () => mask(control.el.type !== "password"));
+    return { button: toggle, mask };
+}
+function xSecret() {
+    const control = input("password").attr({ autocomplete: "off" });
+    const eye = secretEye(control);
+    const wrap = view("x").class("secret-control").add([control, eye.button]);
+    control.on("input", () => wrap.el.dispatchEvent(new Event("input")));
+    return wrap
+        .bindGet(() => control.gv)
+        .bindSet((v: string) => {
+            control.sv(v);
+            eye.mask(true);
+        });
 }
 
 function xFont() {
@@ -3248,104 +3381,111 @@ function xFont() {
     const i = input().on("input", () =>
         el.el.dispatchEvent(new CustomEvent("input")),
     );
-    const q = button(iconEl("search")).on("click", async () => {
-        const fonts =
-            // @ts-ignore
-            (await window.queryLocalFonts()) as {
-                postscriptName: string;
-                fullName: string;
-                family: string;
-                style: string;
-            }[];
-        const list = Array.from(
-            new Set([
-                ...fonts.map((i) => i.fullName),
-                ...fonts.map((i) => i.family),
-            ]),
-        ).sort() as string[];
+    const q = button(iconEl("search"))
+        .attr({ title: "选择字体", ariaLabel: t("选择字体") })
+        .on("click", async () => {
+            const fonts =
+                // @ts-ignore
+                (await window.queryLocalFonts()) as {
+                    postscriptName: string;
+                    fullName: string;
+                    family: string;
+                    style: string;
+                }[];
+            const list = Array.from(
+                new Set([
+                    ...fonts.map((i) => i.fullName),
+                    ...fonts.map((i) => i.family),
+                ]),
+            ).sort() as string[];
 
-        const pageN = 15;
-        let thePage = 0;
+            const pageN = 15;
+            let thePage = 0;
 
-        function showPage(page: number) {
-            thePage = page;
-            const start = page * pageN;
-            const end = start + pageN;
-            const nowV = i.gv;
-            const prev = preview.gv;
-            listEl.clear();
-            for (let n = start; n < end && n < list.length; n++) {
-                listEl.add(
-                    view("x")
-                        .add(
-                            prev
-                                ? [noI18n(prev), spacer(), noI18n(list[n])]
-                                : noI18n(list[n]),
-                        )
-                        .style({
-                            fontFamily: list[n],
-                            paddingInline: "4px",
-                            borderRadius: "var(--border-radius)",
-                            backgroundColor: nowV === list[n] ? cssColor.b : "",
-                        })
-                        .on("click", () => {
-                            i.sv(list[n]);
-                            el.el.dispatchEvent(new CustomEvent("input"));
-                            close();
-                        })
-                        .class(Class.button),
-                );
+            function showPage(page: number) {
+                thePage = page;
+                const start = page * pageN;
+                const end = start + pageN;
+                const nowV = i.gv;
+                const prev = preview.gv;
+                listEl.clear();
+                for (let n = start; n < end && n < list.length; n++) {
+                    listEl.add(
+                        view("x")
+                            .add(
+                                prev
+                                    ? [noI18n(prev), spacer(), noI18n(list[n])]
+                                    : noI18n(list[n]),
+                            )
+                            .style({
+                                fontFamily: list[n],
+                                paddingInline: "4px",
+                                borderRadius: "var(--border-radius)",
+                                backgroundColor:
+                                    nowV === list[n] ? cssColor.b : "",
+                            })
+                            .on("click", () => {
+                                i.sv(list[n]);
+                                el.el.dispatchEvent(new CustomEvent("input"));
+                                close();
+                            })
+                            .class(Class.button),
+                    );
+                }
             }
-        }
 
-        function close() {
-            listPEl.remove();
-        }
+            function close() {
+                listPEl.remove();
+            }
 
-        const listPEl = ele("dialog")
-            .on("close", (e) => (e.currentTarget as HTMLDialogElement).remove())
-            .class("font-dialog")
-            .attr({ ariaLabel: t("字体") });
-        listPEl.add(ele("h2").add("字体"));
-        const listP = view("y").class(Class.gap).addInto(listPEl);
-        const preview = input()
-            .style({ width: "auto" })
-            .attr({ placeholder: t("预览字体") })
-            .on("input", () => {
-                showPage(thePage);
-            })
-            .addInto(listP);
-        const listEl = view().addInto(listP);
-        const nav = view("x").style({ overflowX: "scroll" });
+            const listPEl = ele("dialog")
+                .on("close", (e) =>
+                    (e.currentTarget as HTMLDialogElement).remove(),
+                )
+                .class("font-dialog")
+                .attr({ ariaLabel: t("字体") });
+            listPEl.add(ele("h2").add("字体"));
+            const listP = view("y").class(Class.gap).addInto(listPEl);
+            const preview = input()
+                .style({ width: "auto" })
+                .attr({ placeholder: t("预览字体") })
+                .on("input", () => {
+                    showPage(thePage);
+                })
+                .addInto(listP);
+            const listEl = view().addInto(listP);
+            const nav = view("x").style({ overflowX: "scroll" });
 
-        const nowPage = list.includes(i.gv)
-            ? Math.floor(list.indexOf(i.gv) / pageN)
-            : 0;
+            const nowPage = list.includes(i.gv)
+                ? Math.floor(list.indexOf(i.gv) / pageN)
+                : 0;
 
-        showPage(nowPage);
+            showPage(nowPage);
 
-        nav.add(
-            Array.from({ length: Math.ceil(list.length / pageN) }, (_, i) =>
-                button(String(i + 1))
-                    .on("click", () => {
-                        showPage(i);
-                    })
-                    .style({
-                        backgroundColor: i === nowPage ? cssColor.b : "",
-                    }),
-            ),
-        );
-        listP.add(
-            view("x").add([
-                nav,
-                button(iconEl("close")).on("click", () => {
-                    close();
-                }),
-            ]),
-        );
+            nav.add(
+                Array.from({ length: Math.ceil(list.length / pageN) }, (_, i) =>
+                    button(String(i + 1))
+                        .on("click", () => {
+                            showPage(i);
+                        })
+                        .style({
+                            backgroundColor: i === nowPage ? cssColor.b : "",
+                        }),
+                ),
+            );
+            listP.add(
+                view("x").add([
+                    nav,
+                    button(iconEl("close"))
+                        .attr({ title: "关闭", ariaLabel: t("关闭") })
+                        .on("click", () => {
+                            close();
+                        }),
+                ]),
+            );
 
-        listPEl.addInto().el.showModal();
-    });
+            listPEl.addInto().el.showModal();
+        });
     return el
         .add([i, q])
         .bindGet(() => i.gv)
@@ -3490,7 +3630,12 @@ function sortable() {
 function sortTool() {
     const catalog = [...tools, ...drawTools];
     const meta = new Map(catalog.map((item) => [item.key, item]));
-    const captions = { capture: "截屏工具栏", draw: "编辑栏", hidden: "隐藏" };
+    const captions = {
+        capture: "截屏工具栏",
+        draw: "编辑栏",
+        more: "更多",
+        hidden: "隐藏",
+    };
     const editor = view().class("toolbar-layout");
     const zone = view().class("toolbar-zones").addInto(editor);
     const controls = view("x", "wrap").class("toolbar-moves").addInto(editor);
@@ -3550,6 +3695,7 @@ function sortTool() {
         for (const lane of lanes) {
             const group = view("y")
                 .class("toolbar-zone")
+                .attr({ tabIndex: -1, ariaLabel: t(captions[lane]) })
                 .data({ lane })
                 .addInto(zone);
             group.add(
@@ -3574,6 +3720,8 @@ function sortTool() {
                 list.add(el);
             }
             if (lane === "draw") fixed("select", "rect_select", "选择");
+            if ((lane === "more" || lane === "hidden") && !layout[lane].length)
+                list.add(txt("拖到这里").class("empty-lane"));
             function target(e: DragEvent) {
                 const chip = (e.target as HTMLElement).closest<HTMLElement>(
                     "[data-tool]",
@@ -3584,7 +3732,7 @@ function sortTool() {
                 const bounds = chip.getBoundingClientRect(),
                     key = chip.dataset.tool!;
                 const before =
-                    lane === "hidden"
+                    lane === "hidden" || lane === "more"
                         ? e.clientX < bounds.left + bounds.width / 2
                         : e.clientY < bounds.top + bounds.height / 2;
                 return before
@@ -3619,7 +3767,14 @@ function sortTool() {
                 e.preventDefault();
                 const key = dragging;
                 dragging = "";
-                move(key, lane, target(e));
+                const toMore = Boolean(
+                    (e.target as HTMLElement).closest('[data-fixed="more"]'),
+                );
+                move(
+                    key,
+                    toMore ? "more" : lane,
+                    toMore ? undefined : target(e),
+                );
             });
             for (const key of layout[lane]) {
                 const item = meta.get(key)!;
@@ -3661,22 +3816,33 @@ function sortTool() {
                             el.classList.remove("drag-over", "insert-before");
                     });
             }
-            if (
-                lane === "draw" &&
-                drawTools.some((tool) => layout.hidden.includes(tool.key))
-            )
-                fixed("more", "more", "更多");
+            if (lane === "draw") {
+                const reveal = button(iconEl("more"))
+                    .attr({ title: "更多", ariaLabel: t("更多") })
+                    .class("preview-more")
+                    .data({ fixed: "more" })
+                    .addInto(list);
+                reveal.on("click", () => {
+                    const more =
+                        zone.el.querySelector<HTMLElement>(
+                            '[data-lane="more"]',
+                        );
+                    more?.focus({ preventScroll: true });
+                    more?.scrollIntoView({ block: "nearest" });
+                });
+            }
             scroll.el.scrollTop = offsets.get(lane) ?? 0;
         }
         selectKey(selected);
     }
     return editor
-        .bindSet((value: ToolbarLayout | null) => {
+        .bindSet((value: setting["工具栏"]["布局"]) => {
             layout = toolbarLayout(
                 value,
                 getSet("工具栏.功能"),
                 getSet("图像编辑.编辑栏.功能"),
-                [...meta.keys()],
+                tools.map((t) => t.key),
+                drawTools.map((t) => t.key),
             );
             render();
         })
@@ -3720,24 +3886,38 @@ function sortList<t>(
             .class(Class.group)
             .data({ id: id })
             .class("settings-list-item");
-        const nameEl = txt(newData.get(id)?.["sort-name"] ?? "", true).on(
-            "click",
-            async () => {
+        const caption = txt(newData.get(id)?.["sort-name"] ?? "", true);
+        const nameEl = button(caption)
+            .class("list-edit")
+            .attr({ title: "编辑" })
+            .on("click", async () => {
                 const nv = await getItem(id);
                 const oldData = newData.get(id);
                 if (!nv || !oldData) return;
                 oldData.data = nv;
-                nameEl.sv(name(nv));
-                onChange();
-            },
-        ); // todo 必须命名
-        const sortHandle = button().add(iconEl("handle")).class("sort_handle");
-        const rm = button()
-            .add(iconEl("delete"))
-            .on("click", () => {
-                itemEl.remove();
+                oldData["sort-name"] = name(nv);
+                nameEl.el.setAttribute(
+                    "aria-label",
+                    `${t("编辑")} ${oldData["sort-name"]}`,
+                );
+                caption.sv(oldData["sort-name"]);
                 onChange();
             });
+        const sortHandle = button(iconEl("handle"))
+            .class("sort_handle")
+            .attr({ title: "拖动排序", ariaLabel: t("拖动排序") });
+        const rm = button(iconEl("delete"))
+            .class("remove-action")
+            .attr({ title: "删除", ariaLabel: t("删除") })
+            .on("click", () => {
+                itemEl.remove();
+                newData.delete(id);
+                onChange();
+            });
+        nameEl.el.setAttribute(
+            "aria-label",
+            `${t("编辑")} ${caption.el.textContent}`,
+        );
         itemEl.add([sortHandle, nameEl, rm]);
         listEl.add(itemEl);
         listEl.add(addBtn);
@@ -3795,6 +3975,11 @@ function dialogSelect<T extends string>(
     const manual = input().attr({ autocomplete: "off", spellcheck: false });
     const trigger = button().class("choice-trigger");
     const anchor = loadOptions ? manual.el : trigger.el;
+    if (loadOptions)
+        manual.attr({
+            placeholder: t("输入或搜索模型"),
+            ariaAutoComplete: "list",
+        });
     const text = txt("", true);
     if (loadOptions) {
         root.class("editable-choice").add(manual);
@@ -3816,16 +4001,25 @@ function dialogSelect<T extends string>(
         ariaLabel: t("搜索"),
         autocomplete: "off",
     });
-    if (searchable) {
+    if (searchable && !loadOptions) {
         searchBar.add([image(getImgUrl("search.svg"), noI18n("")), filter]);
         menu.add(searchBar);
         filter.el.setAttribute("aria-controls", listId);
     }
     if (loadOptions)
-        searchBar.add(
+        root.add(
             button(image(getImgUrl("reload.svg"), noI18n("")))
+                .class("choice-refresh")
                 .attr({ title: "获取模型列表", ariaLabel: t("获取模型列表") })
-                .on("click", () => void fetchEntries()),
+                .on("mousedown", (e) => e.preventDefault())
+                .on("click", () => {
+                    manual.el.focus({ preventScroll: true });
+                    if (isOpen()) void fetchEntries();
+                    else {
+                        loaded = false;
+                        open(false);
+                    }
+                }),
         );
     const list = view()
         .class("dialog-option-list")
@@ -3945,7 +4139,9 @@ function dialogSelect<T extends string>(
         }
     }
     function populate() {
-        const q = filter.gv.trim().toLowerCase();
+        const q = (loadOptions ? (typed ? manual.gv : "") : filter.gv)
+            .trim()
+            .toLowerCase();
         shown =
             request || error ? [] : entries.filter((e) => e.query.includes(q));
         active = -1;
@@ -4009,7 +4205,9 @@ function dialogSelect<T extends string>(
             }
         }
     }
-    function open() {
+    let typed = false;
+    function open(useInput = false) {
+        typed = useInput;
         if (isOpen()) return;
         menu.el.showPopover();
         anchor.setAttribute("aria-expanded", "true");
@@ -4033,7 +4231,8 @@ function dialogSelect<T extends string>(
         filter.sv("");
         if (!loaded) void fetchEntries();
         else populate();
-        if (searchable) filter.el.focus({ preventScroll: true });
+        if (loadOptions) manual.el.focus({ preventScroll: true });
+        else if (searchable) filter.el.focus({ preventScroll: true });
     }
     menu.on("toggle", () => {
         if (!isOpen()) clean();
@@ -4049,6 +4248,11 @@ function dialogSelect<T extends string>(
     });
     manual.on("input", () => {
         value = manual.gv as T;
+        if (!isOpen()) open(true);
+        else {
+            typed = true;
+            populate();
+        }
     });
     root.on("focusout", (e) => {
         if (e.relatedTarget && !root.el.contains(e.relatedTarget as Node))
@@ -4081,8 +4285,11 @@ function dialogSelect<T extends string>(
                 return;
             e.preventDefault();
             if (shown[active]) choose(shown[active].value);
+            else if (loadOptions) close(true);
             return;
         }
+        if (loadOptions && (e.key === "Home" || e.key === "End") && !e.altKey)
+            return;
         if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
             e.preventDefault();
             move(
@@ -4117,8 +4324,9 @@ function dialogSelect<T extends string>(
 function field(caption: string, control: ElType<HTMLElement>, raw = false) {
     const id = control.el.id || `field-${crypto.randomUUID()}`;
     const focusTarget =
-        control.el.querySelector<HTMLElement>('[role="combobox"]') ||
-        control.el;
+        control.el.querySelector<HTMLElement>(
+            '[role="combobox"],input,select,textarea',
+        ) || control.el;
     focusTarget.id = id;
     const label = ele("label").add(raw ? noI18n(caption) : caption);
     label.el.htmlFor = id;
@@ -4194,6 +4402,7 @@ function modelDialog(
         const draft = fields.get(active);
         url.sv(draft?.url ?? endpoints[active]);
         key.sv(draft?.key ?? "");
+        eye.mask(true);
         model.sv(draft?.model ?? "");
         config.sv(draft?.config ?? "{}");
         status("");
@@ -4243,12 +4452,15 @@ function modelDialog(
                 status(`${t("测试失败")} · ${String(err)}`);
         }
     });
-    const reveal = button("显示").on("click", () => {
-        key.el.type = key.el.type === "password" ? "text" : "password";
-        reveal.el.textContent = t(key.el.type === "password" ? "显示" : "隐藏");
+    const eye = secretEye(key);
+    const secret = field("API Key", key, true)
+        .add(eye.button)
+        .class("secret-field");
+    dialog.el.addEventListener("model-suspend", () => {
+        cancel();
+        model.invalidate();
+        eye.mask(true);
     });
-    const secret = field("API Key", key, true);
-    secret.add(reveal).class("secret-field");
     const details = ele("details")
         .class("model-options")
         .add([ele("summary").add("请求体自定义"), config]);
@@ -4303,6 +4515,7 @@ function dialogB(
         t("设置");
     d.el.setAttribute("aria-label", title);
     d.class("app-dialog");
+    const inline = d.el.classList.contains("ocr-model-sheet");
     const testRow = els.find((el) => el.el.classList.contains("dialog-test"));
     const cancel = () => {
         onClose();
@@ -4310,24 +4523,26 @@ function dialogB(
     };
     d.el.oncancel = () => onClose();
     d.add([
-        view("x")
-            .class("dialog-heading")
-            .add([
-                image(
-                    getImgUrl(
-                        title === t("在线模型")
-                            ? "ai_check.svg"
-                            : title === t("翻译引擎")
-                              ? "translate.svg"
-                              : "setting.svg",
-                    ),
-                    noI18n(""),
-                ).class("dialog-symbol"),
-                ele("h2").add(noI18n(title)),
-                button(iconEl("close"))
-                    .attr({ title: "关闭" })
-                    .on("click", cancel),
-            ]),
+        inline
+            ? ""
+            : view("x")
+                  .class("dialog-heading")
+                  .add([
+                      image(
+                          getImgUrl(
+                              title === t("在线模型")
+                                  ? "ai_check.svg"
+                                  : title === t("翻译引擎")
+                                    ? "translate.svg"
+                                    : "setting.svg",
+                          ),
+                          noI18n(""),
+                      ).class("dialog-symbol"),
+                      ele("h2").add(noI18n(title)),
+                      button(iconEl("close"))
+                          .attr({ title: "关闭" })
+                          .on("click", cancel),
+                  ]),
         view("y")
             .class("dialog-body")
             .add(els.filter((el) => el !== testRow)),
@@ -4337,7 +4552,7 @@ function dialogB(
                 testRow ?? "",
                 spacer(),
                 button("取消").on("click", cancel),
-                button("完成")
+                button(inline ? "保存" : "完成")
                     .class("dialog-primary")
                     .on("click", () => {
                         if (onOk() !== false) d.el.close();
@@ -4345,7 +4560,7 @@ function dialogB(
             ]),
     ]);
     queueMicrotask(() => {
-        if (d.el.open && document.activeElement === d.el)
+        if (!inline && d.el.open && document.activeElement === d.el)
             d.el
                 .querySelector<HTMLElement>(
                     ".dialog-body input,.dialog-body select,.dialog-body button",
@@ -4874,7 +5089,8 @@ function hotkey() {
     const isMac = process.platform === "darwin";
     const keyList = new Set<string>();
     let mainKey = "";
-    let typing = 0;
+    const held = new Set<string>();
+    let saved = "";
     let isFocus = false;
     function cvalue(l: string[]) {
         const nl = l
@@ -4903,46 +5119,51 @@ function hotkey() {
         .attr({ tabIndex: 0 })
         .on("focus", () => {
             isFocus = true;
+            saved = mainKey;
+            held.clear();
+            keyList.clear();
             i.clear().add("按下快捷键");
         })
         .on("blur", () => {
             isFocus = false;
+            if (held.size) mainKey = saved;
+            held.clear();
             cvalue((mainKey ?? "").split("+"));
         })
         .on("keydown", (e) => {
             if (!isFocus) return;
             e.preventDefault();
-            if (typing === 0) {
-                i.clear();
-                keyList.clear();
-                ev();
-            }
-            typing++;
-
+            if (e.repeat) return;
             const key = jsKey2ele(macKeyFomat(e.key));
-            if (!keyList.has(key)) keyList.add(key);
-            cvalue(Array.from(keyList));
+            if (!held.size) keyList.clear();
+            held.add(e.code || key);
+            keyList.add(key);
+            cvalue([...keyList]);
         })
         .on("keyup", (e) => {
+            if (!isFocus) return;
             e.preventDefault();
             const key = jsKey2ele(macKeyFomat(e.key));
-            if (!keyList.has(key)) {
-                // 针对 PrintScreen 这样的只在keyup触发的按键
+            if (!held.size) {
+                if (e.key !== "PrintScreen") return;
+                keyList.clear();
                 keyList.add(key);
-                cvalue(Array.from(keyList));
-            } else {
-                typing--;
+                cvalue([...keyList]);
             }
-            if (typing === 0) {
+            held.delete(e.code || key);
+            if (!held.size) {
                 ev();
+                saved = mainKey;
             }
         });
-    const b = button(iconEl("delete")).on("click", () => {
-        i.clear();
-        mainKey = "";
-        keyList.clear();
-        ev();
-    });
+    const b = button(iconEl("delete"))
+        .attr({ title: "清空", ariaLabel: t("清空") })
+        .on("click", () => {
+            i.clear();
+            mainKey = "";
+            keyList.clear();
+            ev();
+        });
     return el
         .add([i, b])
         .bindSet((v: string) => cvalue((v ?? "").split("+")))
@@ -5061,7 +5282,7 @@ function openBergamotDialog() {
     };
     setStatus("");
     const download = button(txt(t("下载")));
-    const clearBtn = button(txt(t("清除缓存")));
+    const clearBtn = button(txt(t("清除缓存"))).class("danger-action");
     const progressMap = new Map<string, { received: number; total?: number }>();
     const bar = view().style({
         width: "0%",
@@ -5218,15 +5439,22 @@ function openBergamotDialog() {
                                     model.size / 1e6
                                 ).toFixed(1)}MB`,
                             ).style({ opacity: 0.6 }),
-                            button(txt(t("删除"))).on("click", async () => {
-                                if (!(await confirm(t("确定删除这个模型？"))))
-                                    return;
-                                await renderInvoke("bergamot_remove_model", [
-                                    { from: model.from, to: model.to },
-                                ]);
-                                await refreshModels();
-                                await refreshStatus();
-                            }),
+                            button(txt(t("删除")))
+                                .class("danger-action")
+                                .on("click", async () => {
+                                    if (
+                                        !(await confirm(
+                                            t("确定删除这个模型？"),
+                                        ))
+                                    )
+                                        return;
+                                    await renderInvoke(
+                                        "bergamot_remove_model",
+                                        [{ from: model.from, to: model.to }],
+                                    );
+                                    await refreshModels();
+                                    await refreshStatus();
+                                }),
                         ]),
                 );
             }
@@ -5602,127 +5830,215 @@ function ocrEl() {
                 "空格优化",
             ]).sv(item.optimize?.space ?? true);
 
-            const downloadEl = view("y").add(
-                button(iconEl("down")).on("click", () => {
-                    downloadEl.clear().add(
-                        getOcrList((i, p, download) => {
-                            if (download) {
-                                const pro = (() => {
-                                    const mel = view().style({
-                                        overflow: "hidden",
-                                        width: baseWidth,
-                                        height: "20px",
-                                        borderRadius: "var(--border-radius)",
-                                        backgroundColor: cssColor.bb,
-                                    });
-                                    const bel = view().style({
-                                        width: "100%",
-                                        height: "100%",
-                                        backgroundColor: cssColor.main,
-                                    });
-                                    return mel.add(bel).bindSet((v: number) => {
-                                        bel.style({
-                                            width: `${Math.floor(v * 100)}%`,
-                                        });
-                                    });
-                                })();
-                                downloadEl.clear().add([pro]);
-                                const url = githubUrl(
-                                    `xushengfeng/eSearch-OCR/releases/download/4.0.0/${ocrModels[i].url}`,
-                                    "base",
-                                );
-                                try {
-                                    fs.rmdirSync(p);
-                                } catch (error) {}
-                                fetch(url).then(async (res) => {
-                                    if (!res.ok) {
-                                        throw new Error(
-                                            `下载失败: ${res.status} ${res.statusText}`,
-                                        );
-                                    }
-                                    if (!res.body) {
-                                        throw new Error("响应体中无数据");
-                                    }
-
-                                    const contentLength =
-                                        res.headers.get("content-length");
-                                    const totalBytes = contentLength
-                                        ? Number.parseInt(contentLength, 10)
-                                        : undefined;
-
-                                    const reader = res.body.getReader();
-
-                                    let downloadedBytes = 0;
-
-                                    const chunks = [];
-
-                                    try {
-                                        while (true) {
-                                            const { done, value } =
-                                                await reader.read();
-                                            if (done) break;
-                                            chunks.push(value);
-                                            downloadedBytes += value.length;
-                                            if (totalBytes) {
-                                                const percent =
-                                                    downloadedBytes /
-                                                    totalBytes;
-                                                console.log(percent);
-                                                pro.sv(percent);
-                                            }
-                                        }
-                                    } finally {
-                                    }
-
-                                    const buffer = await new Blob(
-                                        chunks,
-                                    ).arrayBuffer();
-                                    const b = Buffer.from(buffer);
-                                    await unzip(b, p);
-                                    console.log("end");
-                                    downloadEl.clear();
-                                    setValue(p);
-                                });
-                            } else {
-                                setValue(p);
-                            }
-                            function setValue(p: string) {
-                                const paths = getDownloadOcrPaths(p);
-                                if (nameEl.gv === "") {
-                                    nameEl.sv(t(ocrModels[i].name));
-                                }
-                                detPathEl.sv(paths.detPath);
-                                recPathEl.sv(paths.recPath);
-                                dicPathEl.sv(paths.dicPath);
-                                scriptsEl.sv(ocrModels[i].supportLang);
-                                accuracyEl.sv(ocrModels[i].accuracy ?? "low");
-                                speedEl.sv(ocrModels[i].speed ?? "fast");
-                                optimizeSpaceEl.sv(
-                                    ocrModels[i].optimize?.space ?? true,
-                                );
-                            }
-                        }),
+            const catalogue = view("y").class("ocr-catalogue");
+            const query = input()
+                .attr({ placeholder: t("搜索模型"), ariaLabel: t("搜索模型") })
+                .class("ocr-search");
+            const results = view("y").class("ocr-results");
+            const status = ele("output")
+                .attr({ role: "status" })
+                .class("ocr-status");
+            const progress = ele("progress");
+            progress.el.hidden = true;
+            let download: AbortController | undefined;
+            function choose(id: string, paths: ReturnType<typeof modelFiles>) {
+                const model = ocrModels[id];
+                if (!nameEl.gv) nameEl.sv(t(model.name));
+                detPathEl.sv(paths.detPath);
+                recPathEl.sv(paths.recPath);
+                dicPathEl.sv(paths.dicPath);
+                scriptsEl.sv(model.supportLang);
+                accuracyEl.sv(model.accuracy ?? "low");
+                speedEl.sv(model.speed ?? "fast");
+                optimizeSpaceEl.sv(model.optimize?.space ?? true);
+                status.el.textContent = `${t("已选择")} · ${t(model.name)}`;
+            }
+            async function install(id: string) {
+                if (download) return;
+                const controller = new AbortController();
+                download = controller;
+                const model = ocrModels[id],
+                    root = path.join(configPath, "models"),
+                    folder = path.join(root, id);
+                let stage = "";
+                try {
+                    updateList();
+                    progress.el.hidden = false;
+                    progress.el.removeAttribute("value");
+                    status.el.textContent = `${t("下载中...")} ${t(model.name)}`;
+                    const url = githubUrl(
+                        `xushengfeng/eSearch-OCR/releases/download/4.0.0/${model.url}`,
+                        "base",
                     );
-                }),
-            );
-
+                    const res = await fetch(url, { signal: controller.signal });
+                    if (!res.ok || !res.body) throw Error(`HTTP ${res.status}`);
+                    const reader = res.body.getReader();
+                    const chunks: Uint8Array[] = [],
+                        total = Number(res.headers.get("content-length"));
+                    let received = 0;
+                    try {
+                        while (true) {
+                            const { value, done } = await reader.read();
+                            if (done) break;
+                            chunks.push(value);
+                            received += value.byteLength;
+                            if (total > 0) {
+                                progress.el.max = total;
+                                progress.el.value = received;
+                            }
+                        }
+                    } finally {
+                        reader.releaseLock();
+                    }
+                    fs.mkdirSync(root, { recursive: true });
+                    stage = fs.mkdtempSync(path.join(root, `.${id}-`));
+                    await unzip(Buffer.concat(chunks), stage);
+                    const files = modelFiles(stage);
+                    if (!files.recPath) throw Error(t("未找到识别模型"));
+                    controller.signal.throwIfAborted();
+                    // Keep any paths in older saved configurations valid. Each completed download gets its own directory.
+                    fs.mkdirSync(folder, { recursive: true });
+                    const version = path.basename(stage);
+                    fs.renameSync(stage, path.join(folder, version));
+                    stage = "";
+                    const marker = path.join(folder, "current.json"),
+                        tmp = path.join(folder, `${version}.json`);
+                    fs.writeFileSync(tmp, JSON.stringify(version));
+                    fs.renameSync(tmp, marker);
+                    choose(id, modelFiles(path.join(folder, version)));
+                } catch (error) {
+                    if (!controller.signal.aborted)
+                        status.el.textContent = `${t("下载失败")} · ${String(error)}`;
+                } finally {
+                    if (stage)
+                        fs.rmSync(stage, { recursive: true, force: true });
+                    download = undefined;
+                    progress.el.hidden = true;
+                    if (dialog.el.isConnected) updateList();
+                }
+            }
+            function updateList() {
+                const term = query.gv.trim().toLowerCase();
+                results.clear();
+                for (const [id, model] of Object.entries(ocrModels)) {
+                    const name = t(model.name);
+                    const langs = model.supportLang.map((code) => {
+                        if (code === "*") return t("多语言");
+                        if (langMap[code]) return t(langMap[code]);
+                        try {
+                            return displayLan.of(code) || code;
+                        } catch {
+                            return code;
+                        }
+                    });
+                    if (
+                        term &&
+                        ![id, name, ...langs, ...model.supportLang]
+                            .join(" ")
+                            .toLowerCase()
+                            .includes(term)
+                    )
+                        continue;
+                    const files = installed.get(id);
+                    const metadata = [
+                        langs.length > 3
+                            ? `${langs.slice(0, 3).join(" · ")} …`
+                            : langs.join(" · "),
+                    ];
+                    if (model.accuracy === "high") metadata.push(t("高精度"));
+                    if (model.speed === "fast") metadata.push(t("快速"));
+                    const info = view("y")
+                        .class("ocr-model-info")
+                        .add([
+                            txt(name, true).class("ocr-model-name"),
+                            txt(metadata.join("  /  "), true).class(
+                                "ocr-model-meta",
+                            ),
+                        ]);
+                    info.el.title = [model.desc, langs.join(" · ")]
+                        .filter(Boolean)
+                        .join("\n");
+                    const actions = view("x").class("ocr-row-actions");
+                    const fetchButton = button(files ? "重新下载" : "下载")
+                        .class("catalog-download")
+                        .attr({ disabled: Boolean(download) })
+                        .on("click", async () => {
+                            await install(id);
+                            const next = installedFiles(id);
+                            if (next) installed.set(id, next);
+                            if (dialog.el.isConnected) updateList();
+                        });
+                    if (files)
+                        actions.add(
+                            button("使用")
+                                .class("catalog-use")
+                                .on("click", () => choose(id, files)),
+                        );
+                    actions.add(fetchButton);
+                    results.add(
+                        view("x").class("ocr-model-row").add([info, actions]),
+                    );
+                }
+                if (!results.el.childElementCount)
+                    results.add(comment(t("无结果，尝试其他关键词")));
+            }
+            function installedFiles(id: string) {
+                const folder = path.join(configPath, "models", id);
+                if (!fs.existsSync(folder)) return;
+                let dir = folder;
+                try {
+                    const v = JSON.parse(
+                        fs.readFileSync(
+                            path.join(folder, "current.json"),
+                            "utf8",
+                        ),
+                    );
+                    if (
+                        typeof v === "string" &&
+                        v.startsWith(`.${id}-`) &&
+                        path.basename(v) === v
+                    )
+                        dir = path.join(folder, v);
+                } catch {}
+                const files = modelFiles(dir);
+                return files.recPath ? files : undefined;
+            }
+            const installed = new Map<string, ReturnType<typeof modelFiles>>();
+            for (const id of Object.keys(ocrModels)) {
+                const files = installedFiles(id);
+                if (files) installed.set(id, files);
+            }
+            query.on("input", updateList);
+            updateList();
+            catalogue.add([query, results, progress, status]);
+            const advanced = ele("details")
+                .class("ocr-file-fields")
+                .add([
+                    ele("summary").add("模型文件与参数"),
+                    view("y").add([
+                        field("检测模型（det）", detPathEl),
+                        field("识别模型（rec）", recPathEl),
+                        field("识别字典（.txt）", dicPathEl),
+                        field("语言字符", scriptsEl),
+                        view()
+                            .class("dialog-columns")
+                            .add([
+                                field("精度", accuracyEl),
+                                field("速度", speedEl),
+                            ]),
+                        optimizeSpaceEl,
+                    ]),
+                ]);
+            advanced.el.open = Boolean(_item);
+            dialog.el.addEventListener("close", () => download?.abort(), {
+                once: true,
+            });
             dialogB(
                 dialog,
-                [
-                    nameEl,
-                    downloadEl,
-                    xGroup("y").add([
-                        view().add(["检测模型（det）", ele("br"), detPathEl]),
-                        view().add(["识别模型（rec）", ele("br"), recPathEl]),
-                        view().add(["识别字典（.txt）", ele("br"), dicPathEl]),
-                        view().add(["语言字符", ele("br"), scriptsEl]),
-                        view().add(["精度", ele("br"), accuracyEl]),
-                        view().add(["速度", ele("br"), speedEl]),
-                        view().add([optimizeSpaceEl]),
-                    ]),
-                ],
+                [field("模型名称", nameEl), catalogue, advanced],
                 () => resolve(null),
-                () =>
+                () => {
+                    if (download) return false;
                     resolve({
                         id: item.id,
                         name: nameEl.gv || `${t("新模型")}${xxxid}`,
@@ -5732,97 +6048,33 @@ function ocrEl() {
                         scripts: scriptsEl.gv,
                         accuracy: accuracyEl.gv,
                         speed: speedEl.gv,
-                        optimize: {
-                            space: optimizeSpaceEl.gv,
-                        },
-                    }),
+                        optimize: { space: optimizeSpaceEl.gv },
+                    });
+                },
             );
 
             return promise;
         },
     );
 
-    function getOcrList(
-        click: (id: string, p: string, download: boolean) => void,
-    ) {
-        const ocrListEl = view("y")
-            .style({ overflow: "auto", maxHeight: "200px", width: baseWidth })
-            .class(Class.gap);
-        for (const i in ocrModels) {
-            const desc = p();
-            const lans = view("x", "wrap").style({
-                "column-gap": "16px",
-            });
-            const pa = path.join(configPath, "models", i);
-            const exists = fs.existsSync(pa);
-            const downloadButton = button(exists ? "重新下载" : "下载").on(
-                "click",
-                () => {
-                    click(i, pa, true);
-                },
-            );
-            ocrListEl.add(
-                view("y").add([
-                    view("x", "wrap")
-                        .class(Class.gap)
-                        .add([
-                            button(ocrModels[i].name).on("click", () => {
-                                desc.sv(ocrModels[i].desc);
-                                lans.clear().add(
-                                    ocrModels[i].supportLang.map((i) =>
-                                        i in langMap
-                                            ? txt(langMap[i])
-                                            : txt(displayLan.of(i), true),
-                                    ),
-                                );
-                            }),
-                            downloadButton,
-                            exists
-                                ? button("使用").on("click", () =>
-                                      click(i, pa, false),
-                                  )
-                                : null,
-                        ])
-                        .style({ "align-items": "center" }),
-                    desc,
-                    lans,
-                ]),
-            );
-        }
-        return ocrListEl;
-    }
-
-    function getDownloadOcrPaths(p: string) {
-        const stat = fs.statSync(p);
-        if (stat.isDirectory()) {
-            const files = fs.readdirSync(p);
-            const downPath = path.join(p, files[0]);
-            if (fs.statSync(downPath).isDirectory()) {
-                return pareOcrPaths(
-                    fs.readdirSync(downPath).map((i) => path.join(downPath, i)),
-                );
+    function modelFiles(folder: string) {
+        const result = { detPath: "", recPath: "", dicPath: "" };
+        if (!fs.existsSync(folder)) return result;
+        const collect = (dir: string, level: number) => {
+            for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, f.name);
+                if (f.isDirectory() && level < 2 && !f.name.startsWith(".")) {
+                    collect(full, level + 1);
+                    continue;
+                }
+                if (!f.isFile()) continue;
+                if (/det.*\.onnx$/i.test(f.name)) result.detPath = full;
+                else if (/rec.*\.onnx$/i.test(f.name)) result.recPath = full;
+                else if (/\.txt$/i.test(f.name)) result.dicPath = full;
             }
-            return pareOcrPaths(files.map((i) => path.join(p, i)));
-        }
-        const files = fs.readdirSync(path.join(p, "../"));
-        return pareOcrPaths(files.map((i) => path.join(p, "../", i)));
-    }
-    function pareOcrPaths(paths: string[]) {
-        const l = {
-            detPath: "",
-            recPath: "",
-            dicPath: "",
         };
-        for (const path of paths) {
-            if (path.split("/").at(-1)?.includes("det")) {
-                l.detPath = path;
-            } else if (path.split("/").at(-1)?.includes("rec")) {
-                l.recPath = path;
-            } else {
-                l.dicPath = path;
-            }
-        }
-        return l;
+        collect(folder, 0);
+        return result;
     }
     const el = xGroup("y");
 
@@ -5839,43 +6091,48 @@ function ocrEl() {
         });
 }
 
-function unzip(b: Buffer, targetDir: string) {
+async function unzip(buffer: Buffer, targetDir: string) {
     if (!yauzl) yauzl = require("yauzl");
-    const p = Promise.withResolvers<void>();
-    yauzl!.fromBuffer(b, { lazyEntries: true }, (err, zipfile) => {
-        if (err) {
-            p.reject(err);
-            return;
-        }
-        zipfile.readEntry();
-        zipfile.on("entry", (entry) => {
-            const filePath = path.join(targetDir, entry.fileName);
-            if (/\/$/.test(entry.fileName)) {
-                fs.mkdirSync(filePath, {
-                    recursive: true,
-                });
-                zipfile.readEntry();
-            } else {
-                zipfile.openReadStream(entry, (err, readStream) => {
-                    if (err) {
-                        p.reject(err);
+    const { pipeline } =
+        require("node:stream/promises") as typeof import("node:stream/promises");
+    return new Promise<void>((resolve, reject) => {
+        yauzl!.fromBuffer(buffer, { lazyEntries: true }, (error, archive) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            function fail(e: unknown) {
+                archive.close();
+                reject(e);
+            }
+            archive.on("error", fail);
+            archive.on("end", resolve);
+            archive.on("entry", (entry) => {
+                const full = path.resolve(targetDir, entry.fileName);
+                if (!full.startsWith(path.resolve(targetDir) + path.sep)) {
+                    fail(new Error("Invalid model archive path"));
+                    return;
+                }
+                if (entry.fileName.endsWith("/")) {
+                    archive.readEntry();
+                    return;
+                }
+                archive.openReadStream(entry, (e, stream) => {
+                    if (e) {
+                        fail(e);
                         return;
                     }
-                    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-                    const writeStream = fs.createWriteStream(filePath);
-                    readStream.pipe(writeStream);
-                    writeStream.on("finish", () => {
-                        zipfile.readEntry();
-                    });
+                    fs.promises
+                        .mkdir(path.dirname(full), { recursive: true })
+                        .then(() =>
+                            pipeline(stream, fs.createWriteStream(full)),
+                        )
+                        .then(() => archive.readEntry(), fail);
                 });
-            }
-        });
-        zipfile.on("end", () => {
-            zipfile.close();
-            p.resolve();
+            });
+            archive.readEntry();
         });
     });
-    return p.promise;
 }
 
 function hotkeyP(icon: IconType | "" = "") {
@@ -5892,25 +6149,42 @@ function hotkeyX(
     icon: IconType | "" = "",
 ) {
     const h = hotkey();
-    let applied = h.gv;
-    const el = xGroup()
-        .add([icon ? view().add(iconEl(icon)) : "", h])
-        .bindGet(() => h.gv)
-        .bindSet((v: string) => h.sv(v));
+    const path = x[1] === "1" ? `快捷键.${x[0]}.key` : `全局工具快捷键.${x[0]}`;
+    const feedback = ele("output")
+        .class("shortcut-feedback")
+        .attr({ role: "status" });
+    let applied = "";
+    const el = view("y")
+        .class("shortcut-setting")
+        .add([
+            xGroup().add([icon ? view().add(iconEl(icon)) : "", h]),
+            feedback,
+        ])
+        .bindGet(() => applied)
+        .bindSet((key: string) => {
+            applied = key || "";
+            h.sv(applied);
+            feedback.el.textContent = applied
+                ? renderSendSync("hotkeyStatus", [path])
+                    ? t("已生效")
+                    : t("快捷键注册失败，可能被其他程序占用")
+                : "";
+        });
     h.on("input", () => {
         const next = h.gv;
-        const arg =
-            x[1] === "1"
-                ? renderSendSync("hotkey", ["快捷键", x[0], next])
-                : renderSendSync("hotkey", ["快捷键2", x[0], next]);
-        if (arg) {
+        if (
+            renderSendSync(
+                "hotkey",
+                x[1] === "1" ? ["快捷键", x[0], next] : ["快捷键2", x[0], next],
+            )
+        ) {
             applied = next;
-            el.el.title = "";
+            feedback.el.textContent = t("已生效");
+            el.el.dispatchEvent(new CustomEvent("input"));
         } else {
             h.sv(applied);
-            el.el.title = t("快捷键注册失败，可能被其他程序占用");
+            feedback.el.textContent = t("快捷键注册失败，可能被其他程序占用");
         }
-        el.el.dispatchEvent(new CustomEvent("input"));
     });
     return el;
 }
@@ -6015,6 +6289,92 @@ function quickSettings() {
     return cards.add([capture, translation]);
 }
 
+function renderOcrPage(
+    content: ElType<HTMLElement>,
+    page: (typeof main)[number],
+) {
+    const rows = (keys: KeyPath[]) =>
+        view().class("settings-group").add(keys.map(renderSetting));
+    content.add(rows(["OCR.类型"]));
+    const pane = view("y")
+        .attr({ id: "ocr-engine-panel", role: "region" })
+        .class("ocr-engine-panel")
+        .addInto(content);
+    const drafts = new Map<
+        string,
+        { model: Model; form: ElType<HTMLDialogElement> }
+    >();
+    function update() {
+        const old = pane.el.querySelector("dialog");
+        old?.dispatchEvent(new Event("model-suspend"));
+        pane.clear();
+        const key = getSet("OCR.类型");
+        if (key.startsWith("ai-")) {
+            const name = key.slice(3);
+            const model = getSet("AI.在线模型").find((m) => m.name === name);
+            if (!model) {
+                pane.add(comment(t("未找到模型")));
+                return;
+            }
+            pane.add(ele("h2").add(noI18n(model.name)));
+            const cached = drafts.get(key);
+            if (cached?.model === model) {
+                pane.add(cached.form);
+                return;
+            }
+            const form = ele("dialog")
+                .class("ocr-model-sheet")
+                .attr({ open: true, role: "region", ariaLabel: model.name });
+            drafts.set(key, { model, form });
+            pane.add(form);
+            void modelDialog(model, form).then((next) => {
+                drafts.delete(key);
+                if (!content.el.isConnected) return;
+                if (next) {
+                    const all = getSet("AI.在线模型"),
+                        i = all.findIndex((m) => m.name === name);
+                    if (i < 0) return;
+                    const result = [...all];
+                    result[i] = next;
+                    setSet("AI.在线模型", result);
+                    if (getSet("OCR.类型") === key) {
+                        const selected = next.supportVision
+                            ? `ai-${next.name}`
+                            : defaultOcrId;
+                        if (selected !== key) setSet("OCR.类型", selected);
+                    }
+                    reRenderSetting("OCR.类型");
+                }
+                update();
+            });
+        } else {
+            const section = page.items?.find((i) =>
+                i.settings.includes(
+                    key === "baidu"
+                        ? "在线OCR.baidu.id"
+                        : key === "youdao"
+                          ? "在线OCR.youdao.id"
+                          : "离线OCR",
+                ),
+            );
+            if (section) {
+                pane.add([
+                    ele("h2").add(noI18n(section.title)),
+                    rows(section.settings),
+                ]);
+            }
+        }
+    }
+    pane.on("change", (e) => {
+        if (e.target === pane.el) update();
+    });
+    update();
+    content.add([
+        ele("h2").add("常用选项"),
+        rows(["OCR.离线切换", "主页面.自动复制OCR", "主页面.复制OCR后提示"]),
+    ]);
+}
+
 async function showPage(page: (typeof main)[0] | undefined) {
     if (!page) {
         console.warn("Page not found");
@@ -6035,6 +6395,10 @@ async function showPage(page: (typeof main)[0] | undefined) {
         const group = view().class("settings-group").addInto(content);
         if (page?.isMemo) group.class("settings-favorites");
         for (const key of keys) group.add(renderSetting(key));
+    }
+    if (page.icon === "ocr") {
+        renderOcrPage(content, page);
+        return;
     }
     if (page.settings) addRows(page.settings);
     if (page.isMemo) {
@@ -6084,6 +6448,7 @@ const updateLogClass = addClass(
 );
 
 function about() {
+    const releaseMarkdown = new Remarkable({ html: false });
     const el = view("y").class("settings-about");
     const logoEl = image(logo, noI18n("eSearch")).style({
         width: "48px",
@@ -6096,50 +6461,19 @@ function about() {
     const version = button("检查更新")
         .class("settings-update")
         .on("click", () => {
-            fetch(githubUrl("repos/xushengfeng/eSearch/releases", "api"), {
-                method: "GET",
-                redirect: "follow",
-            })
-                .then((response) => {
-                    if (!response.ok)
-                        throw new Error(
-                            `HTTP ${response.status} ${response.statusText}`,
-                        );
-                    return response.json();
-                })
-                .then((re) => {
-                    console.log(re);
-                    const l: {
-                        html_url: string;
-                        name: string;
-                        tag_name: string;
-                        body: string;
-                        assets: {
-                            browser_download_url: string;
-                            name: string;
-                        }[];
-                    }[] =
-                        // @ts-expect-error
-                        re.filter((i) => !i.draft && /^\d/.test(i.tag_name));
+            fetchAppReleases(githubUrl(releasePath, "api"))
+                .then((l) => {
                     update.clear();
+                    if (!l.length) update.add(comment(t("此仓库尚未发布版本")));
                     for (const [i, r] of l.entries()) {
                         const div = xGroup("y");
                         const tags = xGroup("x").style({
                             alignItems: "center",
                         });
                         const b = r.body.split("\n---").at(0) as string;
-                        const p = document.createElement("p");
-                        p.innerHTML = b.replace(/\r\n/g, "<br>");
-                        function md(b: string) {
-                            fetch(githubUrl("markdown", "api"), {
-                                body: JSON.stringify({ text: b, mode: "gfm" }),
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                            })
-                                .then((r) => r.text())
-                                .then((data) => {
-                                    p.innerHTML = data;
-                                });
+                        const p = document.createElement("div");
+                        function md(body: string) {
+                            p.innerHTML = releaseMarkdown.render(body);
                         }
                         md(b);
                         const trans = button("翻译").on("click", async () => {
@@ -6188,9 +6522,7 @@ function about() {
                                         `${t("点击下载")} ${i.name.replace(baseName, "")}`,
                                     ),
                                 ).on("click", () => {
-                                    shell.openExternal(
-                                        githubUrl(i.browser_download_url),
-                                    );
+                                    shell.openExternal(i.browser_download_url);
                                 }),
                             ),
                         );
@@ -6237,6 +6569,7 @@ function about() {
     }
     infoEl.add([
         resourceLink(packageJson.homepage, "项目主页：", "browser"),
+        resourceLink(releasePage, "版本发布", "history"),
         resourceLink(renderSendSync("feedbackBug", []), "反馈问题", "help"),
         resourceLink(
             renderSendSync("feedbackFeature", [
@@ -7162,7 +7495,7 @@ document.addEventListener("keydown", (event) => {
     if (
         (event.ctrlKey || event.metaKey) &&
         event.key.toLowerCase() === "f" &&
-        !document.querySelector("dialog[open]")
+        !document.querySelector("dialog:modal")
     ) {
         event.preventDefault();
         searchI.el.focus();
@@ -7250,8 +7583,37 @@ sideBar.class(
 const reloadEl = view().addInto(sideBar);
 const reloadScreenShot = view().addInto(sideBar);
 
-const historyEl = view("y").class(Class.gap);
-historyEl.addInto(sideBar);
+const historyEl = view("y")
+    .class("change-actions")
+    .attr({ role: "group", ariaLabel: t("更改的设置") });
+historyEl.el.hidden = true;
+sideBar.el.insertBefore(historyEl.el, navFooter.el);
+const changeCount = txt("", true).class("change-count");
+const reviewChanges = button()
+    .class("review-changes")
+    .add([
+        image(getImgUrl("history.svg"), noI18n("")),
+        txt("更改的设置"),
+        changeCount,
+    ])
+    .on("click", () => {
+        renderSettingList(Array.from(nowStoreK), t("更改的设置"));
+        mainView.el.firstElementChild?.setAttribute("data-change-review", "");
+    });
+const undoChanges = button()
+    .class("undo-changes")
+    .add([image(getImgUrl("left.svg"), noI18n("")), txt("放弃本次修改")])
+    .on("click", () => {
+        for (const key of Array.from(nowStoreK)) {
+            setSet(key, getFromStore(oldStore, key));
+            reRenderSetting(key);
+        }
+        if (mainView.el.querySelector("[data-change-review]")) {
+            void showPage(main.at(Number(sideBarG.get())));
+            mainViewP.el.focus({ preventScroll: true });
+        }
+    });
+historyEl.add([reviewChanges, undoChanges]);
 
 bindRun();
 

@@ -249,6 +249,10 @@ export function colorPicker(
                         borderRadius: "4px",
                         background: colorBackground(preset),
                     })
+                    .attr({
+                        ariaLabel:
+                            preset === "transparent" ? t("透明") : preset,
+                    })
                     .data({
                         title: preset === "transparent" ? t("透明") : preset,
                     })

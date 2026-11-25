@@ -590,7 +590,7 @@ input[type="checkbox"]:checked {
     box-shadow: var(--shadow);
     background: var(--bar-bg);
 }
-.toolbar-zone[data-lane="hidden"] .tool-chips {
+.toolbar-zone:is([data-lane="more"], [data-lane="hidden"]) .tool-chips {
     max-width: 100%;
     min-width: min(100%, var(--bar-size));
     display: grid;
@@ -651,7 +651,7 @@ input[type="checkbox"]:checked {
 .settings-shell .tool-chips .insert-before {
     box-shadow: inset 0 3px var(--accent);
 }
-.settings-shell [data-lane="hidden"] .insert-before {
+.settings-shell :is([data-lane="more"], [data-lane="hidden"]) .insert-before {
     box-shadow: inset 3px 0 var(--accent);
 }
 .tool-chips [data-choices]::after {
@@ -914,4 +914,603 @@ body dialog:focus:not(:focus-visible) {
 
 body dialog.notice-dialog {
     width: min(390px, calc(100vw - 28px));
+}
+
+/* Shared interaction states, including compact editors and recording controls. */
+body button:focus-visible {
+    outline: 2px solid light-dark(#3857b9, #b3c7ff);
+    outline-offset: 2px;
+}
+body button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+body button:disabled:active {
+    transform: none;
+}
+body.settings-shell
+    .settings-btn:where(
+        :not(
+            .quick-card,
+            .choice-trigger,
+            .search-clear,
+            .settings-resource,
+            [role="option"],
+            [data-tool],
+            .preview-more,
+            .settings-update,
+            .secret-eye,
+            .choice-refresh
+        )
+    ) {
+    border-radius: 7px;
+    transition:
+        background-color 0.12s,
+        color 0.12s,
+        border-color 0.12s,
+        box-shadow 0.12s;
+}
+.settings-shell
+    .settings-row
+    :where(
+        button:not(
+            dialog *,
+            .toolbar-layout *,
+            .settings-list-item *,
+            .settings-add,
+            .icon *,
+            :has(img)
+        )
+    ) {
+    min-height: 30px;
+    height: auto;
+    padding: 4px 11px;
+    border: 1px solid var(--settings-line);
+    background: var(--surface);
+    color: var(--font-color);
+    outline: none;
+    font-weight: 550;
+}
+.settings-shell
+    .settings-row
+    :where(
+        button:not(
+            dialog *,
+            .toolbar-layout *,
+            .settings-list-item *,
+            .settings-add,
+            :has(img)
+        )
+    ):enabled:hover {
+    background: var(--accent-wash);
+    color: var(--accent);
+}
+.settings-shell button.danger-action,
+body dialog button.danger-action {
+    color: light-dark(#9b3637, #ffb2af);
+}
+.settings-shell button:is(.danger-action, .remove-action):enabled:hover {
+    background: light-dark(#fbe9e8, #4d323c);
+    color: light-dark(#82272b, #ffc4be);
+}
+.settings-list-item .list-edit {
+    border: none;
+    outline: none;
+    background: transparent;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0 4px;
+    height: 100%;
+    font-weight: 550;
+}
+.settings-list-item .list-edit:hover {
+    background: var(--accent-wash);
+    color: var(--accent);
+}
+.settings-list-item .sort_handle,
+.settings-list-item .remove-action {
+    width: 25px;
+    height: 26px;
+    outline: none;
+    border: 0;
+    background: transparent;
+}
+.settings-list-item .sort_handle {
+    cursor: grab;
+}
+.settings-list-item .sort_handle:active {
+    cursor: grabbing;
+}
+.settings-list-item button > img {
+    width: 14px;
+    height: 14px;
+}
+.settings-shell .change-actions {
+    flex: none;
+    gap: 2px;
+    padding: 4px;
+    margin: 6px 1px;
+    border: 1px solid #475579;
+    border-radius: 10px;
+    background: #2b3650;
+}
+.change-actions[hidden] {
+    display: none !important;
+}
+.settings-shell .change-actions button {
+    width: 100%;
+    height: auto;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 5px 8px;
+    text-align: start;
+    font-size: 12px;
+    font-weight: 550;
+    line-height: 1.4;
+    background: transparent;
+    outline: none;
+    border: none;
+    color: #f2f5ff;
+    white-space: normal;
+}
+.settings-shell .change-actions button:focus-visible {
+    outline: 2px solid #bac8ff;
+    outline-offset: -2px;
+}
+.settings-shell .change-actions button:hover {
+    background: #3d4c6e;
+}
+.settings-shell .change-actions img {
+    width: 15px;
+    height: 15px;
+    flex: none;
+    filter: brightness(0) invert(91%);
+}
+.settings-shell .change-actions .undo-changes {
+    color: #cbd5e8;
+    font-weight: 450;
+}
+.settings-shell .change-actions .undo-changes:hover {
+    background: #4a3849;
+    color: #ffd1cd;
+}
+.change-count {
+    margin-inline-start: auto;
+    min-width: 19px;
+    padding: 1px 5px;
+    border-radius: 6px;
+    background: #465779;
+    color: #eff4ff;
+    font:
+        600 11px / 1.5 "Segoe UI",
+        sans-serif;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.settings-shell .settings-sidebar > div:not(.change-actions) > button {
+    width: 100%;
+    margin-block: 3px;
+    background: #34405a;
+    color: #e3eafb;
+    border: 0;
+    outline: none;
+    border-radius: 7px;
+    padding: 6px 8px;
+}
+.settings-shell .settings-sidebar > div:not(.change-actions) > button:hover {
+    background: #465674;
+}
+.settings-shell .measure-input {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    width: max-content;
+    min-width: 78px;
+    max-width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    color: var(--font-color);
+    background: var(--surface);
+    border: 1px solid var(--settings-line);
+    border-radius: 7px;
+}
+.settings-shell .measure-input:hover {
+    border-color: var(--settings-muted);
+}
+.settings-shell .measure-input:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-wash);
+}
+.settings-shell .settings-content .measure-input input[type="number"] {
+    width: 5ch;
+    field-sizing: content;
+    min-width: 3ch;
+    max-width: 13ch;
+    height: 100%;
+    text-align: end;
+    appearance: textfield;
+    background: transparent;
+    color: inherit;
+    border: none;
+    outline: none;
+    padding: 0;
+    border-radius: 0;
+    font:
+        600 14px / 1.2 "Segoe UI",
+        sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+.measure-input input::-webkit-inner-spin-button,
+.measure-input input::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+}
+.measure-unit {
+    color: var(--settings-muted);
+    font-size: 12px;
+    line-height: 1;
+}
+.position-editor {
+    display: grid;
+    grid-template-columns: minmax(88px, 112px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: center;
+}
+.position-map {
+    aspect-ratio: 1.65;
+    border: 1px solid var(--settings-line);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle, var(--settings-line) 1px, transparent 1.2px) 0 0
+        / 9px 9px,
+        var(--soft);
+}
+.position-marker {
+    position: absolute;
+    width: 7%;
+    height: 34%;
+    min-width: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    box-shadow: 5px 0 color-mix(in srgb, var(--accent) 45%, transparent);
+    margin: 3px;
+}
+.position-fields {
+    gap: 9px;
+    min-width: 0;
+}
+.position-presets {
+    display: flex;
+    gap: 2px;
+    align-self: start;
+    width: fit-content;
+    background: var(--soft);
+    border-radius: 7px;
+    padding: 2px;
+}
+.settings-shell .position-presets button {
+    min-height: 26px;
+    padding: 2px 12px;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+}
+.settings-shell .position-presets [aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--accent);
+    box-shadow: 0 1px 3px #0002;
+}
+.position-coordinates,
+.transform-compare {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+.position-coordinates .form-field {
+    gap: 4px;
+    min-width: 0;
+}
+.position-coordinates label,
+.transform-tile > span,
+.ocr-model-meta {
+    font-size: 12px;
+    color: var(--settings-muted);
+}
+.settings-shell .position-coordinates input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 13px;
+}
+.settings-shell .toolbar-zones {
+    grid-template-areas: "capture draw more" "capture draw hidden";
+    grid-template-rows: auto 1fr;
+    align-content: start;
+}
+.toolbar-zone[data-lane="capture"] {
+    grid-area: capture;
+}
+.toolbar-zone[data-lane="draw"] {
+    grid-area: draw;
+}
+.toolbar-zone[data-lane="more"] {
+    grid-area: more;
+}
+.toolbar-zone[data-lane="hidden"] {
+    grid-area: hidden;
+}
+.toolbar-zone:is([data-lane="more"], [data-lane="hidden"]) {
+    border: 1px solid var(--settings-line);
+    border-radius: 8px;
+    padding: 7px;
+    align-self: start;
+}
+.toolbar-zone:is([data-lane="more"], [data-lane="hidden"]) .preview-scroll {
+    max-height: min(30vh, 240px);
+}
+.toolbar-zone:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.empty-lane {
+    grid-column: 1 / -1;
+    padding: 7px;
+    color: var(--settings-muted);
+    font-size: 12px;
+}
+.settings-shell .tool-chips .preview-more {
+    cursor: pointer;
+}
+.shortcut-setting {
+    align-items: flex-end;
+    gap: 4px;
+}
+.shortcut-feedback {
+    font-size: 11px;
+    color: var(--settings-muted);
+    max-width: 260px;
+}
+.shortcut-feedback:empty {
+    display: none;
+}
+body dialog .editable-choice > input[role="combobox"] {
+    padding-inline-end: 65px;
+}
+body dialog .editable-choice > .choice-refresh {
+    position: absolute;
+    inset-inline-end: 33px;
+    top: 2px;
+    min-height: 0;
+    height: calc(100% - 4px);
+    width: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+}
+.choice-refresh img {
+    width: 14px;
+    height: 14px;
+    filter: var(--icon-color);
+}
+.settings-shell .secret-control {
+    position: relative;
+    width: min(300px, 100%);
+}
+.settings-shell .secret-control input,
+body dialog .secret-field input {
+    width: 100%;
+    padding-inline-end: 38px;
+}
+.settings-shell button.secret-eye {
+    position: absolute;
+    inset-inline-end: 3px;
+    bottom: 3px;
+    width: 29px;
+    height: 28px;
+    min-height: 0;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: var(--settings-muted);
+}
+.settings-shell button.secret-eye img {
+    width: 18px;
+    height: 18px;
+    filter: var(--icon-color);
+    opacity: 0.8;
+}
+.settings-shell button.secret-eye:hover {
+    background: var(--soft);
+}
+.settings-shell button.secret-eye:focus-visible {
+    outline: 2px solid var(--accent);
+}
+.secret-control input::-ms-reveal,
+.secret-field input::-ms-reveal {
+    display: none;
+}
+.transform-tile {
+    gap: 5px;
+    min-width: 0;
+}
+.transform-stage {
+    height: 100px;
+    display: grid;
+    place-items: center;
+    background: var(--dialog-field);
+    border: 1px solid var(--dialog-line);
+    border-radius: 8px;
+    overflow: hidden;
+    isolation: isolate;
+    contain: paint;
+}
+.transform-sample {
+    width: 53px;
+    height: 53px;
+    object-fit: contain;
+}
+body dialog .transform-code {
+    width: 100%;
+    min-height: 75px;
+    font: 13px / 1.55 var(--monospace);
+    resize: vertical;
+}
+.transform-links {
+    align-items: center;
+    gap: 11px;
+    font-size: 12px;
+    color: var(--dialog-muted);
+}
+.transform-links a {
+    color: var(--dialog-accent);
+}
+.ocr-engine-panel {
+    gap: 10px;
+}
+.ocr-engine-panel > h2 {
+    margin: 20px 0 0;
+    font-size: 15px;
+    font-weight: 650;
+}
+body dialog.ocr-model-sheet[open] {
+    position: static;
+    inset: auto;
+    margin: 0;
+    max-height: none;
+    width: 100%;
+    max-width: 100%;
+    background: var(--surface);
+    box-shadow: none;
+    border: 1px solid var(--settings-line);
+    border-radius: 10px;
+}
+.ocr-catalogue {
+    gap: 8px;
+    min-width: 0;
+}
+body dialog .ocr-search {
+    width: 100%;
+}
+.ocr-results {
+    max-height: min(33vh, 258px);
+    overflow: auto;
+    border: 1px solid var(--dialog-line);
+    border-radius: 8px;
+}
+.ocr-model-row {
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+}
+.ocr-model-row + .ocr-model-row {
+    border-top: 1px solid var(--dialog-line);
+}
+.ocr-model-info {
+    min-width: 0;
+}
+.ocr-model-name {
+    font-weight: 600;
+}
+.ocr-model-meta {
+    color: var(--dialog-muted);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+.ocr-row-actions {
+    align-items: center;
+    gap: 5px;
+    flex: none;
+}
+body dialog .catalog-download,
+body dialog .catalog-use {
+    background: transparent;
+    color: var(--dialog-accent);
+    min-height: 28px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+.ocr-status {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+.ocr-status:empty,
+.ocr-catalogue progress[hidden] {
+    display: none;
+}
+.ocr-catalogue progress {
+    height: 5px;
+    width: 100%;
+    accent-color: var(--dialog-accent);
+}
+.ocr-file-fields summary {
+    cursor: pointer;
+    color: var(--dialog-muted);
+    font-weight: 600;
+}
+.ocr-file-fields > div {
+    gap: 9px;
+    margin-top: 10px;
+}
+@container (max-width: 445px) {
+    .position-editor {
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 9px;
+    }
+    .position-coordinates {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 5px;
+    }
+}
+
+body.settings-shell dialog .ocr-catalogue input.ocr-search {
+    width: 100%;
+}
+body.settings-shell .tool-chips button:focus-visible,
+body.settings-shell .settings-content .settings-row button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+body.settings-shell .toolbar-zone[data-lane="more"] .tool-chips {
+    max-width: min(100%, calc(6 * var(--bar-size)));
+}
+body :where(button:disabled):hover {
+    cursor: not-allowed;
+}
+
+body:not(.settings-shell)
+    :where(
+        button:not(:has(img, svg), [aria-pressed], [role="option"], .b-like)
+    ) {
+    transition:
+        background-color 0.14s,
+        border-color 0.14s,
+        color 0.14s;
+    font-variant-numeric: tabular-nums;
+}
+
+body.settings-shell .theme-preset {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 9px;
+}
+.theme-swatch {
+    display: inline-block;
+    inline-size: 13px;
+    block-size: 13px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px #80808060;
 }

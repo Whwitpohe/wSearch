@@ -78,7 +78,12 @@ export interface setting {
         按钮图标比例: number;
         初始位置: { left: string; top: string };
         功能: 功能[];
-        布局: { capture: string[]; draw: string[]; hidden: string[] } | null;
+        布局: {
+            capture: string[];
+            draw: string[];
+            more?: string[];
+            hidden: string[];
+        } | null;
         稍后出现: boolean;
     };
     字体: {

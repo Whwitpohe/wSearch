@@ -174,32 +174,60 @@ describe("model provider protocols", () => {
     });
 });
 describe("toolbar layout", () => {
-    const available = ["copy", "save", "shape.rect", "draw.free"];
-    it("reads legacy bars without changing the user's order", () => {
-        expect(
-            toolbarLayout(null, ["save", "copy"], ["draw.free"], available),
-        ).toEqual({
-            capture: ["save", "copy"],
-            draw: ["draw.free"],
-            hidden: ["shape.rect"],
-        });
+    const capture = ["copy", "save"],
+        draw = ["shape.rect", "draw.free"];
+    it("keeps the membership and order of legacy More, including three-lane saves", () => {
+        for (const saved of [
+            null,
+            {
+                capture: ["save"],
+                draw: [],
+                hidden: ["draw.free", "copy", "shape.rect"],
+            },
+        ]) {
+            expect(toolbarLayout(saved, ["save"], [], capture, draw)).toEqual({
+                capture: ["save"],
+                draw: [],
+                more: draw,
+                hidden: ["copy"],
+            });
+        }
     });
-    it("moves buttons across bars, supports empty bars and adds new tools to hidden", () => {
+    it("honors an explicitly empty More and keeps newly added buttons hidden", () => {
         expect(
             toolbarLayout(
                 {
                     capture: [],
-                    draw: ["copy", "shape.rect", "copy", "unknown"],
-                    hidden: ["draw.free"],
+                    draw: ["copy", "copy", "unknown"],
+                    more: [],
+                    hidden: ["shape.rect"],
                 },
                 [],
                 [],
-                available,
+                capture,
+                draw,
             ),
         ).toEqual({
             capture: [],
-            draw: ["copy", "shape.rect"],
-            hidden: ["draw.free", "save"],
+            draw: ["copy"],
+            more: [],
+            hidden: ["shape.rect", "save", "draw.free"],
         });
+    });
+    it("allows an ordered mix of capture and drawing buttons in More", () => {
+        expect(
+            toolbarLayout(
+                {
+                    capture: [],
+                    draw: [],
+                    more: ["draw.free", "copy", "shape.rect", "copy"],
+                    hidden: ["save"],
+                },
+                [],
+                [],
+                capture,
+                draw,
+            ).more,
+        ).toEqual(["draw.free", "copy", "shape.rect"]);
     });
 });

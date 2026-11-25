@@ -26,7 +26,11 @@
         "name": "xsf",
         "email": "xushengfeng_zg@163.com"
     },
-    "homepage": "https://github.com/xushengfeng/eSearch/",
+    "homepage": "https://github.com/Whwitpohe/eSearch/",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Whwitpohe/eSearch.git"
+    },
     "license": "GPL-3.0",
     "packageManager": "pnpm@10.17.0",
     "dependencies": {

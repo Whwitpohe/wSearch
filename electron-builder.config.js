@@ -294,6 +294,7 @@ const beforePack = async () => {
  */
 const build = {
     appId: "com.esearch.app",
+    publish: { provider: "github", owner: "Whwitpohe", repo: "eSearch" },
     executableName: "e-search",
     directories: {
         output: "build",

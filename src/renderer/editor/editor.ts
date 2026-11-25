@@ -1844,14 +1844,13 @@ function renderHistory() {
                         ),
                         true,
                     ),
-                    button(image(closeSvg, "icon").class("icon")).on(
-                        "click",
-                        () => {
+                    button(image(closeSvg, "icon").class("icon"))
+                        .attr({ title: "删除" })
+                        .on("click", () => {
                             delete historyList[i];
                             storeHistory();
                             div.remove();
-                        },
-                    ),
+                        }),
                 ]),
             textEl,
         ]);

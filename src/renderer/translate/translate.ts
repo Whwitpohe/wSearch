@@ -107,14 +107,18 @@ function translate(_text: string) {
     const toLan = lansTo.gv;
 
     for (const i of fyq) {
-        const copy = iconButton("copy");
-        const save = iconButton("star").style({
-            display:
-                showCang.fetch.length || showCang.文件.length ? "" : "none",
-        });
-        const reTry = iconButton("reload").on("click", () => {
-            f();
-        });
+        const copy = iconButton("copy").attr({ title: "复制" });
+        const save = iconButton("star")
+            .attr({ title: "收藏" })
+            .style({
+                display:
+                    showCang.fetch.length || showCang.文件.length ? "" : "none",
+            });
+        const reTry = iconButton("reload")
+            .attr({ title: "翻译" })
+            .on("click", () => {
+                f();
+            });
         const checkEl = iconButton("replace").style({
             display: fromLan === "auto" ? "none" : "", // todo 读取自动语言
         });

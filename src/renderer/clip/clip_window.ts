@@ -3108,23 +3108,22 @@ function setEditType<T extends keyof EditType>(
 
     const SELECT = "select";
     const activeSide = drawSideEls[mainType][type];
-    let hiddenActive = true;
+    const inMore = layout.more.includes(`${mainType}.${type}`);
     for (const tool of drawMainTools) {
         if (tool.category === "more") continue;
         const active =
             tool.category === mainType &&
             (tool.type === undefined || tool.type === type);
-        if (active) hiddenActive = false;
         tool.el.el.classList.toggle(SELECT, active);
         tool.el.el.innerHTML = active ? activeSide.el.innerHTML : tool.html;
     }
     const moreTool = drawMainTools.find((tool) => tool.category === "more");
     if (moreTool) {
-        moreTool.el.el.classList.toggle(SELECT, hiddenActive);
+        moreTool.el.el.classList.toggle(SELECT, inMore);
         const hiddenHTML = activeSide.el.querySelector("img")
             ? activeSide.el.innerHTML
             : moreTool.html;
-        moreTool.el.el.innerHTML = hiddenActive ? hiddenHTML : moreTool.html;
+        moreTool.el.el.innerHTML = inMore ? hiddenHTML : moreTool.html;
     }
 
     for (const [i, items] of Object.entries(drawSideEls)) {
@@ -3899,7 +3898,12 @@ toolsX.translate.el.on("change", () => {
 });
 
 toolBarEl.style({
-    left: store.get("工具栏.初始位置.left"),
+    left: store
+        .get("工具栏.初始位置.left")
+        .replace(
+            /^calc\(100vw - 10px - ([\d.]+) \* 2 - 8px\)$/,
+            "calc(100vw - var(--bar-size) * 2 - 18px)",
+        ),
     top: store.get("工具栏.初始位置.top"),
 });
 
@@ -3907,11 +3911,11 @@ const layout = toolbarLayout(
     store.get("工具栏.布局"),
     store.get("工具栏.功能"),
     store.get("图像编辑.编辑栏.功能"),
-    [...tools, ...clipDrawTools.map((tool) => tool.key)],
+    tools,
+    clipDrawTools.map((tool) => tool.key),
 );
 for (const id of tools)
-    if (!layout.capture.includes(id) && !layout.draw.includes(id))
-        toolsX[id].el.style({ display: "none" });
+    if (layout.hidden.includes(id)) toolsX[id].el.style({ display: "none" });
 
 const drawBarEl = view().attr({ id: "draw_bar" }).addInto();
 const drawBarMainEl = view()
@@ -4073,11 +4077,6 @@ const visibleDrawTools = configuredDrawToolKeys.flatMap((key) => {
     const entry = drawToolEntryMap.get(key);
     return entry ? [entry] : [];
 });
-const visibleDrawToolKeys = new Set(visibleDrawTools.map((entry) => entry.key));
-const hiddenDrawTools = drawToolEntries.filter(
-    (entry) => !visibleDrawToolKeys.has(entry.key),
-);
-
 type DrawMainTool = {
     key: string;
     category: keyof EditType | "more" | "action";
@@ -4155,7 +4154,7 @@ const visibleMainTools = visibleDrawTools.map((entry) => {
 const drawMainTools: DrawMainTool[] = [
     selectMainTool,
     ...visibleMainTools,
-    ...(hiddenDrawTools.length > 0 ? [moreMainTool] : []),
+    ...(layout.more.length > 0 ? [moreMainTool] : []),
 ];
 const visibleByKey = new Map(
     visibleMainTools.map((tool) => [tool.key, tool.el]),
@@ -4171,9 +4170,11 @@ function mountTools(bar: typeof toolBarEl, keys: string[]) {
 mountTools(toolBarEl, layout.capture);
 drawBarMainEl.add(selectMainTool.el);
 mountTools(drawBarMainEl, layout.draw);
-if (hiddenDrawTools.length) drawBarMainEl.add(moreMainTool.el);
+if (layout.more.length) drawBarMainEl.add(moreMainTool.el);
 
-const drawMoreItems = hiddenDrawTools.map((entry) => entry.el);
+const drawMoreItems = layout.more.map(
+    (key) => drawToolEntryMap.get(key)?.el ?? toolsX[key as 功能].el,
+);
 
 const drawBarSideElChildren: {
     w: number;
@@ -4186,7 +4187,7 @@ const drawBarSideElChildren: {
         anchorCategory: "select",
     },
     {
-        w: 6,
+        w: Math.max(1, Math.min(6, layout.more.length)),
         el: drawSideGen2("more").add(drawMoreItems),
         anchorCategory: "more",
     },
@@ -7364,11 +7365,10 @@ for (const tool of drawMainTools) {
             ev.preventDefault();
             showSideBarByCategory(category);
         });
-        if (category === "select") {
-            e.on("click", () => {
-                tool.run?.();
-            });
-        }
+        e.on("click", () => {
+            if (category === "more") showSideBarByCategory("more");
+            else tool.run?.();
+        });
     } else {
         e.on("mouseenter", () => {
             clearTimeout(willShowITime);

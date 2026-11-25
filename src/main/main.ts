@@ -44,6 +44,11 @@ import {
 } from "electron";
 import minimist from "minimist";
 import main from "xtranslator";
+import {
+    fetchAppReleases,
+    releasePage,
+    releasePath,
+} from "../../lib/appRelease";
 import { githubMirrorList } from "../../lib/github_mirror";
 import type { RecordRect } from "../../lib/ipc";
 import { mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
@@ -687,6 +692,7 @@ function rmR(dir_path: string) {
 }
 
 // 快捷键
+const activeHotkeys = new Map<string, string>();
 const 快捷键函数: Record<keyof setting["快捷键"], () => void> = {
     自动识别: autoOpen,
     截屏搜索: showPhoto,
@@ -1027,9 +1033,7 @@ app.whenReady().then(() => {
             })
         ) {
             console.error(`快捷键注册失败：${k} = ${m.key}`);
-            m.key = "";
-            store.set("快捷键", 快捷键);
-        }
+        } else activeHotkeys.set(`快捷键.${k}.key`, m.key);
     }
     const 工具快捷键 = store.get("全局工具快捷键");
     for (const [k, m] of typedEntries(工具快捷键)) {
@@ -1040,9 +1044,7 @@ app.whenReady().then(() => {
             })
         ) {
             console.error(`全局工具快捷键注册失败：${k} = ${m}`);
-            工具快捷键[k] = "";
-            store.set("全局工具快捷键", 工具快捷键);
-        }
+        } else activeHotkeys.set(`全局工具快捷键.${k}`, m);
     }
 
     // tmp目录
@@ -2152,6 +2154,10 @@ mainOn("theme", ([arg1]) => {
     store.set("全局.深色模式", arg1);
 });
 
+mainOn("hotkeyStatus", ([path]) => {
+    const key = activeHotkeys.get(path);
+    return Boolean(key && globalShortcut.isRegistered(key));
+});
 mainOn("hotkey", ([type, name, key]) => {
     // 先注册新键，成功后再注销旧键：失败时旧绑定原样保留
     const [storeKey, action] =
@@ -2166,7 +2172,9 @@ mainOn("hotkey", ([type, name, key]) => {
               ] as const);
     // @ts-ignore
     const old = store.get(storeKey) as string;
-    if (key && key === old) return true;
+    const registered = activeHotkeys.get(storeKey);
+    if (key === registered && key && globalShortcut.isRegistered(key))
+        return true;
     let ok = true;
     if (key) {
         try {
@@ -2181,7 +2189,9 @@ mainOn("hotkey", ([type, name, key]) => {
         );
         return false;
     }
-    if (old) globalShortcut.unregister(old);
+    if (registered && registered !== key) globalShortcut.unregister(registered);
+    if (key) activeHotkeys.set(storeKey, key);
+    else activeHotkeys.delete(storeKey);
     return true;
 });
 
@@ -3485,8 +3495,7 @@ mainOn("githubUrl", ([p, t]) => githubUrl(p, t));
 function checkUpdate(s手动检查?: boolean) {
     const version = store.get("设置版本");
     const m = store.get("更新.模式");
-    fetch(githubUrl("repos/xushengfeng/eSearch/releases", "api"))
-        .then((v) => v.json())
+    fetchAppReleases(githubUrl(releasePath, "api"))
         .then(
             (
                 re: {
@@ -3502,10 +3511,10 @@ function checkUpdate(s手动检查?: boolean) {
                     version.includes("alpha") ||
                     m === "dev";
                 const first = re
-                    .filter((r) => /^\d/.test(r.tag_name))
+                    .filter((r) => /^v?\d/.test(r.tag_name))
                     .find((r) => (isDev ? true : !r.draft && !r.prerelease));
                 if (!first) {
-                    if (s手动检查) showVersion("err");
+                    if (s手动检查) showVersion("empty");
                     return;
                 }
                 let update = false;
@@ -3539,12 +3548,14 @@ function checkUpdate(s手动检查?: boolean) {
         });
 }
 
-function showVersion(arg?: { v: string; url: string } | "err") {
+function showVersion(arg?: { v: string; url: string } | "err" | "empty") {
     let title = "";
     let b = "";
-    let url = "https://github.com/xushengfeng/eSearch/releases";
+    let url = releasePage;
     if (arg) {
-        if (arg === "err") {
+        if (arg === "empty") {
+            title = t("此仓库尚未发布版本");
+        } else if (arg === "err") {
             title = t("无法检查更新");
             b = t("请检查网络，稍后重试");
         } else {

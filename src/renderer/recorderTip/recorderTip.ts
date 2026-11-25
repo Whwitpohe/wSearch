@@ -338,12 +338,11 @@ cameraSelect.el.on("change", async () => {
 let cameraCanvas: HTMLCanvasElement = document.createElement("canvas");
 let segCanvas: HTMLCanvasElement = document.createElement("canvas");
 
-const stop = button(iconEl("stop_record").style({ filter: "none" })).on(
-    "click",
-    () => {
+const stop = button(iconEl("stop_record").style({ filter: "none" }))
+    .attr({ title: "停止" })
+    .on("click", () => {
         renderSend("recordState", ["stop"]);
-    },
-);
+    });
 const timeEl = txt().class(Class.textItem);
 const controlBar = view("x")
     .class(Class.smallSize, Class.screenBar)

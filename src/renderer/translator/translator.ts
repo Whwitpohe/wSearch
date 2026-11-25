@@ -142,19 +142,26 @@ pack(document.body).style({
 });
 
 const playIcon = iconEl("pause");
-const playEl = button(playIcon).on("click", () => {
-    pause = !pause;
-    playIcon.el.src = pause ? getImgUrl("recume.svg") : getImgUrl("pause.svg");
-    runRun();
-});
+const playEl = button(playIcon)
+    .attr({ title: "暂停" })
+    .on("click", () => {
+        pause = !pause;
+        playEl.attr({ title: pause ? "继续" : "暂停" });
+        playIcon.el.src = pause
+            ? getImgUrl("recume.svg")
+            : getImgUrl("pause.svg");
+        runRun();
+    });
 
-const runEl = button(iconEl("ocr")).on("click", async () => {
-    mainEl.el.style.opacity = "0";
-    await sl();
-    await sl();
-    await run();
-    mainEl.el.style.opacity = "1";
-});
+const runEl = button(iconEl("ocr"))
+    .attr({ title: "文字识别" })
+    .on("click", async () => {
+        mainEl.el.style.opacity = "0";
+        await sl();
+        await sl();
+        await run();
+        mainEl.el.style.opacity = "1";
+    });
 
 const toolsEl = view("x")
     .style({ position: "absolute", right: 0, top: 0 })
@@ -173,13 +180,15 @@ const toolsEl = view("x")
     .add([
         playEl,
         runEl,
-        button(iconEl("copy")).on("click", () => {
-            const text = textEl.el.innerText;
-            writeText(text);
-        }),
-        button(iconEl("close")).on("click", () =>
-            renderSend("windowClose", []),
-        ),
+        button(iconEl("copy"))
+            .attr({ title: "复制" })
+            .on("click", () => {
+                const text = textEl.el.innerText;
+                writeText(text);
+            }),
+        button(iconEl("close"))
+            .attr({ title: "关闭" })
+            .on("click", () => renderSend("windowClose", [])),
     ]);
 
 let OCR: Awaited<ReturnType<typeof import("esearch-ocr").init>> | null = null;
