@@ -50,7 +50,7 @@ jobs:
       M_ARCH: ${{ matrix.arch }}
       RELEASE_TAG: ${{ needs.plan.outputs.tag }}
       USE_HARD_LINKS: false
-      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/v
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
     defaults:
       run:
         shell: bash
