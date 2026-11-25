@@ -957,5 +957,20 @@
     "0fc408": "Negrita",
     "27e402": "Cursiva",
     "2808ea": "Buscar fuentes",
-    "7dea75": "Seleccionar fuente"
+    "7dea75": "Seleccionar fuente",
+    "8a178a": "La captura está vacía. Vuelve a capturarla.",
+    "c07cb9": "Introduce la clave API y el modelo de Claude en los ajustes de modelos en línea.",
+    "689722": "La traducción de imágenes completas requiere la API oficial de Anthropic.",
+    "2e4047": "La solicitud a Claude se canceló o caducó.",
+    "b21652": "No se pudo conectar con Claude. Comprueba tu conexión.",
+    "8f5365": "La traducción es demasiado larga. Prueba con una selección menor.",
+    "607560": "Claude no devolvió posiciones de texto. Inténtalo de nuevo.",
+    "5c8cfd": "Claude devolvió áreas de texto no válidas. Inténtalo de nuevo.",
+    "042af0": "Claude devolvió posiciones fuera de la captura. Inténtalo de nuevo.",
+    "433c62": "La captura se cerró. Vuelve a capturarla.",
+    "488951": "No se pudo dibujar la captura.",
+    "986eff": "Este modo no puede cargar el motor OCR seleccionado.",
+    "e9f9b6": "Claude está traduciendo la captura…",
+    "b26fa6": "La imagen no contiene texto que necesite traducción.",
+    "eade95": "Pulsa Traducir para reintentar"
 }

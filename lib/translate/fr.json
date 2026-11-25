@@ -957,5 +957,20 @@
     "0fc408": "Gras",
     "27e402": "Italique",
     "2808ea": "Rechercher des polices",
-    "7dea75": "Choisir la police"
+    "7dea75": "Choisir la police",
+    "8a178a": "La capture est vide. Refaites-la.",
+    "c07cb9": "Renseignez la clé API Claude et le nom du modèle dans les paramètres des modèles en ligne.",
+    "689722": "La traduction d’image entière nécessite l’API officielle d’Anthropic.",
+    "2e4047": "La requête Claude a été annulée ou a expiré.",
+    "b21652": "Connexion à Claude impossible. Vérifiez votre connexion.",
+    "8f5365": "La traduction est trop longue. Essayez une sélection plus petite.",
+    "607560": "Claude n’a pas renvoyé les positions du texte. Réessayez.",
+    "5c8cfd": "Claude a renvoyé des zones de texte invalides. Réessayez.",
+    "042af0": "Claude a renvoyé des positions hors de la capture. Réessayez.",
+    "433c62": "La capture a été fermée. Refaites-la.",
+    "488951": "Impossible d’afficher la capture.",
+    "986eff": "Ce mode ne peut pas charger le moteur OCR sélectionné.",
+    "e9f9b6": "Claude traduit la capture…",
+    "b26fa6": "Aucun texte à traduire dans cette image.",
+    "eade95": "Cliquez sur Traduire pour réessayer"
 }

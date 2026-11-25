@@ -633,3 +633,12 @@ export type LongControlInit = {
     hint?: LongControlHint;
     firstPreview?: { data: string; w: number; h: number };
 };
+
+export type DingMode = "ding" | "translate" | "claude-translate";
+export type ScreenshotRegion = {
+    box: [number, number, number, number];
+    text: string;
+};
+export type ScreenshotTranslation =
+    | { regions: ScreenshotRegion[] }
+    | { error: string };

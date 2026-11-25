@@ -72,6 +72,7 @@ export function init() {
         item = createDingItem({
             data,
             single: true,
+            claudeScreenshot: type === "claude-translate",
             nativeDrag,
             zoom: zoomTo,
             close: () => renderSend("windowClose", []),
@@ -86,7 +87,7 @@ export function init() {
         item.el.addInto();
         applyFrame(frame, 1);
 
-        if (type === "translate") {
+        if (type !== "ding") {
             item.translate();
         }
     });

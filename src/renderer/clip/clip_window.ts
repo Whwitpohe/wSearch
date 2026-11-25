@@ -1,3 +1,4 @@
+import { selectedClaude } from "../../../lib/claudeVision";
 /// <reference types="vite/client" />
 
 import { EraserBrush } from "@erase2d/fabric";
@@ -1623,6 +1624,11 @@ function alert(m: string) {
 }
 
 function checkTranslator() {
+    if (
+        toolsX.translate.el.gv === "ding" &&
+        selectedClaude(store.get("OCR.类型"), store.get("AI.在线模型"))
+    )
+        return true;
     const fyq = store.get("翻译.翻译器");
     if (fyq.length === 0) {
         alert("无翻译器，请先设置翻译器");
@@ -4855,7 +4861,20 @@ let willFilter: EditType["filter"] | "" = "";
 
 document.body.style.opacity = "0";
 
-renderOn("clip_init", async ([_displays, imgBuffer, mainid, act, pid]) => {
+renderOn("clip_init", (args) => {
+    initCapture(...args).catch((error) => {
+        console.error(error);
+        renderSend("clip_close", []);
+    });
+});
+
+async function initCapture(
+    _displays: Electron.Display[],
+    imgBuffer: Buffer | undefined,
+    mainid: number,
+    act?: 功能,
+    pid?: number,
+) {
     console.log("clip_init displays:", _displays);
     currentDisplays = _displays;
     mainPid = pid ?? 0;
@@ -4958,7 +4977,7 @@ renderOn("clip_init", async ([_displays, imgBuffer, mainid, act, pid]) => {
     }, 0);
     rightKey = false;
     changeRightBar(false);
-});
+}
 
 renderOn("clip_stop_long", () => stopLong());
 

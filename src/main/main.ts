@@ -55,6 +55,7 @@ import { getSessionBusPath, isWaylandSession } from "../../lib/wayland";
 import initScreenShots from "../renderer/screenShot/screenShot";
 import type {
     CaptureSourceInfo,
+    DingMode,
     EditToolsType,
     GithubUrlType,
     LiveDingData,
@@ -66,6 +67,7 @@ import type {
     功能,
 } from "../ShareTypes";
 import { initBergamot } from "./bergamot";
+import { registerClaudeTranslation } from "./claudeScreenshot";
 import defaultSetting, { matchBestLan } from "./defaultSetting";
 
 const runPath = join(resolve(__dirname, ""), "../../");
@@ -2229,6 +2231,15 @@ const liveDingIds = new Set<number>();
 /** 所有存活的贴图 id，覆盖层广播时用它判断是否全部关闭 */
 const activeDingIds = new Set<number>();
 /** 选源页待处理的动态贴图请求 */
+const claudeScreenshots = registerClaudeTranslation(
+    store,
+    (id, event) =>
+        event.senderFrame === event.sender.mainFrame &&
+        (dingSingleList.get(id)?.webContents === event.sender ||
+            dingOverlayList
+                .entries()
+                .some(([, entry]) => entry.win.webContents === event.sender)),
+);
 const pendingLivePicks = new Map<
     number,
     {
@@ -2376,7 +2387,7 @@ function createDingOverlay(
     w: number,
     h: number,
     img: string,
-    type: "translate" | "ding",
+    type: DingMode,
     live?: LiveDingData,
     displayId?: number,
 ) {
@@ -2437,7 +2448,7 @@ function createDingSingle(
     w: number,
     h: number,
     img: string,
-    type: "translate" | "ding",
+    type: DingMode,
     live?: LiveDingData,
 ) {
     const displayId = screen.getDisplayNearestPoint({
@@ -2458,6 +2469,7 @@ function createDingSingle(
         dingSingleList.delete(id);
         liveDingIds.delete(id);
         activeDingIds.delete(id);
+        claudeScreenshots.close(id);
     });
     if (dingThrogh) win.setIgnoreMouseEvents(true);
     rendererPath(win, "ding.html", { query: { mode: "single" } });
@@ -2507,11 +2519,15 @@ function createDingWindow(
             y: Math.round(y + h / 2),
         }).id;
     }
+    const mode =
+        type === "translate" && !live && claudeScreenshots.register(id, img)
+            ? "claude-translate"
+            : type;
     activeDingIds.add(id);
     if (store.get("贴图.窗口.独立窗口")) {
-        createDingSingle(id, x, y, w, h, img, type, live);
+        createDingSingle(id, x, y, w, h, img, mode, live);
     } else {
-        createDingOverlay(id, x, y, w, h, img, type, live, displayId);
+        createDingOverlay(id, x, y, w, h, img, mode, live, displayId);
     }
     forceDingThrogh();
     if (!dingTickRunning) {
@@ -2591,6 +2607,7 @@ mainOnReflect("dingShare", ([data]) => {
         const id = Number(data.id);
         liveDingIds.delete(id);
         activeDingIds.delete(id);
+        claudeScreenshots.close(id);
         if (activeDingIds.size === 0) {
             for (const i of dingOverlayList.keys()) {
                 dingOverlayList.delete(i);

@@ -9,7 +9,7 @@ import {
 } from "dkh-ui";
 import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
 import store from "../../../lib/store/renderStore";
-import type { DingStart, Dire, LiveDingData } from "../../ShareTypes";
+import type { DingMode, DingStart, Dire, LiveDingData } from "../../ShareTypes";
 import { Class, cssVar } from "../root/root";
 import {
     createDingItem,
@@ -505,7 +505,7 @@ function addDing(
     w: number,
     h: number,
     url: string,
-    type: "translate" | "ding",
+    type: DingMode,
     live?: LiveDingData,
     displayId?: number,
 ) {
@@ -521,6 +521,7 @@ function addDing(
     const item = createDingItem({
         data,
         single: false,
+        claudeScreenshot: type === "claude-translate",
         zoom: (zoom, dx, dy, clip) => {
             resizeSender = true;
             resize(wid, zoom, dx, dy, clip);
@@ -543,7 +544,7 @@ function addDing(
     dockI();
     resize(wid, 1, 0, 0);
 
-    if (type === "translate") {
+    if (type !== "ding") {
         item.translate();
     }
 }

@@ -957,5 +957,20 @@
     "0fc408": "Bold",
     "27e402": "Italic",
     "2808ea": "Search fonts",
-    "7dea75": "Select font"
+    "7dea75": "Select font",
+    "8a178a": "The screenshot is empty. Capture it again.",
+    "c07cb9": "Enter the Claude API key and model name in online model settings.",
+    "689722": "Full-image translation requires the official Anthropic endpoint.",
+    "2e4047": "The Claude request was canceled or timed out.",
+    "b21652": "Could not connect to Claude. Check your connection.",
+    "8f5365": "The translation is too long. Try a smaller selection.",
+    "607560": "Claude returned no text positions. Try again.",
+    "5c8cfd": "Claude returned invalid text regions. Try again.",
+    "042af0": "Claude returned positions outside the screenshot. Try again.",
+    "433c62": "This screenshot was closed. Capture it again.",
+    "488951": "Could not render the screenshot.",
+    "986eff": "This mode cannot load the selected OCR engine.",
+    "e9f9b6": "Claude is translating the screenshot…",
+    "b26fa6": "No text needs translating in this image.",
+    "eade95": "Click Translate to retry"
 }

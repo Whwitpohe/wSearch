@@ -1,5 +1,6 @@
 import { ele } from "dkh-ui";
 import store from "../../../lib/store/renderStore";
+import { t } from "../../../lib/translate/translate";
 import { loadTranslator } from "../lib/translate";
 import { defaultOcrId, loadOCR } from "../ocr/ocr";
 import type { DingItemData } from "./item";
@@ -10,7 +11,8 @@ let translateE: ((input: string[]) => Promise<string[]>) | undefined;
 export async function initOCR() {
     if (!lo) {
         const x = loadOCR(store, store.get("OCR.类型") || defaultOcrId);
-        if (x) lo = await x.ocr.init(x.config);
+        if (!x) throw Error(t("此模式无法加载所选 OCR 引擎"));
+        lo = await x.ocr.init(x.config);
     }
 }
 
@@ -30,7 +32,7 @@ export async function preTranAndOcr(url: string) {
 
 export class UnConfigTranslateError extends Error {}
 
-function loadImage(url: string) {
+export function loadImage(url: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);

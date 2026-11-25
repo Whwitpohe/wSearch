@@ -10,6 +10,7 @@ import type {
 import type {
     BrowserAction,
     CaptureSourceInfo,
+    DingMode,
     DingResize,
     DingStart,
     GithubUrlType,
@@ -19,6 +20,7 @@ import type {
     LongWarnLevel,
     MainWinType,
     NormRect,
+    ScreenshotTranslation,
     setting,
     translateWinType,
     功能,
@@ -175,7 +177,7 @@ type Message = {
         w: number,
         h: number,
         url: string,
-        type: "translate" | "ding",
+        type: DingMode,
         live?: LiveDingData,
         displayId?: number,
     ) => void;
@@ -197,7 +199,7 @@ type Message = {
         w: number,
         h: number,
         url: string,
-        type: "translate" | "ding",
+        type: DingMode,
         live?: LiveDingData,
         displayId?: number,
     ) => void;
@@ -254,6 +256,10 @@ type Message = {
     browserUrl: (id: number, url: string) => void;
     browserLoad: (id: number, load: boolean) => void;
     userDataPath: () => string;
+    claudeScreenshotTranslation: (
+        id: number,
+        retry: boolean,
+    ) => ScreenshotTranslation;
     bergamot_translate: (data: {
         texts: string[];
         from: string;

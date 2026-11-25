@@ -2193,14 +2193,17 @@ const xs: Record<
 
 const main: {
     pageName: string;
+    icon: IconType;
+    about?: boolean;
     settings?: KeyPath[];
     desc?: string;
     items?: { title: string; desc?: string; settings: KeyPath[] }[];
     isMemo?: boolean;
 }[] = [
-    { pageName: "常用", isMemo: true },
+    { pageName: "常用", icon: "star", isMemo: true },
     {
         pageName: "截屏",
+        icon: "rect_select",
         items: [
             {
                 title: "工具栏",
@@ -2264,6 +2267,7 @@ const main: {
     },
     {
         pageName: "图像编辑",
+        icon: "draw",
         items: [
             {
                 title: "复制偏移",
@@ -2274,6 +2278,7 @@ const main: {
     },
     {
         pageName: "文字识别（OCR）",
+        icon: "ocr",
         settings: [
             "OCR.类型",
             "OCR.离线切换",
@@ -2306,12 +2311,14 @@ const main: {
     },
     {
         pageName: "人工智能",
+        icon: "ai_check",
         desc: "配置OCR、录屏背景移除等人工智能",
         settings: ["AI.运行后端", "AI.在线模型"],
         items: [{ title: "魔法橡皮模型", settings: ["_inpaint"] }],
     },
     {
         pageName: "录屏",
+        icon: "record",
         desc: "分为普通录屏和超级录屏，普通录屏固定位置和大小录制，超级录屏适合录制操作演示，提供自动运镜效果",
         items: [
             {
@@ -2359,6 +2366,7 @@ const main: {
     },
     {
         pageName: "保存",
+        icon: "save",
         settings: [
             "保存名称.前缀",
             "保存名称.时间",
@@ -2372,6 +2380,7 @@ const main: {
     },
     {
         pageName: "贴图",
+        icon: "ding",
         settings: [
             "贴图.窗口.独立窗口",
             "贴图.窗口.双击",
@@ -2383,6 +2392,7 @@ const main: {
     },
     {
         pageName: "翻译",
+        icon: "translate",
         settings: ["翻译.翻译器"],
         items: [
             {
@@ -2407,6 +2417,7 @@ const main: {
     },
     {
         pageName: "编辑器",
+        icon: "text",
         items: [
             {
                 title: "编辑器",
@@ -2435,6 +2446,7 @@ const main: {
     },
     {
         pageName: "搜索与浏览",
+        icon: "browser",
         items: [
             {
                 title: "自动",
@@ -2455,6 +2467,7 @@ const main: {
     },
     {
         pageName: "快捷键",
+        icon: "space",
         items: [
             {
                 title: "全局功能",
@@ -2594,6 +2607,7 @@ const main: {
     },
     {
         pageName: "全局",
+        icon: "main",
         items: [
             { title: "启动", settings: ["_autostart", "启动提示"] },
             { title: "语言", settings: ["语言.语言"] },
@@ -2619,6 +2633,7 @@ const main: {
     },
     {
         pageName: "样式",
+        icon: "filters",
         settings: ["全局.缩放", "_theme"],
         items: [
             {
@@ -2637,6 +2652,7 @@ const main: {
     },
     {
         pageName: "高级",
+        icon: "setting",
         items: [
             {
                 title: "高级设置",
@@ -2674,6 +2690,7 @@ const main: {
             { title: "退出应用", settings: ["_exit"] },
         ],
     },
+    { pageName: "关于", icon: "help", about: true },
 ];
 
 const sKeys = new Set([...Object.keys(s), ...Object.keys(xs)]);
@@ -3040,6 +3057,8 @@ function renderSetting(settingPath: KeyPath) {
         return null;
     }
     const el = setting.el(0 as never);
+    if (el.el.matches(".settings-switch"))
+        el.el.setAttribute("aria-label", setting.name);
     // @ts-ignore
     scheduler.postTask(() => {
         if (Object.hasOwn(s, settingPath)) {
@@ -3067,7 +3086,10 @@ function renderSetting(settingPath: KeyPath) {
         .data({ name: settingPath })
         .add([
             view().add([
-                p(setting.name, true).style({ fontSize: "1.1em" }),
+                p(setting.name, true).style({
+                    fontSize: "0.97em",
+                    fontWeight: 600,
+                }),
                 setting.desc ? comment(setting.desc) : "",
             ]),
             el,
@@ -3134,6 +3156,7 @@ function reRenderSetting(settingPath: KeyPath) {
 
 function renderSettingList(l: string[]) {
     mainView.clear();
+    mainViewP.el.scrollTop = 0;
     for (const i of l) {
         const title = getTitles.get(i);
         mainView.add(
@@ -3164,8 +3187,9 @@ function iconEl(img: IconType) {
 
 function comment(str: string) {
     return p(str, true).style({
-        color: cssColor.font.light,
-        fontSize: "0.8em",
+        color: "var(--settings-muted)",
+        fontSize: "0.86em",
+        lineHeight: 1.45,
     });
 }
 
@@ -3302,11 +3326,7 @@ function xNumber(
 }
 
 function xSwitch() {
-    const i = input("checkbox").style({
-        width: "24px",
-        height: "24px",
-        borderRadius: "var(--border-radius)",
-    });
+    const i = input("checkbox").class("settings-switch");
     const el = i
         .data({ xtype: "switch" })
         .bindGet(() => i.el.checked)
@@ -5399,38 +5419,28 @@ async function showPage(page: (typeof main)[0] | undefined) {
     }
     mainView.clear();
     mainViewP.el.scrollTop = 0;
-    mainView.add(ele("h1").add(noI18n(page.pageName)));
-    if (page.desc) mainView.add(comment(page.desc));
-    if (page.settings) {
-        for (const setting of page.settings) {
-            mainView.add(renderSetting(setting));
-        }
+    const content = view().class("settings-page").addInto(mainView);
+    content.add(ele("h1").add(noI18n(page.pageName)));
+    if (page.desc) content.add(comment(page.desc));
+    if (page.about) {
+        content.add(aboutPanel);
+        return;
     }
-    if (page.items) {
-        for (const item of page.items) {
-            mainView.add(ele("h2").add(noI18n(item.title)));
-            if (item.desc) mainView.add(comment(item.desc));
-            for (const setting of item.settings) {
-                mainView.add(renderSetting(setting));
-            }
-            // @ts-ignore
-            await scheduler.yield();
-        }
+    function addRows(keys: KeyPath[]) {
+        const group = view("y").class("settings-group").addInto(content);
+        for (const key of keys) group.add(renderSetting(key));
     }
-    if (page.isMemo) {
-        const m = getSettingMem();
-        for (const setting of m) {
-            mainView.add(renderSetting(setting));
-        }
+    if (page.settings) addRows(page.settings);
+    if (page.isMemo) addRows(getSettingMem());
+    for (const section of page.items ?? []) {
+        if (!content.el.isConnected) return;
+        content.add(ele("h2").add(noI18n(section.title)));
+        if (section.desc) content.add(comment(section.desc));
+        addRows(section.settings);
+        // @ts-ignore scheduler.yield is available in Electron
+        await scheduler.yield();
     }
 }
-
-window.CSS.registerProperty({
-    name: "--logo-blur",
-    syntax: "<color>",
-    inherits: false,
-    initialValue: "transparent",
-});
 
 const updateLogClass = addClass(
     {},
@@ -5464,33 +5474,17 @@ const updateLogClass = addClass(
 );
 
 function about() {
-    const el = view("y").style({ alignItems: "center", margin: "120px 0" });
-    const logoEl = image(logo, noI18n("logo"))
-        .style({
-            width: "200px",
-            transition: "scale 1s, --logo-blur 1s",
-            filter: "drop-shadow(var(--x) var(--y) 8px var(--logo-blur))",
-        })
-        .class(
-            addClass(
-                {},
-                {
-                    "&:hover": {
-                        "--logo-blur": "#00f4",
-                        scale: 1.1,
-                    },
-                },
-            ),
-        )
-        .on("mousemove", (e, el) => {
-            const xx = (e.offsetX / el.el.offsetWidth - 0.5) * -2;
-            const yy = (e.offsetY / el.el.offsetWidth - 0.5) * -2;
-            el.style({ "--x": `${xx * 8}px`, "--y": `${yy * 8}px` });
-        });
-    const nameEl = p(packageJson.name, true).style({ fontSize: "2rem" });
-    const version = button(noI18n(packageJson.version))
-        .attr({ title: "点击检查更新" })
-        .class(Class.mono, Class.click)
+    const el = view("y").class("settings-about");
+    const logoEl = image(logo, noI18n("eSearch")).style({
+        width: "48px",
+        height: "48px",
+    });
+    const nameEl = p(packageJson.name, true).style({
+        fontSize: "1.3rem",
+        fontWeight: 650,
+    });
+    const version = button("检查更新")
+        .class("settings-update")
         .on("click", () => {
             fetch(githubUrl("repos/xushengfeng/eSearch/releases", "api"), {
                 method: "GET",
@@ -5620,7 +5614,7 @@ function about() {
         .class(updateLogClass);
     const desc = p(packageJson.description);
 
-    const infoEl = view("y").style({ alignItems: "center" });
+    const infoEl = view("y").class("settings-links");
 
     infoEl.add([
         view().add([
@@ -5665,7 +5659,22 @@ function about() {
         ),
     ]);
 
-    return el.add([logoEl, nameEl, version, update, desc, infoEl]);
+    return el.add([
+        view("x")
+            .class("settings-about-header")
+            .add([
+                logoEl,
+                view("y").add([
+                    nameEl,
+                    txt(packageJson.version, true).class(Class.mono),
+                ]),
+                spacer(),
+                version,
+            ]),
+        update,
+        desc,
+        infoEl,
+    ]);
 }
 
 setTranslate((text) => t(text));
@@ -5691,96 +5700,244 @@ for (const p of main) {
         }
 }
 
-pack(document.body).style({ display: "flex" });
-
+pack(document.body).class("settings-shell");
 setTitle(t("设置"));
-
 const baseWidth = "300px";
 const baseWidth2 = "150px";
-
-const blockSetting = addClass(
-    {
-        width: "100%",
-    },
-    {},
-);
+const blockSetting = addClass({ width: "100%" }, {});
 
 addStyle({
-    h1: {
-        fontSize: "3rem",
-        fontWeight: 100,
+    ".settings-shell": {
+        display: "flex",
+        height: "100dvh",
+        overflow: "hidden",
+        colorScheme: "light dark",
+        "--settings-line":
+            "color-mix(in srgb, var(--font-color) 15%, var(--bg))",
+        "--settings-panel":
+            "color-mix(in srgb, var(--font-color) 3%, var(--bg))",
+        "--settings-accent": "light-dark(#175ea9, #9acaff)",
+        "--settings-muted":
+            "color-mix(in srgb, var(--font-color) 68%, var(--bg))",
     },
-    h2: {
-        fontSize: "1.8rem",
+    ".settings-sidebar": {
+        width: "clamp(148px, 21vw, 220px)",
+        flexShrink: 0,
+        overflowY: "auto",
+        padding: "16px 10px",
+        gap: "2px",
+        background: "var(--settings-panel)",
+        borderInlineEnd: "1px solid var(--settings-line)",
+    },
+    ".settings-brand": {
+        display: "flex",
+        gap: "10px",
+        alignItems: "center",
+        padding: "0 10px 14px",
+        fontSize: "19px",
+        fontWeight: 650,
+        letterSpacing: "-0.02em",
+    },
+    ".settings-sidebar label": {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        cursor: "pointer",
+        borderRadius: "7px",
+        minHeight: "31px",
+        padding: "4px 10px",
+        fontSize: "14px",
+        lineHeight: 1.35,
+    },
+    ".settings-sidebar label img, .settings-search img": {
+        width: "17px",
+        height: "17px",
+        filter: "var(--icon-color)",
+        opacity: "0.8",
+        flexShrink: 0,
+    },
+    ".settings-sidebar label:hover": { background: "var(--settings-line)" },
+    ".settings-sidebar label:has(input:checked)": {
+        background: "color-mix(in srgb, var(--settings-accent) 13%, var(--bg))",
+        color: "var(--settings-accent)",
+        fontWeight: 650,
+    },
+    ".settings-sidebar input[type=radio]": {
+        position: "absolute",
+        width: "1px",
+        height: "1px",
+        overflow: "hidden",
+        clipPath: "inset(50%)",
+    },
+    ".settings-sidebar label:has(:focus-visible), .settings-shell :is(button,input,select,textarea):focus-visible":
+        { outline: "2px solid var(--settings-accent)", outlineOffset: "2px" },
+    ".settings-main": { minWidth: 0, flex: "1", overflowY: "auto" },
+    ".settings-search": {
         position: "sticky",
         top: 0,
+        zIndex: 3,
         background: "var(--bg)",
-        zIndex: 1,
-        fontWeight: 100,
-        marginBlockStart: "28px",
+        borderBottom: "1px solid var(--settings-line)",
+        padding: "12px clamp(14px, 4vw, 48px)",
     },
-    a: {
-        textDecoration: "underline",
+    ".settings-search-field": {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        width: "min(100%, 780px)",
+        marginInline: "auto",
+        position: "relative",
     },
-    'input[type="text"],input[type="password"]': {
-        transition: "var(--transition)",
-        width: baseWidth,
-        fontFamily: "var(--monospace)",
+    ".settings-search-field > img": {
+        position: "absolute",
+        insetInlineStart: "12px",
+        pointerEvents: "none",
     },
-    'input[type="number"]': {
-        // @ts-ignore
-        fieldSizing: "content",
-        transition: "var(--transition)",
-        fontFamily: "var(--monospace)",
-    },
-});
-
-const sideBar = view("y")
-    .addInto()
-    .style({
-        padding: cssVar("o-padding"),
-        flexShrink: 0,
-        width: "200px",
-        height: "100vh",
-        overflowY: "auto",
-    })
-    .class(
-        addClass(
-            {},
-            {
-                "&>*:not(:has(input:checked))": {
-                    color: cssColor.font.light,
-                },
-            },
-        ),
-    )
-    .class(Class.gap);
-const sideBarG = radioGroup("侧栏");
-const searchBar = view("x").style({
-    padding: cssVar("o-padding"),
-    justifyContent: "center",
-});
-const searchI = input()
-    .attr({ placeholder: t("搜索设置") })
-    .style({
+    ".settings-search-field > input": {
+        height: "37px",
         width: "100%",
-        maxWidth: `calc(680px - ${cssVar("o-padding")} * 2)`,
-    })
-    .addInto(searchBar)
+        paddingInline: "39px 75px",
+        borderRadius: "8px",
+        background: "var(--settings-panel)",
+        outline: "1px solid var(--settings-line)",
+        fontFamily: "inherit",
+    },
+    ".settings-search-field > kbd": {
+        position: "absolute",
+        insetInlineEnd: "12px",
+        pointerEvents: "none",
+        fontSize: "11px",
+        color: "var(--settings-muted)",
+        fontFamily: "inherit",
+        background: "transparent",
+        boxShadow: "none",
+        border: "1px solid var(--settings-line)",
+        borderRadius: "4px",
+        padding: "1px 5px",
+    },
+    ".settings-content": {
+        marginInline: "auto",
+        maxWidth: "calc(780px + 2 * clamp(14px, 4vw, 48px))",
+        padding: "24px clamp(14px, 4vw, 48px) 48px",
+    },
+    ".settings-page > h1": {
+        margin: "0 0 20px",
+        fontSize: "clamp(24px, 3.2vw, 32px)",
+        lineHeight: 1.2,
+        fontWeight: 650,
+        letterSpacing: "-0.025em",
+    },
+    ".settings-page > h2": {
+        margin: "22px 0 8px",
+        fontSize: "15px",
+        fontWeight: 650,
+        lineHeight: 1.5,
+    },
+    ".settings-group, .settings-about": {
+        border: "1px solid var(--settings-line)",
+        borderRadius: "10px",
+        background: "var(--settings-panel)",
+    },
+    ".settings-group > [data-name], .settings-content > div:not(.settings-page) [data-name]":
+        {
+            padding: "13px 16px",
+            alignItems: "center",
+            minWidth: 0,
+            overflowWrap: "anywhere",
+        },
+    ".settings-shell .settings-switch": {
+        width: "36px",
+        height: "21px",
+        padding: 0,
+        borderRadius: "20px",
+        position: "relative",
+        cursor: "pointer",
+        background: "color-mix(in srgb, var(--font-color) 24%, var(--bg))",
+        outline: "none",
+    },
+    ".settings-shell .settings-switch::before": {
+        content: "''",
+        position: "absolute",
+        width: "15px",
+        height: "15px",
+        borderRadius: "50%",
+        insetInlineStart: "3px",
+        top: "3px",
+        background: "var(--bg)",
+        transition: "inset-inline-start 120ms",
+    },
+    ".settings-shell .settings-switch:checked": {
+        background: "var(--settings-accent)",
+    },
+    ".settings-shell .settings-switch:checked::before": {
+        insetInlineStart: "18px",
+    },
+    ".settings-group > [data-name] + [data-name]": {
+        borderTop: "1px solid var(--settings-line)",
+    },
+    ".settings-group [data-name] > :first-child": {
+        flex: "1 1 155px",
+        minWidth: 0,
+    },
+    ".settings-group [data-name] > :last-child": {
+        maxWidth: "100%",
+        minWidth: 0,
+    },
+    ".settings-content input:is([type=text],[type=password]), .settings-content textarea":
+        { width: baseWidth, maxWidth: "100%", fontFamily: "var(--monospace)" },
+    ".settings-content input[type=number]": { fontFamily: "var(--monospace)" },
+    ".settings-about": {
+        padding: "20px",
+        gap: "14px",
+        overflowWrap: "anywhere",
+    },
+    ".settings-about-header": {
+        alignItems: "center",
+        gap: "12px",
+        flexWrap: "wrap",
+    },
+    ".settings-about-header span, .settings-links": {
+        color: "var(--settings-muted)",
+    },
+    ".settings-update": {
+        borderRadius: "7px",
+        paddingInline: "14px",
+        color: "var(--settings-accent)",
+        fontWeight: 600,
+    },
+    ".settings-links": { gap: "5px", fontSize: "13px" },
+    ".settings-shell a": { textDecoration: "underline" },
+});
+const sideBar = view("y")
+    .class("settings-sidebar")
+    .attr({ role: "navigation", ariaLabel: t("设置") })
+    .addInto();
+sideBar.add(
+    view("x")
+        .class("settings-brand")
+        .add([
+            image(logo, noI18n("")).style({ width: "28px", height: "28px" }),
+            txt("eSearch", true),
+        ]),
+);
+const sideBarG = radioGroup("侧栏", true);
+const searchBar = view().class("settings-search");
+const searchField = view("x").class("settings-search-field").addInto(searchBar);
+searchField.add(image(getImgUrl("search.svg"), noI18n("")));
+const searchI = input()
+    .attr({ placeholder: t("搜索设置"), ariaLabel: t("搜索设置") })
+    .addInto(searchField)
     .on("input", () => {
         if (!searchI.gv) {
             showPage(main.at(Number(sideBarG.get())));
             return;
         }
-        const fuse = new Fuse(
-            Object.assign(Object.entries(s), Object.entries(xs)),
-            {
-                keys: ["1.name", "1.desc"],
-            },
-        );
+        const fuse = new Fuse([...Object.entries(s), ...Object.entries(xs)], {
+            keys: ["1.name", "1.desc"],
+        });
 
         const l = fuse.search(searchI.gv).map((i) => i.item[0]);
-        if (l.length === 0)
+        if (l.length === 0) {
             mainView.clear().add(
                 xGroup("y")
                     .style({
@@ -5797,34 +5954,27 @@ const searchI = input()
                         ).add(button("提交新功能")),
                     ]),
             );
+            return;
+        }
         renderSettingList(l);
     });
-const mainViewP = view().addInto().style({
-    overflowY: "scroll",
-    height: "100vh",
-    flexGrow: "1",
+searchField.add(
+    ele("kbd").add(noI18n(process.platform === "darwin" ? "⌘ F" : "Ctrl F")),
+);
+document.addEventListener("keydown", (event) => {
+    if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "f" &&
+        !document.querySelector("dialog[open]")
+    ) {
+        event.preventDefault();
+        searchI.el.focus();
+        searchI.el.select();
+    }
 });
-mainViewP.add(searchBar);
-const mainView = view()
-    .addInto(mainViewP)
-    .style({
-        maxWidth: "680px",
-        margin: "auto",
-        padding: cssVar("o-padding"),
-        minHeight: "100vh",
-    })
-    .class(
-        addClass(
-            {},
-            {
-                "&>div": {
-                    marginBlock: "22px",
-                },
-            },
-        ),
-    );
-
-mainViewP.add(about());
+const mainViewP = view().class("settings-main").addInto().add(searchBar);
+const mainView = view().class("settings-content").addInto(mainViewP);
+const aboutPanel = about();
 
 const contextMenuP = view()
     .style({ margin: 0, padding: 0, borderRadius: cssVar("o-padding") })
@@ -5849,13 +5999,20 @@ function showContextMenu(e: MouseEvent) {
 }
 
 for (const [i, page] of main.entries()) {
-    const sideEl = view().add(
-        sideBarG.new(String(i), txt(page.pageName, true)),
-    );
-    sideBar.add(sideEl);
+    const label = sideBarG
+        .new(String(i), image(getImgUrl(`${page.icon}.svg`), noI18n("")))
+        .add(txt(page.pageName, true));
+    label.on("click", () => {
+        if (searchI.gv && sideBarG.get() === String(i)) {
+            searchI.sv("");
+            showPage(page);
+        }
+    });
+    sideBar.add(label);
 }
 
 sideBarG.on(() => {
+    searchI.sv("");
     showPage(main.at(Number(sideBarG.get())));
 });
 

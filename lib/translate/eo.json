@@ -957,5 +957,20 @@
     "0fc408": "Grasa",
     "27e402": "Kursiva",
     "2808ea": "Serĉi tiparojn",
-    "7dea75": "Elekti tiparon"
+    "7dea75": "Elekti tiparon",
+    "8a178a": "La ekrankopio estas malplena. Kaptu denove.",
+    "c07cb9": "Enigu la API-ŝlosilon kaj modelnomon de Claude en la agordoj de retaj modeloj.",
+    "689722": "Tradukado de tuta bildo postulas la oficialan API de Anthropic.",
+    "2e4047": "La peto al Claude estis nuligita aŭ eltempiĝis.",
+    "b21652": "Ne eblis konektiĝi al Claude. Kontrolu la retkonekton.",
+    "8f5365": "La traduko estas tro longa. Elektu malpli grandan areon.",
+    "607560": "Claude ne liveris tekstajn poziciojn. Reprovu.",
+    "5c8cfd": "Claude liveris nevalidajn tekstajn regionojn. Reprovu.",
+    "042af0": "La pozicioj de Claude estas ekster la bildo. Reprovu.",
+    "433c62": "La ekrankopio estas fermita. Kaptu denove.",
+    "488951": "Ne eblis montri la ekrankopion.",
+    "986eff": "Ĉi tiu reĝimo ne povas ŝargi la elektitan OCR-motoron.",
+    "e9f9b6": "Claude tradukas la ekrankopion…",
+    "b26fa6": "Neniu teksto bezonas tradukon en ĉi tiu bildo.",
+    "eade95": "Alklaku Traduki por reprovi"
 }

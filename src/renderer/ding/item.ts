@@ -8,8 +8,14 @@ import {
     txt,
     view,
 } from "dkh-ui";
-import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
+import {
+    renderInvoke,
+    renderOn,
+    renderSend,
+    renderSendSync,
+} from "../../../lib/ipc";
 import store from "../../../lib/store/renderStore";
+import { t } from "../../../lib/translate/translate";
 import type { IconType } from "../../iconTypes";
 import type {
     CaptureSourceInfo,
@@ -24,8 +30,14 @@ import {
     isImageFormatSupported,
 } from "../lib/imageExport";
 import { Class, getImgUrl } from "../root/root";
+import { paintClaudeTranslation } from "./claudeOverlay";
 import { dxdy, type Frame } from "./layout";
-import { drawTranslation, preTranAndOcr, UnConfigTranslateError } from "./ocr";
+import {
+    drawTranslation,
+    loadImage,
+    preTranAndOcr,
+    UnConfigTranslateError,
+} from "./ocr";
 
 const fs = require("node:fs") as typeof import("fs");
 
@@ -46,6 +58,7 @@ export type DingItemOptions = {
     data: DingItemData;
     /** 独立系统窗口：没有覆盖层里的 dock、最小化等 */
     single: boolean;
+    claudeScreenshot: boolean;
     /** 无法用程序移动窗口时（Wayland），用系统原生拖动 */
     nativeDrag?: boolean;
     /** 请求缩放（滚轮、大小控件） */
@@ -238,7 +251,7 @@ export function iconEl(src: IconType): ElType<HTMLImageElement> {
 }
 
 export function getUrl(data: DingItemData) {
-    return data.isTranslate ? data.translation : data.url;
+    return data.isTranslate && data.translation ? data.translation : data.url;
 }
 
 export async function copyDing(data: DingItemData, url = getUrl(data)) {
@@ -704,49 +717,80 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         });
     if (opts.nativeDrag) ocrTransStateBar.class(appNoDragClass);
 
+    let translating = false;
+    let attempted = false;
     async function translate() {
+        if (translating) return;
+        translating = true;
         ocrTransStateBar.el.classList.remove(Class.hide);
-        ocrTransStateBar.sv("正在OCR识别...");
-        const shot = snapshot();
-        const p = await preTranAndOcr(shot);
-        ocrTransStateBar.sv("正在翻译...");
         try {
-            await drawTranslation(
-                imageP,
-                data,
-                p,
-                shot === data.url ? undefined : shot,
-            );
+            if (opts.claudeScreenshot && !data.live) {
+                ocrTransStateBar.sv(t("Claude 正在翻译整张截图…"));
+                const reply = await renderInvoke(
+                    "claudeScreenshotTranslation",
+                    [Number(wid), attempted],
+                );
+                attempted = true;
+                if (destroyed || data.live) return;
+                if ("error" in reply) throw Error(reply.error);
+                const source = await loadImage(data.url);
+                if (destroyed || data.live) return;
+                const canvas = paintClaudeTranslation(source, reply.regions);
+                const translated = canvas.toDataURL("image/png");
+                imageP.el.appendChild(canvas);
+                data.translation = translated;
+                data.isTranslate = true;
+                if (!reply.regions.length) {
+                    ocrTransStateBar.sv(t("图中没有需要翻译的文字"));
+                    return;
+                }
+            } else {
+                ocrTransStateBar.sv(t("正在OCR识别..."));
+                const shot = snapshot();
+                const p = await preTranAndOcr(shot);
+                ocrTransStateBar.sv(t("正在翻译..."));
+                await drawTranslation(
+                    imageP,
+                    data,
+                    p,
+                    shot === data.url ? void 0 : shot,
+                );
+            }
             ocrTransStateBar.class(Class.hide);
         } catch (error) {
-            if (error instanceof UnConfigTranslateError) {
-                ocrTransStateBar.sv("未配置翻译引擎");
-            } else ocrTransStateBar.sv("翻译失败");
+            data.isTranslate = false;
+            imageP.el.querySelector("canvas")?.remove();
+            const message =
+                error instanceof UnConfigTranslateError
+                    ? t("未配置翻译引擎")
+                    : error instanceof Error
+                      ? error.message
+                      : t("翻译失败");
+            ocrTransStateBar.sv(`${message} · ${t("点击翻译重试")}`);
+        } finally {
+            translating = false;
         }
     }
-
     const transB = button(iconEl("translate"))
         .attr({ title: "翻译" })
         .on("click", async () => {
+            if (translating) return;
             if (adjusting) setAdjust(false);
-            const t = data.isTranslate;
-            data.isTranslate = !t;
-            if (t) {
-                div.query("canvas")?.style({ display: "none" });
-                if (data.live) {
-                    video.style.display = "block";
-                    void video.play().catch(() => {});
-                }
+            if (!data.translation) {
+                await translate();
+                if (!data.translation) return;
             } else {
-                if (!data.translation) await translate();
-                div.query("canvas")?.style({ display: "" });
-                if (data.live) {
-                    video.pause();
-                    video.style.display = "none";
-                }
+                data.isTranslate = !data.isTranslate;
+            }
+            div.query("canvas")?.style({
+                display: data.isTranslate ? "" : "none",
+            });
+            if (data.live) {
+                video.style.display = data.isTranslate ? "none" : "block";
+                if (data.isTranslate) video.pause();
+                else void video.play().catch(() => {});
             }
         });
-
     let livePaused = false;
     const pauseB = button(iconEl("play_pause"))
         .attr({ title: "暂停动态" })
@@ -886,17 +930,19 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         void startLive();
     }
 
+    const exportImage = () =>
+        opts.claudeScreenshot && !data.live ? getUrl(data) : snapshot();
     const toolButtons = [
         transB,
         button(iconEl("free_draw"))
             .attr({ title: "编辑" })
-            .on("click", () => editDing(data, snapshot())),
+            .on("click", () => editDing(data, exportImage())),
         button(iconEl("save"))
             .attr({ title: "保存" })
-            .on("click", () => saveDing(data, snapshot())),
+            .on("click", () => saveDing(data, exportImage())),
         button(iconEl("copy"))
             .attr({ title: "复制" })
-            .on("click", () => copyDing(data, snapshot())),
+            .on("click", () => copyDing(data, exportImage())),
     ];
     if (data.live)
         toolButtons.unshift(pauseB, adjustB, changeB, stopB, reconnectB);
