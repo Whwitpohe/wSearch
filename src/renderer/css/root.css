@@ -1514,3 +1514,169 @@ body.settings-shell .theme-preset {
     border-radius: 50%;
     box-shadow: inset 0 0 0 1px #80808060;
 }
+
+.shortcut-scopes {
+    gap: 3px;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px;
+    background: var(--soft);
+    border: 1px solid var(--settings-line);
+    border-radius: 8px;
+    margin: 0 0 18px;
+    flex-wrap: wrap;
+}
+.settings-shell .shortcut-scopes button {
+    min-height: 31px;
+    height: auto;
+    border: 0;
+    outline: none;
+    border-radius: 5px;
+    background: transparent;
+    padding: 4px 12px;
+    color: var(--settings-muted);
+}
+.settings-shell .shortcut-scopes button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 650;
+    box-shadow: 0 1px 4px #0c162622;
+}
+.shortcut-section {
+    font-size: 15px;
+    margin: 20px 0 8px;
+}
+.settings-shell .selection-shortcuts {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+}
+.selection-rule-list {
+    gap: 5px;
+}
+.selection-rule {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--settings-line);
+    padding-top: 7px;
+}
+.settings-shell .selection-shortcuts .selection-rule-edit {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    align-items: center;
+    gap: 9px;
+    border: 0;
+    outline: none;
+    text-align: start;
+    background: transparent;
+    padding: 3px 5px;
+    height: auto;
+}
+.selection-rule-edit > img {
+    width: 19px;
+    height: 19px;
+    filter: var(--icon-color);
+}
+.selection-rule-edit > div {
+    min-width: 0;
+}
+.rule-category,
+.rule-status {
+    font-size: 11px;
+    color: var(--settings-muted);
+}
+.rule-status.unavailable {
+    color: light-dark(#8a4600, #f5c380);
+}
+.rule-caps {
+    gap: 3px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.selection-rule-edit .rule-caps kbd {
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--settings-line);
+    background: var(--soft);
+    color: var(--font-color);
+    box-shadow: none;
+    font:
+        600 12px / 1.4 "Segoe UI",
+        sans-serif;
+}
+.settings-shell .selection-rule .remove-action {
+    width: 27px;
+    height: 27px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+}
+.selection-rule .remove-action img {
+    width: 13px;
+    height: 13px;
+}
+.selection-shortcuts .settings-add {
+    align-self: flex-start;
+}
+.action-choice-heading {
+    display: block;
+    padding: 7px 8px 3px;
+    color: var(--dialog-muted, var(--settings-muted));
+    font-size: 11px;
+    font-weight: 650;
+}
+.settings-shell .post-action-picker {
+    width: min(300px, 100%);
+    --dialog-surface: var(--surface);
+    --dialog-line: var(--settings-line);
+    --dialog-ink: var(--font-color);
+    --dialog-muted: var(--settings-muted);
+    --dialog-accent: var(--accent);
+}
+.settings-shell .post-action-picker > .choice-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 33px;
+}
+.post-action-picker .choice-search input {
+    min-width: 0;
+    flex: 1;
+    width: 0;
+}
+.settings-shell .post-action-picker .dialog-option-list button {
+    width: 100%;
+    height: auto;
+    min-height: 31px;
+    padding: 5px 9px;
+    text-align: start;
+    border: none;
+    outline: none;
+    background: transparent;
+}
+.settings-shell .post-action-picker .dialog-option-list .option-active {
+    background: var(--accent-wash);
+}
+.settings-shell .shortcut-scopes button:focus-visible,
+.settings-shell .selection-rule button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.selection-rule .remove-action {
+    order: 2;
+}
+.rule-status:not(.unavailable)::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-inline-end: 4px;
+    border-radius: 50%;
+    vertical-align: middle;
+    background: light-dark(#297457, #80c6aa);
+}

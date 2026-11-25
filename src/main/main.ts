@@ -52,6 +52,7 @@ import {
 import { githubMirrorList } from "../../lib/github_mirror";
 import type { RecordRect } from "../../lib/ipc";
 import { mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
+import { selectionShortcuts } from "../../lib/selectionShortcuts";
 import Store from "../../lib/store/store";
 import time_format from "../../lib/time_format";
 import { lan, t } from "../../lib/translate/translate";
@@ -67,6 +68,7 @@ import type {
     LongControlHint,
     LongControlInit,
     MainWinType,
+    SelectionAction,
     setting,
     translateWinType,
     功能,
@@ -692,6 +694,29 @@ function rmR(dir_path: string) {
 }
 
 // 快捷键
+let recordingWindow: Electron.WebContents | undefined;
+mainOn("shortcutRecording", ([recording], event) => {
+    if (
+        event.sender === settingWindow?.webContents &&
+        event.senderFrame === event.sender.mainFrame
+    )
+        recordingWindow = recording ? event.sender : undefined;
+});
+function runShortcut(key: string, run: () => void) {
+    if (
+        recordingWindow &&
+        !recordingWindow.isDestroyed() &&
+        recordingWindow === settingWindow?.webContents &&
+        settingWindow.isFocused()
+    ) {
+        mainSend(recordingWindow, "recordedAccelerator", [key]);
+        return;
+    }
+    run();
+}
+const postSelectionKeys = selectionShortcuts(globalShortcut, (action, key) =>
+    runShortcut(key, () => void sendCaptureEvent(undefined, action)),
+);
 const activeHotkeys = new Map<string, string>();
 const 快捷键函数: Record<keyof setting["快捷键"], () => void> = {
     自动识别: autoOpen,
@@ -1029,23 +1054,13 @@ app.whenReady().then(() => {
         if (!m.key) continue;
         if (
             !globalShortcut.register(m.key, () => {
-                快捷键函数[k]();
+                runShortcut(m.key!, 快捷键函数[k]);
             })
         ) {
             console.error(`快捷键注册失败：${k} = ${m.key}`);
         } else activeHotkeys.set(`快捷键.${k}.key`, m.key);
     }
-    const 工具快捷键 = store.get("全局工具快捷键");
-    for (const [k, m] of typedEntries(工具快捷键)) {
-        if (!m) continue;
-        if (
-            !globalShortcut.register(m, () => {
-                sendCaptureEvent(undefined, k as 功能);
-            })
-        ) {
-            console.error(`全局工具快捷键注册失败：${k} = ${m}`);
-        } else activeHotkeys.set(`全局工具快捷键.${k}`, m);
-    }
+    postSelectionKeys.apply(store.get("全局工具快捷键"), { startup: true });
 
     // tmp目录
     if (!existsSync(tmpDir)) mkdir(tmpDir, () => {});
@@ -1899,7 +1914,7 @@ async function fullScreen(displayId?: number) {
     win.focus();
 }
 
-async function sendCaptureEvent(data?: Buffer, type?: 功能) {
+async function sendCaptureEvent(data?: Buffer, type?: SelectionAction) {
     mainSend((await getClipWin())?.webContents, "clip_init", [
         screen.getAllDisplays(),
         data,
@@ -2154,23 +2169,37 @@ mainOn("theme", ([arg1]) => {
     store.set("全局.深色模式", arg1);
 });
 
+mainOn("selectionShortcutStatus", () => postSelectionKeys.actions());
+mainOn("selectionShortcuts", ([rules, retry], e) => {
+    if (
+        e.sender !== settingWindow?.webContents ||
+        e.senderFrame !== e.sender.mainFrame
+    )
+        return false;
+    return postSelectionKeys.apply(rules, {
+        retry,
+        save: () => store.set("全局工具快捷键", rules),
+    });
+});
 mainOn("hotkeyStatus", ([path]) => {
+    if (path.startsWith("全局工具快捷键."))
+        return postSelectionKeys.registered(
+            path.slice("全局工具快捷键.".length),
+        );
     const key = activeHotkeys.get(path);
     return Boolean(key && globalShortcut.isRegistered(key));
 });
 mainOn("hotkey", ([type, name, key]) => {
     // 先注册新键，成功后再注销旧键：失败时旧绑定原样保留
-    const [storeKey, action] =
-        type === "快捷键"
-            ? ([
-                  `快捷键.${name}.key`,
-                  () => 快捷键函数[name as keyof typeof 快捷键函数](),
-              ] as const)
-            : ([
-                  `全局工具快捷键.${name}`,
-                  () => sendCaptureEvent(undefined, name as 功能),
-              ] as const);
-    // @ts-ignore
+    if (type === "快捷键2") {
+        const rules = { ...store.get("全局工具快捷键"), [name]: key };
+        return postSelectionKeys.apply(rules, {
+            retry: name as 功能,
+            save: () => store.set("全局工具快捷键", rules),
+        });
+    }
+    const storeKey = `快捷键.${name}.key` as const;
+    const action = () => runShortcut(key, 快捷键函数[name]);
     const old = store.get(storeKey) as string;
     const registered = activeHotkeys.get(storeKey);
     if (key === registered && key && globalShortcut.isRegistered(key))

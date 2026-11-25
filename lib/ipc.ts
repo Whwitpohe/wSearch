@@ -23,6 +23,7 @@ import type {
     PinPanelAction,
     PinPanelState,
     ScreenshotTranslation,
+    SelectionAction,
     setting,
     translateWinType,
     功能,
@@ -111,7 +112,7 @@ type Message = {
         displays: Electron.Display[],
         imgBuffer: Buffer | undefined,
         mainid: number,
-        act: 功能 | undefined,
+        act: SelectionAction | undefined,
         mainPid?: number,
     ) => void;
     open_this_browser: (window_name: number, url: string) => void;
@@ -142,6 +143,13 @@ type Message = {
     tabView: (id: number, type: BrowserAction) => void;
     tabViewSize: (size: { top: number; bottom: number }) => void;
     viewEvent: (type: BrowserAction | "add_history" | "browser") => void;
+    shortcutRecording: (recording: boolean) => void;
+    recordedAccelerator: (key: string) => void;
+    selectionShortcutStatus: () => SelectionAction[];
+    selectionShortcuts: (
+        rules: setting["全局工具快捷键"],
+        retry?: SelectionAction,
+    ) => boolean;
     hotkeyStatus: (path: string) => boolean;
     hotkey:
         | ((

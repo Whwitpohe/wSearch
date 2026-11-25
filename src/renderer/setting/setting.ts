@@ -32,6 +32,12 @@ import {
     releasePath,
 } from "../../../lib/appRelease";
 import {
+    captureTools,
+    clipDrawTools,
+    isDrawingAction,
+    selectionTools,
+} from "../../../lib/captureTools";
+import {
     endpoints,
     listModels,
     type Model,
@@ -47,8 +53,12 @@ import {
     toolbarLayout,
 } from "../../../lib/toolbarLayout";
 import { getLanName, getLans, lan, t } from "../../../lib/translate/translate";
-import type { GithubUrlType, setting, 功能 } from "../../ShareTypes";
-import { clipDrawTools } from "../lib/clipDrawTools";
+import type {
+    GithubUrlType,
+    SelectionAction,
+    setting,
+    功能,
+} from "../../ShareTypes";
 import { colorPicker } from "../lib/colorPicker";
 import { alert, confirm } from "../lib/messageDialog";
 import {
@@ -154,34 +164,11 @@ const displayLan = new Intl.DisplayNames(mainLan, {
     type: "language",
 });
 
-const tools: { key: 功能; icon: string; title: string }[] = [
-    { key: "close", icon: getImgUrl("close.svg"), title: t("关闭") },
-    { key: "screens", icon: getImgUrl("screen.svg"), title: t("屏幕管理") },
-    { key: "ocr", icon: getImgUrl("ocr.svg"), title: t("文字识别") },
-    { key: "search", icon: getImgUrl("search.svg"), title: t("以图搜图") },
-    { key: "QR", icon: getImgUrl("scan.svg"), title: t("二维码") },
-    { key: "open", icon: getImgUrl("open.svg"), title: t("其他应用打开") },
-    { key: "ding", icon: getImgUrl("ding.svg"), title: t("屏幕贴图") },
-    {
-        key: "dingLive",
-        icon: getImgUrl("live_ding.svg"),
-        title: t("动态贴图"),
-    },
-    { key: "record", icon: getImgUrl("record.svg"), title: t("录屏") },
-    { key: "long", icon: getImgUrl("long_clip.svg"), title: t("广截屏") },
-    {
-        key: "translate",
-        icon: getImgUrl("translate.svg"),
-        title: t("屏幕翻译"),
-    },
-    {
-        key: "editor",
-        icon: getImgUrl("super_edit.svg"),
-        title: t("高级图片编辑"),
-    },
-    { key: "copy", icon: getImgUrl("copy.svg"), title: t("复制") },
-    { key: "save", icon: getImgUrl("save.svg"), title: t("保存") },
-];
+const tools = captureTools.map((tool) => ({
+    ...tool,
+    title: t(tool.title),
+    icon: getImgUrl(`${tool.icon}.svg`),
+}));
 
 function getToolsN(k: 功能) {
     return (tools.find((i) => i.key === k) as (typeof tools)[0]).title;
@@ -192,6 +179,19 @@ const drawTools = clipDrawTools.map((i) => ({
     icon: i.icon ? getImgUrl(`${i.icon}.svg` as RawIconType) : undefined,
     title: t(i.title),
 }));
+
+function drawingShortcutPath(key: string) {
+    const [group, tool] = key.split(".");
+    return `截屏编辑快捷键.${group}.副.${tool}` as Extract<
+        SettingPath,
+        `截屏编辑快捷键.${string}.副.${string}`
+    >;
+}
+function drawingShortcutKeys(group: "draw" | "shape" | "filter") {
+    return clipDrawTools
+        .filter((t) => t.key.startsWith(`${group}.`))
+        .map((t) => drawingShortcutPath(t.key));
+}
 
 const s: Partial<settingItem<SettingPath>> = {
     工具栏跟随: {
@@ -369,18 +369,10 @@ const s: Partial<settingItem<SettingPath>> = {
         name: "框选后默认操作",
         desc: "框选完鼠标松开一瞬间，执行操作",
         el: () =>
-            xSelect(
-                [
-                    { value: "no", name: "无" },
-                    ...tools
-                        .filter((i) => i.key !== "close" && i.key !== "screens")
-                        .map((i) => ({
-                            value: i.key,
-                            name: tIconEl(i.icon),
-                        })),
-                ],
-                "框选后默认操作",
-            ),
+            dialogSelect<SelectionAction | "no">(
+                [{ value: "no", name: "无" }, ...actionChoices(false)],
+                true,
+            ).class("post-action-picker"),
     },
     "框选.识别窗口": {
         name: "识别窗口",
@@ -1144,88 +1136,44 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     "快捷键.自动识别.key": {
         name: "自动识别",
-        el: () => hotkeyX(["自动识别", "1"]),
+        el: () => globalHotkey("自动识别"),
     },
     "快捷键.截屏搜索.key": {
         name: "截屏搜索",
-        el: () => hotkeyX(["截屏搜索", "1"]),
+        el: () => globalHotkey("截屏搜索"),
     },
     "快捷键.选中搜索.key": {
         name: "选中搜索",
-        el: () => hotkeyX(["选中搜索", "1"]),
+        el: () => globalHotkey("选中搜索"),
     },
     "快捷键.剪贴板搜索.key": {
         name: "剪贴板搜索",
-        el: () => hotkeyX(["剪贴板搜索", "1"]),
+        el: () => globalHotkey("剪贴板搜索"),
     },
     "快捷键.快速截屏.key": {
         name: "快速截屏",
-        el: () => hotkeyX(["快速截屏", "1"]),
+        el: () => globalHotkey("快速截屏"),
     },
     "快捷键.连拍.key": {
         name: "连拍",
-        el: () => hotkeyX(["连拍", "1"]),
+        el: () => globalHotkey("连拍"),
     },
     "快捷键.结束广截屏.key": {
         name: "结束广截屏",
-        el: () => hotkeyX(["结束广截屏", "1"]),
+        el: () => globalHotkey("结束广截屏"),
     },
     "快捷键.剪贴板贴图.key": {
         name: "剪贴板贴图",
-        el: () => hotkeyX(["剪贴板贴图", "1"]),
+        el: () => globalHotkey("剪贴板贴图"),
     },
     "快捷键.主页面.key": {
         name: "主页面",
-        el: () => hotkeyX(["主页面", "1"]),
+        el: () => globalHotkey("主页面"),
     },
-    "全局工具快捷键.ocr": {
-        name: getToolsN("ocr"),
-        el: () => hotkeyX(["ocr", "2"], "ocr"),
-    },
-    "全局工具快捷键.search": {
-        name: getToolsN("search"),
-        el: () => hotkeyX(["search", "2"], "search"),
-    },
-    "全局工具快捷键.QR": {
-        name: getToolsN("QR"),
-        el: () => hotkeyX(["QR", "2"], "scan"),
-    },
-    "全局工具快捷键.open": {
-        name: getToolsN("open"),
-        el: () => hotkeyX(["open", "2"], "open"),
-    },
-    "全局工具快捷键.ding": {
-        name: getToolsN("ding"),
-        el: () => hotkeyX(["ding", "2"], "ding"),
-    },
-    "全局工具快捷键.dingLive": {
-        name: getToolsN("dingLive"),
-        el: () => hotkeyX(["dingLive", "2"], "live_ding"),
-    },
-    "全局工具快捷键.record": {
-        name: getToolsN("record"),
-        el: () => hotkeyX(["record", "2"], "record"),
-    },
-    "全局工具快捷键.long": {
-        name: getToolsN("long"),
-        el: () => hotkeyX(["long", "2"], "long_clip"),
-    },
-    "全局工具快捷键.copy": {
-        name: getToolsN("copy"),
-        el: () => hotkeyX(["copy", "2"], "copy"),
-    },
-    "全局工具快捷键.save": {
-        name: getToolsN("save"),
-        el: () => hotkeyX(["save", "2"], "save"),
-    },
-    "全局工具快捷键.translate": {
-        name: "框选并翻译图片",
-        desc: "按快捷键框选区域，松开鼠标后自动显示译图。",
-        el: () => hotkeyX(["translate", "2"], "translate"),
-    },
-    "全局工具快捷键.editor": {
-        name: getToolsN("editor"),
-        el: () => hotkeyX(["editor", "2"], "super_edit"),
+    全局工具快捷键: {
+        name: "框选后执行（全局快捷键）",
+        desc: "按快捷键框选区域，松开鼠标后执行所选动作。",
+        el: () => selectionShortcutEditor(),
     },
     "工具快捷键.close": {
         name: getToolsN("close"),
@@ -1273,7 +1221,7 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     "工具快捷键.translate": {
         name: "截图窗口内翻译",
-        desc: "仅在截图窗口中使用；桌面框选翻译请到翻译页设置。",
+        desc: "仅在截图窗口中生效。桌面快捷键请在“框选后执行”中配置。",
         el: () => hotkeyP("translate"),
     },
     "工具快捷键.editor": {
@@ -1296,134 +1244,14 @@ const s: Partial<settingItem<SettingPath>> = {
         name: "绘制",
         el: () => hotkeyP("draw_select"),
     },
-    "截屏编辑快捷键.draw.副.free": {
-        name: "画笔",
-        el: () => hotkeyP("draw"),
-    },
-    "截屏编辑快捷键.draw.副.eraser": {
-        name: "橡皮",
-        el: () => hotkeyP("eraser"),
-    },
-    "截屏编辑快捷键.draw.副.spray": {
-        name: "喷刷",
-        el: () => hotkeyP("spray"),
-    },
-    "截屏编辑快捷键.shape.副.line": {
-        name: "线条",
-        el: () => hotkeyP("line"),
-    },
-    "截屏编辑快捷键.shape.副.circle": {
-        name: "圆",
-        el: () => hotkeyP("circle"),
-    },
-    "截屏编辑快捷键.shape.副.rect": {
-        name: "矩形",
-        el: () => hotkeyP("rect"),
-    },
-    "截屏编辑快捷键.shape.副.frame": {
-        name: "框",
-        el: () => hotkeyP("frame"),
-    },
-    "截屏编辑快捷键.shape.副.polyline": {
-        name: "折线",
-        el: () => hotkeyP("polyline"),
-    },
-    "截屏编辑快捷键.shape.副.polygon": {
-        name: "多边形",
-        el: () => hotkeyP("polygon"),
-    },
-    "截屏编辑快捷键.shape.副.text": {
-        name: "文字",
-        el: () => hotkeyP("text"),
-    },
-    "截屏编辑快捷键.shape.副.number": {
-        name: "序号",
-        el: () => hotkeyP("number"),
-    },
-    "截屏编辑快捷键.shape.副.arrow": {
-        name: "箭头",
-        el: () => hotkeyP("arrow"),
-    },
-    "截屏编辑快捷键.shape.副.mask": {
-        name: "遮罩",
-        el: () => hotkeyP("mask"),
-    },
-    "截屏编辑快捷键.filter.副.pixelate": {
-        name: "马赛克",
-        el: () => hotkeyP("pixelate"),
-    },
-    "截屏编辑快捷键.filter.副.blur": {
-        name: "模糊",
-        el: () => hotkeyP("blur"),
-    },
-    "截屏编辑快捷键.filter.副.brightness": {
-        name: "亮度",
-        el: () => hotkeyP("brightness"),
-    },
-    "截屏编辑快捷键.filter.副.contrast": {
-        name: "对比度",
-        el: () => hotkeyP("contrast"),
-    },
-    "截屏编辑快捷键.filter.副.saturation": {
-        name: "饱和度",
-        el: () => hotkeyP("saturation"),
-    },
-    "截屏编辑快捷键.filter.副.hue": {
-        name: "色调",
-        el: () => hotkeyP("hue"),
-    },
-    "截屏编辑快捷键.filter.副.gamma": {
-        name: "伽马",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.noise": {
-        name: "噪点",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.invert": {
-        name: "负片",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.sepia": {
-        name: "棕褐色",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.bw": {
-        name: "黑白",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.brownie": {
-        name: "布朗尼",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.vintage": {
-        name: "老式",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.koda": {
-        name: "柯达彩色胶片",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.techni": {
-        name: "特艺色彩",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.polaroid": {
-        name: "宝丽来",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.gray_average": {
-        name: "平均灰度",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.gray_lightness": {
-        name: "亮度",
-        el: () => hotkeyP(),
-    },
-    "截屏编辑快捷键.filter.副.gray_luminosity": {
-        name: "亮度",
-        el: () => hotkeyP(),
-    },
+    ...Object.fromEntries(
+        clipDrawTools
+            .filter((tool) => isDrawingAction(tool.key))
+            .map((tool) => [
+                drawingShortcutPath(tool.key),
+                { name: tool.title, el: () => hotkeyP(tool.icon) },
+            ]),
+    ),
     "大小栏快捷键.左上x": {
         name: "左上x",
         el: () => hotkeyP(),
@@ -2362,7 +2190,6 @@ const main: {
             {
                 title: "屏幕翻译",
                 settings: [
-                    "全局工具快捷键.translate",
                     "屏幕翻译.语言.from",
                     "屏幕翻译.语言.to",
                     "屏幕翻译.dTime",
@@ -2437,6 +2264,7 @@ const main: {
     {
         pageName: "快捷键",
         icon: "space",
+        settings: ["全局工具快捷键"],
         items: [
             {
                 title: "全局功能",
@@ -2461,6 +2289,7 @@ const main: {
                     "工具快捷键.QR",
                     "工具快捷键.open",
                     "工具快捷键.ding",
+                    "工具快捷键.dingLive",
                     "工具快捷键.record",
                     "工具快捷键.long",
                     "工具快捷键.copy",
@@ -2483,50 +2312,15 @@ const main: {
             },
             {
                 title: "截屏自由绘画",
-                settings: [
-                    "截屏编辑快捷键.draw.副.free",
-                    "截屏编辑快捷键.draw.副.eraser",
-                    "截屏编辑快捷键.draw.副.spray",
-                ],
+                settings: drawingShortcutKeys("draw"),
             },
             {
                 title: "截屏形状和文字",
-                settings: [
-                    "截屏编辑快捷键.shape.副.line",
-                    "截屏编辑快捷键.shape.副.circle",
-                    "截屏编辑快捷键.shape.副.rect",
-                    "截屏编辑快捷键.shape.副.frame",
-                    "截屏编辑快捷键.shape.副.polyline",
-                    "截屏编辑快捷键.shape.副.polygon",
-                    "截屏编辑快捷键.shape.副.text",
-                    "截屏编辑快捷键.shape.副.number",
-                    "截屏编辑快捷键.shape.副.arrow",
-                    "截屏编辑快捷键.shape.副.mask",
-                ],
+                settings: drawingShortcutKeys("shape"),
             },
             {
                 title: "截屏滤镜",
-                settings: [
-                    "截屏编辑快捷键.filter.副.pixelate",
-                    "截屏编辑快捷键.filter.副.blur",
-                    "截屏编辑快捷键.filter.副.brightness",
-                    "截屏编辑快捷键.filter.副.contrast",
-                    "截屏编辑快捷键.filter.副.saturation",
-                    "截屏编辑快捷键.filter.副.hue",
-                    "截屏编辑快捷键.filter.副.gamma",
-                    "截屏编辑快捷键.filter.副.noise",
-                    "截屏编辑快捷键.filter.副.invert",
-                    "截屏编辑快捷键.filter.副.sepia",
-                    "截屏编辑快捷键.filter.副.bw",
-                    "截屏编辑快捷键.filter.副.brownie",
-                    "截屏编辑快捷键.filter.副.vintage",
-                    "截屏编辑快捷键.filter.副.koda",
-                    "截屏编辑快捷键.filter.副.techni",
-                    "截屏编辑快捷键.filter.副.polaroid",
-                    "截屏编辑快捷键.filter.副.gray_average",
-                    "截屏编辑快捷键.filter.副.gray_lightness",
-                    "截屏编辑快捷键.filter.副.gray_luminosity",
-                ],
+                settings: drawingShortcutKeys("filter"),
             },
             {
                 title: "截屏大小栏",
@@ -2542,23 +2336,6 @@ const main: {
             {
                 title: "截屏其他",
                 settings: ["其他快捷键.复制颜色", "其他快捷键.隐藏或显示栏"],
-            },
-            {
-                title: "框选后执行（全局快捷键）",
-                desc: "与工具栏快捷键不同，此快捷键全局生效",
-                settings: [
-                    "全局工具快捷键.ocr",
-                    "全局工具快捷键.search",
-                    "全局工具快捷键.QR",
-                    "全局工具快捷键.open",
-                    "全局工具快捷键.ding",
-                    "全局工具快捷键.dingLive",
-                    "全局工具快捷键.record",
-                    "全局工具快捷键.long",
-                    "全局工具快捷键.copy",
-                    "全局工具快捷键.save",
-                    "全局工具快捷键.editor",
-                ],
             },
             {
                 title: "主页面",
@@ -2789,12 +2566,14 @@ function getSettingMem() {
     const validMemo = [
         ...new Set(
             memo.map((k) =>
-                k === "工具栏.功能" || k === "图像编辑.编辑栏.功能"
-                    ? ("工具栏.布局" as const)
-                    : k,
+                k.startsWith("全局工具快捷键.")
+                    ? "全局工具快捷键"
+                    : k === "工具栏.功能" || k === "图像编辑.编辑栏.功能"
+                      ? ("工具栏.布局" as const)
+                      : k,
             ),
         ),
-    ].filter((k) => sKeys.has(k));
+    ].filter((k) => k !== "全局工具快捷键" && sKeys.has(k));
     if (validMemo.length !== memo.length)
         localStorage.setItem(settingMemKey, JSON.stringify(validMemo));
     return validMemo;
@@ -2811,9 +2590,21 @@ function getSet<t extends SettingPath>(k: t): GetValue<setting, t> {
     return getFromStore(nowStore, k);
 }
 
-function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
+function setSet<t extends SettingPath>(
+    k: t,
+    v: GetValue<setting, t>,
+    retry?: SelectionAction,
+) {
     const old = getSet(k);
-    if (old === v) return;
+    if (old === v) return true;
+    if (
+        k === "全局工具快捷键" &&
+        !renderSendSync("selectionShortcuts", [
+            v as setting["全局工具快捷键"],
+            retry,
+        ])
+    )
+        return false;
     if (typeof v === "string") {
         const globalAction = /^全局工具快捷键\.(.+)$/.exec(k);
         const globalCommand = /^快捷键\.(.+)\.key$/.exec(k);
@@ -2857,7 +2648,7 @@ function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
     bindRun2();
 
     xset(nowStore as unknown as Record<string, unknown>, k, v);
-    store.set(k, v);
+    if (k !== "全局工具快捷键") store.set(k, v);
     if (k === "OCR.类型" || k === "AI.在线模型")
         document
             .getElementById("ocr-engine-panel")
@@ -2872,6 +2663,7 @@ function setSet<t extends SettingPath>(k: t, v: GetValue<setting, t>) {
         const summary = document.querySelector(".quick-settings");
         if (summary) summary.replaceWith(quickSettings().el);
     }
+    return true;
 }
 
 function bindRun(): void;
@@ -3126,10 +2918,6 @@ function renderSettingList(keys: string[], title?: string) {
                 .add(entries.map((key) => renderSetting(key as KeyPath))),
         );
     }
-}
-
-function tIconEl(img: string) {
-    return image(img, noI18n("icon")).class("icon");
 }
 
 function iconEl(img: IconType) {
@@ -3627,6 +3415,177 @@ function sortable() {
     };
 }
 
+function actionChoices(imageTranslation = true) {
+    return selectionTools.map((tool) => ({
+        value: tool.key,
+        name: t(
+            imageTranslation && tool.key === "translate"
+                ? "框选并翻译图片"
+                : tool.title,
+        ),
+        group: t(tool.group),
+    }));
+}
+
+function selectionShortcutEditor() {
+    type Rules = setting["全局工具快捷键"];
+    const root = view("y").class("selection-shortcuts"),
+        list = view("y").class("selection-rule-list");
+    const add = button([
+        image(getImgUrl("add.svg"), noI18n("")),
+        txt("添加动作"),
+    ]).class("settings-add");
+    const status = ele("output")
+        .attr({ role: "status" })
+        .class("shortcut-feedback");
+    let rules: Rules;
+    const options = actionChoices();
+    const legacy = captureTools.filter(
+        (t) => t.key === "close" || t.key === "screens",
+    );
+    function without(action: SelectionAction) {
+        const next = { ...rules };
+        if (isDrawingAction(action)) delete next[action];
+        else next[action] = "";
+        return next;
+    }
+    function storeRules(next: Rules, retry?: SelectionAction) {
+        if (!setSet("全局工具快捷键", next, retry)) return false;
+        rules = next;
+        paint();
+        return true;
+    }
+    function edit(previous?: SelectionAction) {
+        const choices = options.filter(
+            (o) => o.value === previous || !rules[o.value],
+        );
+        const old = legacy.find((t) => t.key === previous);
+        if (old)
+            choices.unshift({
+                value: old.key,
+                name: t(old.title),
+                group: t(old.group),
+            });
+        if (!choices.length) return;
+        const dialog = ele("dialog")
+            .attr({ ariaLabel: t(previous ? "编辑动作" : "添加动作") })
+            .addInto(root);
+        const initial =
+            previous ??
+            choices.find((o) => o.value === "draw.free")?.value ??
+            choices[0].value;
+        const choice = dialogSelect<SelectionAction>(choices, true).sv(initial);
+        const chord = hotkey(true).sv(previous ? (rules[previous] ?? "") : "");
+        const message = ele("output")
+            .attr({ role: "status" })
+            .class("shortcut-feedback");
+        dialogB(
+            dialog,
+            [field("动作", choice), field("快捷键", chord), message],
+            () => {},
+            () => {
+                const action = choice.gv,
+                    key = chord.gv;
+                if (!key) {
+                    message.el.textContent = t("请录入快捷键");
+                    return false;
+                }
+                const next =
+                    previous && previous !== action
+                        ? without(previous)
+                        : { ...rules };
+                next[action] = key;
+                if (!storeRules(next, action)) {
+                    message.el.textContent = t(
+                        "快捷键注册失败，可能被其他程序占用",
+                    );
+                    return false;
+                }
+                return true;
+            },
+        );
+        dialog.on("close", () => {
+            dialog.remove();
+            add.el.focus({ preventScroll: true });
+        });
+        dialog.el.showModal();
+    }
+    function paint() {
+        const registered = new Set(
+            renderSendSync("selectionShortcutStatus", []),
+        );
+        list.clear();
+        status.el.textContent = "";
+        // Only shortcuts the user can actually invoke occupy a row.
+        for (const tool of [...selectionTools, ...legacy]) {
+            const key = rules[tool.key];
+            if (!key) continue;
+            const title = t(
+                tool.key === "translate" ? "框选并翻译图片" : tool.title,
+            );
+            const ok = registered.has(tool.key);
+            const open = button()
+                .class("selection-rule-edit")
+                .attr({ ariaLabel: `${t("编辑")} ${title}` })
+                .on("click", () => edit(tool.key));
+            const caps = view("x").class("rule-caps");
+            for (const part of key.split("+")) {
+                const display = jsKeyCodeDisplay(ele2jsKeyCode(part));
+                caps.add(
+                    ele("kbd").add(
+                        noI18n(
+                            process.platform === "darwin"
+                                ? (display.symble ?? display.primary)
+                                : display.primary,
+                        ),
+                    ),
+                );
+            }
+            open.add([
+                image(getImgUrl(`${tool.icon ?? "filters"}.svg`), noI18n("")),
+                view("y").add([
+                    txt(title, true),
+                    txt(t(tool.group), true).class("rule-category"),
+                ]),
+                spacer(),
+                caps,
+            ]);
+            const row = view("x")
+                .class("selection-rule")
+                .data({ action: tool.key });
+            row.add([
+                open,
+                button(iconEl("clear"))
+                    .class("remove-action")
+                    .attr({ title: "删除", ariaLabel: `${t("删除")} ${title}` })
+                    .on("click", () => {
+                        if (!storeRules(without(tool.key)))
+                            status.el.textContent = t(
+                                "快捷键注册失败，可能被其他程序占用",
+                            );
+                    }),
+            ]);
+            list.add(row);
+            const state = txt(
+                ok ? "已生效" : "快捷键注册失败，可能被其他程序占用",
+            ).class("rule-status");
+            state.el.classList.toggle("unavailable", !ok);
+            row.add(state);
+        }
+        add.el.disabled = options.every((option) =>
+            Boolean(rules[option.value]),
+        );
+    }
+    add.on("click", () => edit());
+    return root
+        .add([list, add, status])
+        .bindGet(() => rules)
+        .bindSet((value: Rules) => {
+            rules = value;
+            paint();
+        });
+}
+
 function sortTool() {
     const catalog = [...tools, ...drawTools];
     const meta = new Map(catalog.map((item) => [item.key, item]));
@@ -3967,7 +3926,7 @@ function sortList<t>(
 }
 
 function dialogSelect<T extends string>(
-    options: { value: T; name?: Parameters<typeof txt>[0] }[],
+    options: { value: T; name?: Parameters<typeof txt>[0]; group?: string }[],
     searchable = false,
     loadOptions?: (signal: AbortSignal) => Promise<T[]>,
 ) {
@@ -4025,16 +3984,22 @@ function dialogSelect<T extends string>(
         .class("dialog-option-list")
         .attr({ id: listId, role: "listbox" })
         .addInto(menu);
-    type Entry = { value: T; name: string; query: string };
-    const entry = (value: T, name: string): Entry => ({
+    type Entry = { value: T; name: string; query: string; group?: string };
+    const rendered: HTMLButtonElement[] = [];
+    const entry = (value: T, name: string, group?: string): Entry => ({
+        group,
         value,
         name,
-        query: `${name} ${value}`.toLowerCase(),
+        query: `${group ?? ""} ${name} ${value}`.toLowerCase(),
     });
     let entries = options
         .filter((o) => o.value !== "")
         .map((o) =>
-            entry(o.value, txt(o.name ?? o.value).el.textContent || o.value),
+            entry(
+                o.value,
+                txt(o.name ?? o.value).el.textContent || o.value,
+                o.group,
+            ),
         );
     let shown: Entry[] = [],
         active = -1,
@@ -4117,16 +4082,21 @@ function dialogSelect<T extends string>(
             });
             b.el.dataset.value = e.value;
             b.el.setAttribute("aria-selected", String(e.value === value));
+            if (e.group && e.group !== shown[count - 1]?.group)
+                fragment.append(
+                    txt(e.group, true).class("action-choice-heading").el,
+                );
+            rendered.push(b.el);
             fragment.append(b.el);
         }
         list.el.append(fragment);
     }
     function move(index: number, scroll = true) {
         if (!shown.length) return;
-        list.el.children[active]?.classList.remove("option-active");
+        rendered[active]?.classList.remove("option-active");
         active = Math.min(shown.length - 1, Math.max(0, index));
         if (active >= count) append(active + 40);
-        const item = list.el.children[active] as HTMLElement;
+        const item = rendered[active];
         item.classList.add("option-active");
         anchor.setAttribute("aria-activedescendant", item.id);
         filter.el.setAttribute("aria-activedescendant", item.id);
@@ -4146,6 +4116,7 @@ function dialogSelect<T extends string>(
             request || error ? [] : entries.filter((e) => e.query.includes(q));
         active = -1;
         count = 0;
+        rendered.length = 0;
         list.clear();
         list.el.scrollTop = 0;
         anchor.removeAttribute("aria-activedescendant");
@@ -4325,7 +4296,7 @@ function field(caption: string, control: ElType<HTMLElement>, raw = false) {
     const id = control.el.id || `field-${crypto.randomUUID()}`;
     const focusTarget =
         control.el.querySelector<HTMLElement>(
-            '[role="combobox"],input,select,textarea',
+            '[role="combobox"],input,select,textarea,[tabindex="0"]',
         ) || control.el;
     focusTarget.id = id;
     const label = ele("label").add(raw ? noI18n(caption) : caption);
@@ -5085,12 +5056,33 @@ function searchEngineDialog(
     return promise;
 }
 
-function hotkey() {
+let recordedKey: ((key: string) => void) | undefined;
+renderOn("recordedAccelerator", ([key]) => recordedKey?.(key));
+
+function hotkey(allowTabNavigation = false) {
     const isMac = process.platform === "darwin";
     const keyList = new Set<string>();
     let mainKey = "";
     const held = new Set<string>();
     let saved = "";
+    let intercepted = false,
+        focusListeners: AbortController | undefined;
+    function stopRecording() {
+        focusListeners?.abort();
+        focusListeners = undefined;
+        if (recordedKey === receive) {
+            recordedKey = undefined;
+            renderSend("shortcutRecording", [false]);
+        }
+    }
+    const receive = (key: string) => {
+        intercepted = true;
+        held.clear();
+        keyList.clear();
+        cvalue(key.split("+"));
+        ev();
+        saved = mainKey;
+    };
     let isFocus = false;
     function cvalue(l: string[]) {
         const nl = l
@@ -5119,6 +5111,19 @@ function hotkey() {
         .attr({ tabIndex: 0 })
         .on("focus", () => {
             isFocus = true;
+            intercepted = false;
+            recordedKey = receive;
+            focusListeners?.abort();
+            focusListeners = new AbortController();
+            i.el.closest("dialog")?.addEventListener("close", stopRecording, {
+                once: true,
+                signal: focusListeners.signal,
+            });
+            window.addEventListener("blur", stopRecording, {
+                once: true,
+                signal: focusListeners.signal,
+            });
+            renderSend("shortcutRecording", [true]);
             saved = mainKey;
             held.clear();
             keyList.clear();
@@ -5126,14 +5131,24 @@ function hotkey() {
         })
         .on("blur", () => {
             isFocus = false;
+            stopRecording();
             if (held.size) mainKey = saved;
             held.clear();
             cvalue((mainKey ?? "").split("+"));
         })
         .on("keydown", (e) => {
             if (!isFocus) return;
+            if (
+                allowTabNavigation &&
+                e.key === "Tab" &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.altKey
+            )
+                return;
             e.preventDefault();
             if (e.repeat) return;
+            intercepted = false;
             const key = jsKey2ele(macKeyFomat(e.key));
             if (!held.size) keyList.clear();
             held.add(e.code || key);
@@ -5141,6 +5156,7 @@ function hotkey() {
             cvalue([...keyList]);
         })
         .on("keyup", (e) => {
+            if (intercepted) return;
             if (!isFocus) return;
             e.preventDefault();
             const key = jsKey2ele(macKeyFomat(e.key));
@@ -6144,22 +6160,16 @@ function hotkeyP(icon: IconType | "" = "") {
     h.on("input", () => el.el.dispatchEvent(new CustomEvent("input")));
     return el;
 }
-function hotkeyX(
-    x: [keyof setting["快捷键"], "1"] | [功能, "2"],
-    icon: IconType | "" = "",
-) {
+function globalHotkey(name: keyof setting["快捷键"]) {
     const h = hotkey();
-    const path = x[1] === "1" ? `快捷键.${x[0]}.key` : `全局工具快捷键.${x[0]}`;
+    const path = `快捷键.${name}.key`;
     const feedback = ele("output")
         .class("shortcut-feedback")
         .attr({ role: "status" });
     let applied = "";
     const el = view("y")
         .class("shortcut-setting")
-        .add([
-            xGroup().add([icon ? view().add(iconEl(icon)) : "", h]),
-            feedback,
-        ])
+        .add([h, feedback])
         .bindGet(() => applied)
         .bindSet((key: string) => {
             applied = key || "";
@@ -6172,12 +6182,7 @@ function hotkeyX(
         });
     h.on("input", () => {
         const next = h.gv;
-        if (
-            renderSendSync(
-                "hotkey",
-                x[1] === "1" ? ["快捷键", x[0], next] : ["快捷键2", x[0], next],
-            )
-        ) {
+        if (renderSendSync("hotkey", ["快捷键", name, next])) {
             applied = next;
             feedback.el.textContent = t("已生效");
             el.el.dispatchEvent(new CustomEvent("input"));
@@ -6398,6 +6403,48 @@ async function showPage(page: (typeof main)[0] | undefined) {
     }
     if (page.icon === "ocr") {
         renderOcrPage(content, page);
+        return;
+    }
+    if (page.icon === "space") {
+        const tabs = view("x")
+            .class("shortcut-scopes")
+            .attr({ role: "group", ariaLabel: t("快捷键") })
+            .addInto(content);
+        const body = view().addInto(content);
+        const modes = ["全局快捷键", "截图窗口内", "主页面"] as const;
+        const sections = page.items ?? [];
+        const buttons = tabs.el;
+        function selectScope(index: number) {
+            for (const [i, button] of Array.from(buttons.children).entries())
+                button.setAttribute("aria-pressed", String(i === index));
+            body.clear();
+            if (index === 0)
+                body.add(
+                    view()
+                        .class("settings-group")
+                        .add(renderSetting("全局工具快捷键")),
+                );
+            for (const section of sections) {
+                const key = section.settings[0] ?? "";
+                const group = key.startsWith("快捷键.")
+                    ? 0
+                    : key.startsWith("主页面快捷键.")
+                      ? 2
+                      : 1;
+                if (group !== index) continue;
+                body.add([
+                    ele("h2")
+                        .class("shortcut-section")
+                        .add(noI18n(section.title)),
+                    view()
+                        .class("settings-group")
+                        .add(section.settings.map(renderSetting)),
+                ]);
+            }
+        }
+        for (const [i, name] of modes.entries())
+            tabs.add(button(name).on("click", () => selectScope(i)));
+        selectScope(0);
         return;
     }
     if (page.settings) addRows(page.settings);
@@ -6867,6 +6914,9 @@ ele("style")
     padding: 0;
     overflow: hidden;
     clip-path: inset(50%);
+}
+.settings-sidebar label > input[type=radio] {
+    inset:0;margin:0;width:100%;height:100%;opacity:0;clip-path:none;cursor:pointer;
 }
 .settings-nav-footer {
     border-block-start: 1px solid #3a4357;
@@ -7438,8 +7488,25 @@ const sideBarG = radioGroup("侧栏", true);
 const searchBar = view().class("settings-search").addInto(sideBar);
 const searchField = view("x").class("settings-search-field").addInto(searchBar);
 searchField.add(image(getImgUrl("search.svg"), noI18n("")));
-const settingsSearch = new Fuse([...Object.entries(s), ...Object.entries(xs)], {
-    keys: ["1.name", "1.desc", "0"],
+const searchEntries: {
+    key: string;
+    name: string;
+    desc?: string;
+    actions?: string[];
+}[] = [];
+for (const [key, item] of Object.entries({ ...xs, ...s })) {
+    searchEntries.push({
+        key,
+        name: item.name,
+        desc: "desc" in item ? item.desc : undefined,
+        actions:
+            key === "全局工具快捷键"
+                ? actionChoices().map((o) => o.name)
+                : undefined,
+    });
+}
+const settingsSearch = new Fuse(searchEntries, {
+    keys: ["name", "desc", "key", "actions"],
 });
 const searchI = input()
     .attr({ placeholder: t("搜索设置"), ariaLabel: t("搜索设置") })
@@ -7449,7 +7516,7 @@ const searchI = input()
             showPage(main.at(Number(sideBarG.get())));
             return;
         }
-        const l = settingsSearch.search(searchI.gv).map((i) => i.item[0]);
+        const l = settingsSearch.search(searchI.gv).map((i) => i.item.key);
         if (l.length === 0) {
             mainView.clear().add(
                 xGroup("y")

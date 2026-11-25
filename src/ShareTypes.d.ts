@@ -19,7 +19,9 @@ export interface setting {
         剪贴板贴图: { key: string };
     };
     点击托盘自动截图: boolean;
-    全局工具快捷键: { [key in 功能]: string };
+    全局工具快捷键: { [key in 功能]: string } & Partial<
+        Record<DrawingAction, string>
+    >;
     工具快捷键: { [key in 功能]: string };
     截屏编辑快捷键: {
         select: { 副: { [key in EditType["select"]]: string } };
@@ -254,7 +256,7 @@ export interface setting {
         复制为文件: boolean;
     };
     保存名称: { 前缀: string; 时间: string; 后缀: string };
-    框选后默认操作: "no" | 功能;
+    框选后默认操作: "no" | SelectionAction;
     快速截屏: { 模式: "clip" | "path"; 路径: string };
     引擎: {
         记忆: {
@@ -505,6 +507,11 @@ type EditType = {
         | "gray_luminosity"
         | "gamma";
 };
+
+export type DrawingAction = {
+    [K in "draw" | "shape" | "filter"]: `${K}.${EditType[K]}`;
+}["draw" | "shape" | "filter"];
+export type SelectionAction = 功能 | DrawingAction;
 
 type MainWinType = {
     type: "text" | "ocr" | "image" | "qr";

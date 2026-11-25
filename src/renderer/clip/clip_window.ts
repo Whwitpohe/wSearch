@@ -28,6 +28,12 @@ import {
 } from "fabric";
 import hotkeys from "hotkeys-js";
 import { findOffset } from "picture_match";
+import {
+    captureTools,
+    clipDrawTools,
+    isDrawingAction,
+    isSelectionAction,
+} from "../../../lib/captureTools";
 import { ele2jsKeyCode, jsKeyCodeDisplay } from "../../../lib/key";
 import {
     type LongFrame,
@@ -39,8 +45,8 @@ import open_with from "../../../lib/open_with";
 import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import { isWaylandSession } from "../../../lib/wayland";
+import type { SelectionAction } from "../../ShareTypes";
 import { writeImage, writeText } from "../lib/clipboard";
-import { clipDrawTools } from "../lib/clipDrawTools";
 import { colorPicker } from "../lib/colorPicker";
 import {
     clipboardImageFormat,
@@ -86,7 +92,6 @@ import type {
     setting,
     translateWinType,
     功能,
-    功能列表,
 } from "../../ShareTypes.js";
 import xhistory from "../lib/history";
 import { ocrList } from "../ocr/ocr_omni";
@@ -663,8 +668,8 @@ function backHotkeyScope() {
 
 function setDefaultAction(act: setting["框选后默认操作"] | undefined) {
     if (!act) return;
-    autoDo = act;
-    if (autoDo !== "no") {
+    autoDo = act === "no" || isSelectionAction(act) ? act : "no";
+    if (autoDo !== "no" && !isDrawingAction(autoDo)) {
         toolsX[autoDo].el.el.style.backgroundColor = "var(--bar-focus-color)";
     }
 }
@@ -3766,22 +3771,7 @@ let ratio = 1;
 
 setSetting();
 
-const tools: 功能列表 = [
-    "close",
-    "screens",
-    "ocr",
-    "search",
-    "QR",
-    "open",
-    "ding",
-    "dingLive",
-    "record",
-    "long",
-    "translate",
-    "editor",
-    "copy",
-    "save",
-];
+const tools = captureTools.map((tool) => tool.key);
 
 const hotkeyTipEl = view().attr({ id: "hotkeys_tip" }).class(Class.glassBar);
 
@@ -3857,8 +3847,14 @@ const toolsX: Record<功能, { el: ElType<HTMLElement>; f: () => void }> = {
             toolsX.close.f();
         },
     },
-    copy: { el: iconEl("copy").attr({ title: "复制" }), f: () => runCopy() },
-    save: { el: iconEl("save").attr({ title: "保存" }), f: () => runSave() },
+    copy: {
+        el: iconEl("copy").attr({ title: "复制截图" }),
+        f: () => runCopy(),
+    },
+    save: {
+        el: iconEl("save").attr({ title: "保存截图" }),
+        f: () => runSave(),
+    },
 };
 
 for (const [_, { el, f }] of Object.entries(toolsX)) {
@@ -3966,9 +3962,9 @@ const drawSideFilters = {
 } as const;
 
 const drawSideFiltersMoreGray = {
-    gray_average: filterTextEl("平均灰度"),
-    gray_lightness: filterTextEl("亮度"),
-    gray_luminosity: filterTextEl("亮度"),
+    gray_average: filterTextEl("灰度（平均值）"),
+    gray_lightness: filterTextEl("灰度（明度）"),
+    gray_luminosity: filterTextEl("灰度（加权亮度）"),
 };
 
 const drawSideFiltersMore = {
@@ -4003,10 +3999,10 @@ const drawSide操作 = {
         .attr({ title: "重做" })
         .data({ key: showShortKey("Control+Y") }),
     复制: iconEl("copy")
-        .attr({ title: "复制" })
+        .attr({ title: "复制选中元素" })
         .data({ key: showShortKey("Control+C") }),
     删除: iconEl("clear")
-        .attr({ title: "删除" })
+        .attr({ title: "删除选中元素" })
         .data({ key: showShortKey("Delete") }),
 } as const;
 
@@ -4871,7 +4867,7 @@ async function initCapture(
     _displays: Electron.Display[],
     imgBuffer: Buffer | undefined,
     mainid: number,
-    act?: 功能,
+    act?: SelectionAction,
     pid?: number,
 ) {
     console.log("clip_init displays:", _displays);
@@ -4971,6 +4967,15 @@ async function initCapture(
 
     for (const tool of Object.values(toolsX))
         tool.el.el.style.backgroundColor = "";
+    if (
+        act ||
+        isDrawingAction(autoDo) ||
+        isDrawingAction(store.get("框选后默认操作"))
+    )
+        setEditType(
+            "select",
+            selectEditType === "draw" ? "rect" : selectEditType,
+        );
     forceImageTranslation = act === "translate";
     setDefaultAction(act ?? store.get("框选后默认操作"));
 
@@ -5420,17 +5425,13 @@ clipEl.onmousedown = (e) => {
 };
 
 document.onmouseup = (e) => {
+    let action: SelectionAction | undefined;
     if (e.button === 0) {
         if (selecting) {
             clipEnd(e);
             // 抬起鼠标后工具栏跟随
             followBar({ x: e.clientX, y: e.clientY });
-            // 框选后默认操作
-            if (autoDo !== "no" && e.button === 0) {
-                if (forceImageTranslation && autoDo === "translate")
-                    void translate(true);
-                else toolsX[autoDo].f();
-            }
+            if (autoDo !== "no") action = autoDo;
             isShowBars = true;
             showBars(isShowBars);
         }
@@ -5448,6 +5449,14 @@ document.onmouseup = (e) => {
 
     down = false;
     moved = false;
+    if (!action) return;
+    if (isDrawingAction(action)) {
+        const tool = drawToolEntryMap.get(action);
+        // Route through the same button as a manual selection, even when the tool is hidden.
+        tool?.el.el.click();
+    } else if (forceImageTranslation && action === "translate")
+        void translate(true);
+    else toolsX[action].f();
 };
 
 hotkeys("s", () => {
