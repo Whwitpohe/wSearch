@@ -1,5 +1,5 @@
 {
-  "status": "waiting_for_tauri_screen_recording_permission",
+  "status": "completed",
   "source_baseline": "a5b31728c562408889c5c48b8e03fcdf54dd0f1e",
   "application": "tauri",
   "platform": {
@@ -68,16 +68,34 @@
       {
         "sample_count": 7,
         "physical_range_bytes": [
-          15762320,
-          15762320
+          16057232,
+          16057232
         ],
         "median_sample": {
-          "physical_bytes": 15762320,
-          "rss_bytes_for_reference": 74301440,
+          "physical_bytes": 16057232,
+          "rss_bytes_for_reference": 77561856,
           "processes": [
             [
               "wsearch-tauri-trial",
-              15762320,
+              16057232,
+              "host"
+            ]
+          ]
+        }
+      },
+      {
+        "sample_count": 7,
+        "physical_range_bytes": [
+          16286608,
+          16286608
+        ],
+        "median_sample": {
+          "physical_bytes": 16286608,
+          "rss_bytes_for_reference": 77791232,
+          "processes": [
+            [
+              "wsearch-tauri-trial",
+              16286608,
               "host"
             ]
           ]
@@ -88,31 +106,31 @@
       "open": {
         "sample_count": 7,
         "physical_range_bytes": [
-          65293336,
-          68619288
+          67537752,
+          70765400
         ],
         "median_sample": {
-          "physical_bytes": 65408024,
-          "rss_bytes_for_reference": 194084864,
+          "physical_bytes": 67980120,
+          "rss_bytes_for_reference": 187006976,
           "processes": [
             [
               "com.apple.WebKit.Networking",
-              6062584,
+              6160816,
               "responsible_pid"
             ],
             [
               "com.apple.WebKit.WebContent",
-              14730056,
+              15090528,
               "responsible_pid"
             ],
             [
               "com.apple.WebKit.GPU",
-              12796576,
+              13189744,
               "responsible_pid"
             ],
             [
               "wsearch-tauri-trial",
-              31818808,
+              33539032,
               "host"
             ]
           ]
@@ -121,26 +139,26 @@
       "closed": {
         "sample_count": 7,
         "physical_range_bytes": [
-          48859344,
-          49154256
+          50448376,
+          50481144
         ],
         "median_sample": {
-          "physical_bytes": 48908496,
-          "rss_bytes_for_reference": 152731648,
+          "physical_bytes": 50464760,
+          "rss_bytes_for_reference": 149094400,
           "processes": [
             [
               "com.apple.WebKit.Networking",
-              5997048,
+              5751216,
               "responsible_pid"
             ],
             [
               "com.apple.WebKit.GPU",
-              11879072,
+              12337776,
               "responsible_pid"
             ],
             [
               "wsearch-tauri-trial",
-              31032376,
+              32375768,
               "host"
             ]
           ]
@@ -148,7 +166,443 @@
       }
     }
   },
-  "trials": [],
+  "trials": [
+    {
+      "block": 1,
+      "attempt": 1,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 294.952,
+      "hotkey_to_visible_drag_ms": 346.055,
+      "kind": "forward",
+      "mouse_up_to_png_read_ms": 20.94,
+      "overlay_to_mouse_down_ms": 4.673,
+      "peak_memory": {
+        "sample_count": 19,
+        "complete_samples": 19,
+        "sample_at_physical_peak": {
+          "physical_bytes": 139249392,
+          "rss_bytes_for_reference": 246644736,
+          "processes": [
+            [
+              "wsearch-capture",
+              123175776,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16073616,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 1,
+      "attempt": 2,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 262.366,
+      "hotkey_to_visible_drag_ms": 307.445,
+      "kind": "reverse",
+      "mouse_up_to_png_read_ms": 14.719,
+      "overlay_to_mouse_down_ms": 1.574,
+      "peak_memory": {
+        "sample_count": 17,
+        "complete_samples": 17,
+        "sample_at_physical_peak": {
+          "physical_bytes": 139216648,
+          "rss_bytes_for_reference": 247021568,
+          "processes": [
+            [
+              "wsearch-capture",
+              123143032,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16073616,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 1,
+      "attempt": 3,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 296.288,
+      "hotkey_to_visible_drag_ms": 330.694,
+      "kind": "forward",
+      "mouse_up_to_png_read_ms": 20.96,
+      "overlay_to_mouse_down_ms": 1.312,
+      "peak_memory": {
+        "sample_count": 18,
+        "complete_samples": 18,
+        "sample_at_physical_peak": {
+          "physical_bytes": 139036400,
+          "rss_bytes_for_reference": 247021568,
+          "processes": [
+            [
+              "wsearch-capture",
+              123061088,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              15975312,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 1,
+      "attempt": 4,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 263.098,
+      "hotkey_to_visible_drag_ms": 306.296,
+      "kind": "reverse",
+      "mouse_up_to_png_read_ms": 20.078,
+      "overlay_to_mouse_down_ms": 1.158,
+      "peak_memory": {
+        "sample_count": 17,
+        "complete_samples": 17,
+        "sample_at_physical_peak": {
+          "physical_bytes": 198068024,
+          "rss_bytes_for_reference": 247300096,
+          "processes": [
+            [
+              "wsearch-capture",
+              182092712,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              15975312,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 1,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 282.854,
+      "hotkey_to_visible_drag_ms": 315.61,
+      "kind": "forward",
+      "mouse_up_to_png_read_ms": 14.858,
+      "overlay_to_mouse_down_ms": 0.686,
+      "peak_memory": {
+        "sample_count": 17,
+        "complete_samples": 17,
+        "sample_at_physical_peak": {
+          "physical_bytes": 198444832,
+          "rss_bytes_for_reference": 247496704,
+          "processes": [
+            [
+              "wsearch-capture",
+              182141840,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16302992,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 2,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 267.462,
+      "hotkey_to_visible_drag_ms": 300.189,
+      "kind": "reverse",
+      "mouse_up_to_png_read_ms": 8.744,
+      "overlay_to_mouse_down_ms": 1.685,
+      "peak_memory": {
+        "sample_count": 16,
+        "complete_samples": 16,
+        "sample_at_physical_peak": {
+          "physical_bytes": 198641464,
+          "rss_bytes_for_reference": 248086528,
+          "processes": [
+            [
+              "wsearch-capture",
+              182289320,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16352144,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 3,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 258.079,
+      "hotkey_to_visible_drag_ms": 293.529,
+      "kind": "forward",
+      "mouse_up_to_png_read_ms": 16.105,
+      "overlay_to_mouse_down_ms": 3.271,
+      "peak_memory": {
+        "sample_count": 16,
+        "complete_samples": 16,
+        "sample_at_physical_peak": {
+          "physical_bytes": 139118296,
+          "rss_bytes_for_reference": 247300096,
+          "processes": [
+            [
+              "wsearch-capture",
+              122880840,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16237456,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 4,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 289.03,
+      "hotkey_to_visible_drag_ms": 321.099,
+      "kind": "reverse",
+      "mouse_up_to_png_read_ms": 14.569,
+      "overlay_to_mouse_down_ms": 3.236,
+      "peak_memory": {
+        "sample_count": 18,
+        "complete_samples": 18,
+        "sample_at_physical_peak": {
+          "physical_bytes": 198379296,
+          "rss_bytes_for_reference": 247676928,
+          "processes": [
+            [
+              "wsearch-capture",
+              182141840,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16237456,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 5,
+      "changed_underlying_fixture_visible_after_overlay": true,
+      "clipboard_png_px": [
+        400,
+        240
+      ],
+      "crop_match": {
+        "closest_origin_offset_px": [
+          0,
+          0
+        ],
+        "closest_origin_unique": true,
+        "compared_pixels": 96000,
+        "exact_dimensions": true,
+        "mean_abs_rgb_channel_error": 0,
+        "pixels_with_channel_error_gt4": 0
+      },
+      "hotkey_to_overlay_ms": 277.311,
+      "hotkey_to_visible_drag_ms": 505.957,
+      "kind": "freeze",
+      "mouse_up_to_png_read_ms": 34.71,
+      "overlay_to_mouse_down_ms": 183.215,
+      "peak_memory": {
+        "sample_count": 28,
+        "complete_samples": 28,
+        "sample_at_physical_peak": {
+          "physical_bytes": 198657800,
+          "rss_bytes_for_reference": 250347520,
+          "processes": [
+            [
+              "wsearch-capture",
+              182420344,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16237456,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": true
+    },
+    {
+      "block": 2,
+      "attempt": 6,
+      "clipboard_unchanged": true,
+      "hotkey_to_overlay_ms": 270.734,
+      "kind": "escape",
+      "overlay_closed": true,
+      "peak_memory": {
+        "sample_count": 16,
+        "complete_samples": 16,
+        "sample_at_physical_peak": {
+          "physical_bytes": 103827112,
+          "rss_bytes_for_reference": 206766080,
+          "processes": [
+            [
+              "wsearch-capture",
+              87589656,
+              "direct_child"
+            ],
+            [
+              "wsearch-tauri-trial",
+              16237456,
+              "host"
+            ]
+          ]
+        }
+      },
+      "valid_drag": false
+    }
+  ],
   "permission_rechecks": [
     {
       "local_launch_time": "2026-11-27T14:36:51+08:00",
@@ -159,5 +613,28 @@
       "overlay_observation_timeout_ms": 4500,
       "clipboard": "unchanged"
     }
-  ]
+  ],
+  "local_started": "2026-11-27T14:38:29+08:00",
+  "clipboard_restoration": [
+    "restored and verified in memory",
+    "restored and verified in memory"
+  ],
+  "summary": {
+    "valid_routine_trials": 8,
+    "first_routine_trial_ms": {
+      "hotkey_to_overlay_ms": 294.952,
+      "hotkey_to_visible_drag_ms": 346.055,
+      "mouse_up_to_png_read_ms": 20.94
+    },
+    "later_routine_medians_ms": {
+      "hotkey_to_overlay_ms": 267.462,
+      "hotkey_to_visible_drag_ms": 307.445,
+      "mouse_up_to_png_read_ms": 14.858
+    },
+    "largest_routine_physical_peak_bytes": 198641464,
+    "largest_capture_physical_peak_bytes": 198657800,
+    "freeze_passed": true,
+    "escape_passed": true,
+    "clipboard_restored": true
+  }
 }
