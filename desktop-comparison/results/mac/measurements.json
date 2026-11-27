@@ -1,0 +1,152 @@
+{
+  "status": "waiting_for_tauri_screen_recording_permission",
+  "source_baseline": "a5b31728c562408889c5c48b8e03fcdf54dd0f1e",
+  "application": "tauri",
+  "platform": {
+    "macos": "27.3 (26C5047e)",
+    "architecture": "arm64",
+    "chip": "Apple M1 Pro",
+    "memory_gib": 16,
+    "built_in_display_logical_points": [
+      1512,
+      982
+    ],
+    "scale": 2,
+    "built_in_display_pixels": [
+      3024,
+      1964
+    ],
+    "external_display": "not_present"
+  },
+  "build": {
+    "xcode": "27.2 (27B52)",
+    "swift": "6.4.2",
+    "rustc": "1.100.0",
+    "cargo": "1.100.0",
+    "tauri": "2.12.7",
+    "tar_gz_bytes": 2286183,
+    "bundle_regular_file_bytes": 6708796,
+    "bundle_regular_file_count": 4,
+    "archive_sha256": "915fb743b6f5969a47c72182da86a2eb9be0987cb0e66605597ce39f8d361600"
+  },
+  "method": {
+    "shortcut": "Control+Option+Shift+S",
+    "selection_logical_start_xy": [
+      400,
+      330
+    ],
+    "selection_logical_end_xy": [
+      600,
+      450
+    ],
+    "expected_crop_left_top_width_height_pixels": [
+      800,
+      660,
+      400,
+      240
+    ],
+    "clock": "DispatchTime monotonic; screen observation at ScreenCaptureKit complete-frame delivery",
+    "requested_display_stream_interval_ms": 8.333333333333334,
+    "clipboard_poll_interval_ms": 2,
+    "capture_memory_sample_interval_ms": 20,
+    "process_record_order": [
+      "name",
+      "physical_bytes",
+      "attribution"
+    ]
+  },
+  "initial_attempt": {
+    "hotkey_registered": true,
+    "capture_helper_started": true,
+    "capture_helper_exit_code": 2,
+    "screen_capture_tcc": "denied",
+    "overlay_observation_timeout_ms": 4500,
+    "clipboard": "unchanged"
+  },
+  "memory": {
+    "idle_sessions": [
+      {
+        "sample_count": 7,
+        "physical_range_bytes": [
+          15762320,
+          15762320
+        ],
+        "median_sample": {
+          "physical_bytes": 15762320,
+          "rss_bytes_for_reference": 74301440,
+          "processes": [
+            [
+              "wsearch-tauri-trial",
+              15762320,
+              "host"
+            ]
+          ]
+        }
+      }
+    ],
+    "information_page": {
+      "open": {
+        "sample_count": 7,
+        "physical_range_bytes": [
+          65293336,
+          68619288
+        ],
+        "median_sample": {
+          "physical_bytes": 65408024,
+          "rss_bytes_for_reference": 194084864,
+          "processes": [
+            [
+              "com.apple.WebKit.Networking",
+              6062584,
+              "responsible_pid"
+            ],
+            [
+              "com.apple.WebKit.WebContent",
+              14730056,
+              "responsible_pid"
+            ],
+            [
+              "com.apple.WebKit.GPU",
+              12796576,
+              "responsible_pid"
+            ],
+            [
+              "wsearch-tauri-trial",
+              31818808,
+              "host"
+            ]
+          ]
+        }
+      },
+      "closed": {
+        "sample_count": 7,
+        "physical_range_bytes": [
+          48859344,
+          49154256
+        ],
+        "median_sample": {
+          "physical_bytes": 48908496,
+          "rss_bytes_for_reference": 152731648,
+          "processes": [
+            [
+              "com.apple.WebKit.Networking",
+              5997048,
+              "responsible_pid"
+            ],
+            [
+              "com.apple.WebKit.GPU",
+              11879072,
+              "responsible_pid"
+            ],
+            [
+              "wsearch-tauri-trial",
+              31032376,
+              "host"
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "trials": []
+}
