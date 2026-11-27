@@ -62,10 +62,6 @@ function renderPackages(moveFocus = false) {
   }
   const rows = [];
   for (const arch of ["x64", "arm64"]) {
-    const prefix = `wSearch-${release.version}-${system}-${arch}.`;
-    const matches = release.files.filter((file) => file.startsWith(prefix));
-    if (!matches.length) continue;
-    const row = element("div", "file-row");
     const label =
       system === "darwin"
         ? arch === "x64"
@@ -74,26 +70,36 @@ function renderPackages(moveFocus = false) {
         : arch === "arm64"
           ? "ARM64"
           : "x64";
-    row.append(element("span", "arch", label));
-    const links = element("div", "file-links");
-    for (const file of matches) {
-      const format = file.slice(prefix.length);
-      const link = element(
-        "a",
-        "",
-        format === "tar.gz" || format === "AppImage"
-          ? format
-          : format.toUpperCase(),
-      );
-      link.href = `https://github.com/Whwitpohe/wSearch/releases/download/${release.version}/${encodeURIComponent(file)}`;
-      link.setAttribute(
-        "aria-label",
-        `${t.get} · ${systems[system]} · ${label} · ${format}`,
-      );
-      links.append(link);
+    for (const [suffix, edition] of [
+      ["", t.standardEdition],
+      ["-offline", t.offlineEdition],
+    ]) {
+      const editionLabel = `${label} · ${edition}`;
+      const prefix = `wSearch-${release.version}-${system}-${arch}${suffix}.`;
+      const matches = release.files.filter((file) => file.startsWith(prefix));
+      if (!matches.length) continue;
+      const row = element("div", "file-row");
+      row.append(element("span", "arch", editionLabel));
+      const links = element("div", "file-links");
+      for (const file of matches) {
+        const format = file.slice(prefix.length);
+        const link = element(
+          "a",
+          "",
+          format === "tar.gz" || format === "AppImage"
+            ? format
+            : format.toUpperCase(),
+        );
+        link.href = `https://github.com/Whwitpohe/wSearch/releases/download/${release.version}/${encodeURIComponent(file)}`;
+        link.setAttribute(
+          "aria-label",
+          `${t.get} · ${systems[system]} · ${editionLabel} · ${format}`,
+        );
+        links.append(link);
+      }
+      row.append(links);
+      rows.push(row);
     }
-    row.append(links);
-    rows.push(row);
   }
   if (rows.length) {
     const note = element("p", "install-note", t[system + "Install"]);
