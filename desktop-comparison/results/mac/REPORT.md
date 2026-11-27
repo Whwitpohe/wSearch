@@ -7,3 +7,9 @@
 - 测试环境：macOS 27.3（26C5047e），Apple M1 Pro，16 GB 内存。内建 Retina 屏为 1512 × 982 逻辑点、2× 缩放、3024 × 1964 像素。当前检测到一台显示器。
 
 任务及验收口径见 [MAC-TASK.md](../../MAC-TASK.md)。请在这里追加“已接单 / 阻塞 / 已完成”、待测 SHA、测试环境和结果。Windows 端通过读取本分支的新提交接收回报。
+
+## 推送和录屏授权
+
+状态：**阻塞**（2026-11-27）。接单提交已在本机创建。公开分支可以读取，`git pull --rebase` 成功，普通推送返回 `fatal: could not read Username for 'https://github.com': terminal prompts disabled`。GitHub CLI 未登录，正在等待使用者为可写原仓库或可操作 fork 的 GitHub 账号完成设备授权。
+
+macOS 有本地图形会话。录屏权限预检返回 `false`，已请求使用者在系统设置中授权。用于发送测试按键和鼠标事件的权限预检返回 `true`。按约定，接单提交推送后才开始构建。两版构建、内存、热键延迟、Retina 剪贴板、反向拖框、Esc 和冻结帧目前均未测。未检测到外接屏，外接屏测试未测。
