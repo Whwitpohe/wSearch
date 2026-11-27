@@ -1,0 +1,18 @@
+{
+    "productName": "wSearch Tauri Trial",
+    "version": "0.1.0",
+    "identifier": "local.wsearch.tauritrial",
+    "build": {
+        "frontendDist": "../ui"
+    },
+    "app": {
+        "windows": [],
+        "security": {
+            "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
+        }
+    },
+    "bundle": {
+        "active": false,
+        "icon": ["icon.ico", "tray.png"]
+    }
+}

@@ -1,0 +1,14 @@
+artifacts/
+**/target/
+**/node_modules/
+**/.hutch/
+**/build/
+**/artifacts/
+**/.generated/
+**/__pycache__/
+bench/work/
+results/raw-work/
+
+**/.cottontail-tmp/
+**/gen/schemas/
+results/*.log

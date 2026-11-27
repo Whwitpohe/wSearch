@@ -1,0 +1,11 @@
+{
+    "name": "wsearch-electrobun-comparison",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "build": "electrobun build --env=stable"
+    },
+    "dependencies": {
+        "electrobun": "2.0.7"
+    }
+}
