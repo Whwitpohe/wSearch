@@ -1,6 +1,6 @@
 # macOS 实机回报
 
-状态：**已接单，等待推送授权**。
+状态：**Tauri 已构建，等待应用录屏授权**。
 
 - 测试日期：2026-11-27（新加坡时间）
 - 待测提交：`a5b31728c562408889c5c48b8e03fcdf54dd0f1e`。恢复任务时分支新增 Windows Tauri 预热提交，已读取并纳入待测基线。macOS 路径仍按现有实现对测。
@@ -17,3 +17,9 @@ macOS 有本地图形会话。录屏权限预检返回 `false`，已请求使用
 ### 恢复任务
 
 2026-11-27 复查，测量工具的屏幕录制和键鼠事件发送权限均已通过。当前只等待 GitHub 设备授权，以推送接单记录。
+
+## Tauri 构建和首次权限检查
+
+按使用者的最新指示，实机范围为 Tauri。接单提交已推送。以 `a5b31728c562408889c5c48b8e03fcdf54dd0f1e` 的源码完成 arm64 release 构建和 ad hoc 签名，`codesign --verify --deep --strict` 通过。构建日志记录 Xcode 27.2（27B52）、Apple Swift 6.4.2、rustc/cargo 1.100.0 和 Tauri 2.12.7。压缩包为 2,286,183 字节，解压后应用包常规文件合计 6,708,796 字节。
+
+状态：**截图测试阻塞**。全局热键已注册并成功启动 `wsearch-capture`。首次触发的辅助进程退出码为 2，4.5 秒内未出现覆盖层，剪贴板未变化。macOS TCC 日志确认 `kTCCServiceScreenCapture` 拒绝了 `local.wsearch.tauritrial`。需要 Mac 使用者为 **wSearch Tauri Trial** 打开「屏幕与系统音频录制」权限，再重新启动应用。该次权限探针不计入截图延迟。
