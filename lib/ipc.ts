@@ -206,7 +206,11 @@ type Message = {
         type: DingMode,
         live?: LiveDingData,
         displayId?: number,
+        /** 后创建的覆盖层窗口用它对齐已移动或缩放过的贴图 */
+        frame?: { x: number; y: number; w: number },
     ) => void;
+    /** 覆盖层贴图移动或缩放后的位置，相对发送窗口 */
+    dingFrame: (id: string, x: number, y: number, w: number, h: number) => void;
     superRecorderInit: (sourceId: string, fixed?: RecordRect) => void;
     superPhotoEditorInit: (img: string) => void;
     recordMemWarning: () => void;

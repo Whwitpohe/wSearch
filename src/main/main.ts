@@ -70,6 +70,7 @@ import initScreenShots from "../renderer/screenShot/screenShot";
 import type {
     CaptureSourceInfo,
     DingMode,
+    DingStart,
     EditToolsType,
     GithubUrlType,
     LiveDingData,
@@ -2537,8 +2538,22 @@ function dingObj() {
     };
 }
 
-/** 全屏覆盖层：每个显示器一个窗口，窗口内模拟多个贴图 */
+/** 全屏覆盖层：贴图所到的显示器各一个窗口，窗口内模拟多个贴图 */
 const dingOverlayList = dingObj();
+type Rect = { x: number; y: number; w: number; h: number };
+/** 覆盖层贴图的屏幕坐标，供后创建的覆盖层窗口补齐 */
+const overlayPins = new Map<
+    number,
+    Rect & {
+        url: string;
+        type: DingMode;
+        live?: LiveDingData;
+        displayId?: number;
+        frame?: Rect;
+    }
+>();
+const readyOverlays = new Set<number>();
+let overlayDrag: DingStart | null = null;
 /** 独立系统窗口：每个贴图一个窗口 */
 const dingSingleList = new Map<number, BrowserWindow>();
 /** 处于动态状态的贴图 id，用于数量限制和清理 */
@@ -2727,53 +2742,104 @@ function createDingOverlay(
     live?: LiveDingData,
     displayId?: number,
 ) {
-    if (dingOverlayList.size() === 0) {
-        for (const display of screen.getAllDisplays()) {
-            const bounds = display.bounds;
-            const win = new BrowserWindow({
-                ...dingWindowOptions(),
-                x: bounds.x,
-                y: bounds.y,
-                width: bounds.width,
-                height: bounds.height,
-            });
-            dingOverlayList.set(display.id, { win, display });
-            rendererPath(win, "ding.html");
-            initDingWindow(win);
-            win.webContents.on("did-finish-load", () => {
-                if (win.isDestroyed()) return;
-                if (live && display.id !== displayId) return;
-                mainSend(win.webContents, "addDing", [
-                    id,
-                    x - bounds.x,
-                    y - bounds.y,
-                    w,
-                    h,
-                    img,
-                    type,
-                    live,
-                    live ? displayId : undefined,
-                ]);
-            });
-            win.setIgnoreMouseEvents(true);
-        }
-    } else {
-        for (const [displayIdNow, win] of dingOverlayList.entries()) {
-            if (live && displayIdNow !== displayId) continue;
-            const b = win.win.getBounds();
-            mainSend(win.win.webContents, "addDing", [
-                id,
-                x - b.x,
-                y - b.y,
-                w,
-                h,
-                img,
-                type,
-                live,
-                live ? displayId : undefined,
-            ]);
-        }
+    const pin = { x, y, w, h, url: img, type, live, displayId };
+    overlayPins.set(id, pin);
+    for (const [displayIdNow, { win }] of dingOverlayList.entries()) {
+        if (readyOverlays.has(displayIdNow))
+            sendOverlayPin(win, displayIdNow, id, pin);
     }
+    coverPin(pin, true);
+    releaseOverlayImages();
+}
+
+/** 每个显示器都有就绪的覆盖层后，不再为补建窗口保留贴图图片 */
+function releaseOverlayImages() {
+    if (screen.getAllDisplays().some((d) => !readyOverlays.has(d.id))) return;
+    for (const pin of overlayPins.values()) pin.url = "";
+}
+
+/** 只给贴图所在的显示器建覆盖层，贴图移到别的显示器时再补建 */
+function coverPin(
+    pin: Rect & { live?: LiveDingData; displayId?: number },
+    focus = false,
+) {
+    const displays = screen.getAllDisplays();
+    const covered = pin.live
+        ? displays.filter((d) => d.id === pin.displayId)
+        : displays.filter((d) => {
+              const b = d.bounds;
+              return (
+                  pin.x < b.x + b.width &&
+                  pin.x + pin.w > b.x &&
+                  pin.y < b.y + b.height &&
+                  pin.y + pin.h > b.y
+              );
+          });
+    if (!covered.length)
+        covered.push(
+            screen.getDisplayNearestPoint({
+                x: Math.round(pin.x + pin.w / 2),
+                y: Math.round(pin.y + pin.h / 2),
+            }),
+        );
+    for (const display of covered) createDingOverlayWindow(display, focus);
+}
+
+function sendOverlayPin(
+    win: BrowserWindow,
+    displayIdNow: number,
+    id: number,
+    pin: NonNullable<ReturnType<typeof overlayPins.get>>,
+) {
+    if (!pin.url || (pin.live && displayIdNow !== pin.displayId)) return;
+    const b = win.getBounds();
+    mainSend(win.webContents, "addDing", [
+        id,
+        pin.x - b.x,
+        pin.y - b.y,
+        pin.w,
+        pin.h,
+        pin.url,
+        pin.type,
+        pin.live,
+        pin.live ? pin.displayId : undefined,
+        pin.frame && {
+            x: pin.frame.x - b.x,
+            y: pin.frame.y - b.y,
+            w: pin.frame.w,
+        },
+    ]);
+}
+
+function createDingOverlayWindow(display: Electron.Display, focus: boolean) {
+    if (dingOverlayList.keys().includes(display.id)) return;
+    const bounds = display.bounds;
+    const win = new BrowserWindow({
+        ...dingWindowOptions(),
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        // 拖动途中补建的窗口抢焦点会打断拖动
+        show: focus,
+    });
+    if (!focus) win.showInactive();
+    dingOverlayList.set(display.id, { win, display });
+    win.on("closed", () => readyOverlays.delete(display.id));
+    rendererPath(win, "ding.html");
+    initDingWindow(win);
+    win.webContents.on("did-finish-load", () => {
+        if (win.isDestroyed()) return;
+        readyOverlays.add(display.id);
+        for (const [id, pin] of overlayPins)
+            sendOverlayPin(win, display.id, id, pin);
+        if (overlayDrag)
+            mainSend(win.webContents, "dingShare", [
+                { type: "move_start", more: overlayDrag },
+            ]);
+        releaseOverlayImages();
+    });
+    win.setIgnoreMouseEvents(true);
 }
 
 /** 独立模式：贴图本身就是一个系统窗口 */
@@ -3035,6 +3101,17 @@ function dingTick() {
         return;
     }
     const p = screen.getCursorScreenPoint();
+    if (overlayDrag?.d === "move") {
+        const pin = overlayPins.get(Number(overlayDrag.id));
+        const f = pin && !pin.live ? (pin.frame ?? pin) : null;
+        if (f)
+            coverPin({
+                x: p.x - f.w * overlayDrag.dx,
+                y: p.y - f.h * overlayDrag.dy,
+                w: f.w,
+                h: f.h,
+            });
+    }
     const send = (win: BrowserWindow) => {
         if (win.isDestroyed()) return;
         const b = win.getBounds();
@@ -3071,6 +3148,21 @@ mainOn("dingIgnore", ([v]) => {
     for (const [_, win] of dingOverlayList.entries()) {
         win.win.setIgnoreMouseEvents(dingThrogh === null ? v : dingThrogh);
     }
+});
+
+mainOn("dingFrame", ([id, x, y, w, h], e) => {
+    const pin = overlayPins.get(Number(id));
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (
+        !pin ||
+        !win ||
+        ![x, y, w, h].every(Number.isFinite) ||
+        !dingOverlayList.entries().some(([, v]) => v.win === win)
+    )
+        return;
+    const b = win.getBounds();
+    pin.frame = { x: x + b.x, y: y + b.y, w, h };
+    coverPin({ ...pin.frame, live: pin.live, displayId: pin.displayId });
 });
 
 mainOn("dingSetBounds", ([x, y, w, h], e) => {
@@ -3110,10 +3202,13 @@ function forceDingThrogh() {
 }
 
 mainOnReflect("dingShare", ([data]) => {
+    if (data.type === "move_start") overlayDrag = data.more;
+    if (data.type === "move_end") overlayDrag = null;
     if (data.type === "close") {
         const id = Number(data.id);
         liveDingIds.delete(id);
         activeDingIds.delete(id);
+        overlayPins.delete(id);
         screenshotTranslations.close(id);
         closePinPanel(id);
         if (activeDingIds.size === 0) {
@@ -3121,6 +3216,8 @@ mainOnReflect("dingShare", ([data]) => {
                 dingOverlayList.delete(i);
             }
             liveDingIds.clear();
+            overlayPins.clear();
+            overlayDrag = null;
             return [];
         }
     }

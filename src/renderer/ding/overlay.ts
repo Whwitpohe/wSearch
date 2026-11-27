@@ -332,10 +332,24 @@ function resize(
 
     item.setImageRendering(zoom);
 
-    if (resizeSender)
+    if (resizeSender) {
         renderSend("dingShare", [
             { type: "resize", more: { id: id, zoom, dx, dy, clip } },
         ]);
+        reportFrame(id);
+    }
+}
+
+function reportFrame(id: string) {
+    const el = items.get(id)?.el.el;
+    if (!el) return;
+    renderSend("dingFrame", [
+        id,
+        el.offsetLeft,
+        el.offsetTop,
+        el.offsetWidth,
+        el.offsetHeight,
+    ]);
 }
 
 function mouseStart(op: DingStart) {
@@ -459,9 +473,18 @@ export function init() {
         mouseMove(els[0] as HTMLElement, x, y);
     });
 
-    renderOn("addDing", ([wid, x, y, w, h, url, type, live, displayId]) => {
-        addDing(String(wid), x, y, w, h, url, type, live, displayId);
-    });
+    renderOn(
+        "addDing",
+        ([wid, x, y, w, h, url, type, live, displayId, frame]) => {
+            addDing(String(wid), x, y, w, h, url, type, live, displayId);
+            if (!frame) return;
+            items.get(String(wid))?.el.style({
+                left: `${frame.x}px`,
+                top: `${frame.y}px`,
+            });
+            resize(String(wid), frame.w / w, 0, 0);
+        },
+    );
 
     renderOn("dingLiveSwitch", ([id, live, poster]) => {
         items.get(String(id))?.switchSource(live, poster);
@@ -493,6 +516,7 @@ export function init() {
     };
 
     document.onmouseup = () => {
+        if (windowDiv) reportFrame(windowDiv.el.id);
         renderSend("dingShare", [{ type: "move_end" }]);
         resizeSender = false;
     };
