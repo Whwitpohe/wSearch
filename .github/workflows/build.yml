@@ -160,20 +160,19 @@ jobs:
         run: |
           notes="$RUNNER_TEMP/release-notes.md"
           (cd release-files && sha256sum wSearch-* > SHA256SUMS.txt)
-          if ! gh release view "$TAG" >/dev/null; then
-            bash script/release-notes.sh "$TAG" "$notes"
-            gh release create "$TAG" --draft --verify-tag --title "wSearch $TAG" --notes-file "$notes"
-          elif test -f "docs/releases/$TAG.md"; then
-            bash script/release-notes.sh "$TAG" "$notes"
-            gh release edit "$TAG" --notes-file "$notes"
+          bash script/release-notes.sh "$TAG" "$notes"
+          gh api "repos/$GH_REPO/git/ref/tags/$TAG" --silent
+          release_id=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq '.[] | select(.tag_name==env.TAG) | .id')
+          if test -z "$release_id"; then
+            release_id=$(gh api --method POST "repos/$GH_REPO/releases" -f tag_name="$TAG" -f name="wSearch $TAG" -F draft=true -F "body=@$notes" --jq .id)
           fi
           for file in release-files/*; do
             name=$(basename "$file")
-            remote=$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$name\") | .digest")
+            remote=$(gh api "repos/$GH_REPO/releases/$release_id/assets?per_page=100" --jq ".[] | select(.name==\"$name\") | .digest")
             if test -n "$remote"; then
               test "$remote" = "sha256:$(sha256sum "$file" | cut -d ' ' -f 1)" || { echo "Asset already exists with different contents: $name"; exit 1; }
             else
               gh release upload "$TAG" "$file"
             fi
           done
-          gh release edit "$TAG" --draft=false
+          gh api --method PATCH "repos/$GH_REPO/releases/$release_id" -f tag_name="$TAG" -f name="wSearch $TAG" -F "body=@$notes" -F draft=false -F prerelease=false -f make_latest=true --silent
