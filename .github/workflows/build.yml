@@ -75,6 +75,7 @@ jobs:
           pnpm test
           pnpm run build
           pnpm exec electron-builder --publish never --config electron-builder.config.js
+          pnpm exec electron-builder --publish never --config electron-builder.offline.config.js
       - name: Verify release files
         shell: python
         env:
@@ -86,14 +87,15 @@ jobs:
           prefix = "wSearch-{}-{}-{}.".format(os.environ["RELEASE_TAG"],platform,os.environ["M_ARCH"])
           dest = pathlib.Path("release-files")
           dest.mkdir()
-          for ext in extensions:
-              src = pathlib.Path("build") / (prefix + ext)
-              if not src.is_file() or src.stat().st_size < 1_000_000:
-                  raise SystemExit("Missing package: " + str(src))
-              if ext == "zip":
-                  with zipfile.ZipFile(src) as z:
-                      if z.testzip() is not None: raise SystemExit("Invalid ZIP")
-              shutil.move(src, dest / src.name)
+          for directory, suffix in [("build", ""), ("build/offline", "-offline")]:
+              for ext in extensions:
+                  src = pathlib.Path(directory) / (prefix[:-1] + suffix + "." + ext)
+                  if not src.is_file() or src.stat().st_size < 1_000_000:
+                      raise SystemExit("Missing package: " + str(src))
+                  if ext == "zip":
+                      with zipfile.ZipFile(src) as z:
+                          if z.testzip() is not None: raise SystemExit("Invalid ZIP")
+                  shutil.move(src, dest / src.name)
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.platform }}-${{ matrix.arch }}

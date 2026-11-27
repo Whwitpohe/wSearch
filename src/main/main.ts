@@ -58,7 +58,7 @@ import {
 } from "../../lib/captureTiming";
 import { githubMirrorList } from "../../lib/github_mirror";
 import type { RecordRect, SettingsLanguageView } from "../../lib/ipc";
-import { mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
+import { mainHandle, mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
 import { selectionShortcuts } from "../../lib/selectionShortcuts";
 import type { SettingPath } from "../../lib/store/renderStore";
 import Store from "../../lib/store/store";
@@ -3973,6 +3973,17 @@ function githubUrl(_path: string, _type: GithubUrlType | "auto" = "auto") {
 }
 
 mainOn("githubUrl", ([p, t]) => githubUrl(p, t));
+mainHandle("defaultOcrDirectory", async (_args, event) => {
+    const { defaultOcrDirectory } = await import("./defaultOcrModels");
+    try {
+        return await defaultOcrDirectory(
+            (path) => githubUrl(path, "base"),
+            () => mainSend(event.sender, "defaultOcrDownloading", []),
+        );
+    } catch (error) {
+        throw new Error(`${t("下载失败")} · OCR · ${String(error)}`);
+    }
+});
 
 function checkUpdate(s手动检查?: boolean) {
     const version = store.get("设置版本");

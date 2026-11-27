@@ -1,8 +1,7 @@
 diff --git a/dist/esearch-ocr.js b/dist/esearch-ocr.js
-index c9d748421b037b67e1663a07553954168035c6f7..8fd2da43abd91a7e56f0caa8a6a871f6d4b1a2dc 100644
 --- a/dist/esearch-ocr.js
 +++ b/dist/esearch-ocr.js
-@@ -25,12 +25,17 @@ function H(t, n, o) {
+@@ -25,12 +25,17 @@
    const s = ct(n || t.width, o || t.height);
    return s.getContext("2d").putImageData(t, 0, 0), s;
  }
@@ -26,7 +25,7 @@ index c9d748421b037b67e1663a07553954168035c6f7..8fd2da43abd91a7e56f0caa8a6a871f6
  }
  class Ft {
    constructor(n) {
-@@ -63,7 +68,7 @@ function nn(t, n, o) {
+@@ -63,7 +68,7 @@
    return { transposedData: kt(s, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), image: s };
  }
  async function en(t, n, o, s) {
@@ -35,7 +34,33 @@ index c9d748421b037b67e1663a07553954168035c6f7..8fd2da43abd91a7e56f0caa8a6a871f6
    u[s.inputNames[0]] = i;
    const m = await s.run(u);
    return Object.values(m);
-@@ -421,11 +426,11 @@ async function bn(t) {
+@@ -121,8 +126,11 @@
+ function Rt(t, n, o) {
+   return (n.x - t.x) * (o.y - t.y) - (n.y - t.y) * (o.x - t.x);
+ }
++function byteRows(buffer, width, height) {
++  return Array.from({ length: height }, (_, row) => buffer.subarray(row * width, (row + 1) * width));
++}
+ function cn(t, n, o = "CHAIN_APPROX_SIMPLE") {
+-  const s = t.length, a = s > 0 ? t[0].length : 0, r = Array.from({ length: s }, () => new Array(a).fill(!1));
++  const s = t.length, a = s > 0 ? t[0].length : 0, r = byteRows(new Uint8Array(s * a), a, s);
+   for (let i = 0; i < s; i++)
+     for (let u = 0; u < a; u++)
+       if (t[i][u] !== 0 && !r[i][u] && jt(t, u, i)) {
+@@ -394,9 +402,9 @@
+     var y, b, I;
+     const l = [];
+     G.l("bf_rec");
+-    const d = En(m, n), p = (h == null ? void 0 : h.topK) || ((y = t.multiChar) == null ? void 0 : y.topK) || 2, x = (h == null ? void 0 : h.threshold) || ((b = t.multiChar) == null ? void 0 : b.threshold) || 1e-5;
+-    for (const [k, S] of d.entries()) {
+-      const { b: D, imgH: E, imgW: A } = S, v = await pn(D, E, A, o, t.ort), W = An(v, s, { topK: p, threshold: x })[0];
++    const p = (h == null ? void 0 : h.topK) || ((y = t.multiChar) == null ? void 0 : y.topK) || 2, x = (h == null ? void 0 : h.threshold) || ((b = t.multiChar) == null ? void 0 : b.threshold) || 1e-5;
++    for (const [k, line] of m.entries()) {
++      const { b: D, imgH: E, imgW: A } = prepareLine(line.img, n), v = await pn(D, E, A, o, t.ort), W = An(v, s, { topK: p, threshold: x })[0];
+       l.push({
+         text: W,
+         box: m[k].box,
+@@ -421,11 +429,11 @@
    return { rec: i, rawRec: r };
  }
  async function yn(t, n, o, s) {
@@ -49,3 +74,49 @@ index c9d748421b037b67e1663a07553954168035c6f7..8fd2da43abd91a7e56f0caa8a6a871f6
    return u[s.inputNames[0]] = i, (await s.run(u))[s.outputNames[0]];
  }
  function In(t, n) {
+@@ -458,9 +466,7 @@
+     st(b, "det_ru");
+   }
+   F.l("edge");
+-  const l = [], d = [];
+-  for (let x = 0; x < m; x++)
+-    d.push(Array.from(h.slice(x * u, x * u + u)));
++  const l = [], d = byteRows(h, u, m);
+   const p = [];
+   if (cn(d, p), L) {
+     const x = document.querySelector("#det_ru").getContext("2d");
+@@ -644,19 +650,12 @@
+   const s = (o * t.width + n) * 4;
+   return Array.from(t.data.slice(s, s + 4));
+ }
+-function En(t, n) {
+-  const o = [];
+-  function s(a) {
+-    const r = Math.floor(n * (a.width / a.height)), i = Mt(a, r, n, void 0, !1);
+-    return L && st(H(i, r, n)), { data: i, w: r, h: n };
+-  }
+-  for (const a of t) {
+-    let r = a.img;
+-    r.width < r.height && (r = Gt(r, -90));
+-    const i = s(r);
+-    o.push({ b: kt(i.data, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), imgH: i.h, imgW: i.w });
+-  }
+-  return O(o), o;
++function prepareLine(image, height) {
++  const upright = image.width < image.height ? Gt(image, -90) : image;
++  const width = Math.floor(height * (upright.width / upright.height));
++  const resized = Mt(upright, width, height, void 0, !1);
++  if (L) st(H(resized, width, height));
++  return { b: kt(resized, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), imgH: height, imgW: width };
+ }
+ function An(t, n, o) {
+   const s = t.dims[2], a = [];
+@@ -668,7 +667,7 @@
+   for (let l = 0; l < t.data.length; l += s * t.dims[1]) {
+     const d = [];
+     for (let p = l; p < l + s * t.dims[1]; p += s) {
+-      const x = t.data.slice(p, p + s), y = [];
++      const x = t.data.subarray(p, p + s), y = [];
+       for (let b = 0; b < x.length; b++) {
+         const I = x[b];
+         if (!(I < u)) {

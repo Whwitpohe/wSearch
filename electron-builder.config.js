@@ -236,7 +236,7 @@ async function downloadBergamotRuntime() {
     console.log(`Bergamot 运行时已下载: ${result.runtime.asset}`);
 }
 
-const beforePack = async () => {
+const beforePack = async ({ packager }) => {
     await downloadBergamotRuntime();
 
     if (!checkPath("./assets/fonts/FiraCode-Regular.woff2")) {
@@ -259,14 +259,20 @@ const beforePack = async () => {
             ),
         );
     }
-    if (!checkPath("./assets/onnx/ppocr/ppocr6_small_rec.onnx")) {
+    const offline = packager.config.extraMetadata?.bundledOcr === true;
+    if (
+        offline &&
+        !["ppocr6_small_det.onnx", "ppocr6_small_rec.onnx", "dic.txt"].every(
+            (name) => checkPath(path.join("assets/onnx/ppocr", name)),
+        )
+    ) {
         ensureDir("./assets/onnx/ppocr");
         await downloadUnzip(
             `${githubUrl}/xushengfeng/eSearch-OCR/releases/download/4.0.0/ppocr_v6_small.zip`,
             "./assets/onnx/ppocr/",
         );
     }
-    if (!checkPath("./assets/onnx/ppocr/doc_cls.onnx")) {
+    if (offline && !checkPath("./assets/onnx/ppocr/doc_cls.onnx")) {
         await download(
             `${githubUrl}/xushengfeng/eSearch-OCR/releases/download/8.1.0/doc_cls.onnx`,
             "./assets/onnx/ppocr/",
@@ -311,6 +317,16 @@ const afterPack = async (context) => {
                   "Contents/Resources/app",
               )
             : path.join(context.appOutDir, "resources/app");
+    const { files: ocrFiles } = require("./lib/defaultOcrModels.json");
+    const modelDir = path.join(root, "assets/onnx/ppocr");
+    if (context.packager.config.extraMetadata?.bundledOcr) {
+        for (const [name, digest] of Object.entries(ocrFiles)) {
+            if (sha256(fs.readFileSync(path.join(modelDir, name))) !== digest)
+                throw new Error(`OCR model mismatch: ${name}`);
+        }
+    } else if (fs.existsSync(modelDir) && fs.readdirSync(modelDir).length) {
+        throw new Error("Standard package contains bundled OCR models");
+    }
     const unexpected = [];
     for (const entry of fs.readdirSync(root, {
         recursive: true,
@@ -471,6 +487,7 @@ files?.unshift(
     "lib/kde-open-with",
     "LICENSE",
 );
+files?.push("!assets/onnx/ppocr/**/*");
 
 // 移除 onnxruntime-node/bin/napi-v6/
 files?.push(

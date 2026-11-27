@@ -1,4 +1,5 @@
 import type { InitOcrBase } from "esearch-ocr";
+import { renderInvoke } from "../../../lib/ipc";
 import { defaultOcrId } from "./ocrList";
 
 const path = require("node:path") as typeof import("path");
@@ -40,13 +41,30 @@ async function loadOCR(
     }
     const l = ocrList.find((i) => i.id === type);
     if (!l) return null;
+    const bundledDir = path.join(__dirname, "../../assets/onnx/ppocr");
+    let downloadedDir = "";
     function ocrPath(p: string) {
         if (!p) return "";
-        const xp = path.isAbsolute(p)
-            ? p
-            : path.join(__dirname, "../../assets/onnx/ppocr", p);
-        if (fs.existsSync(xp)) return xp;
+        if (path.isAbsolute(p)) return fs.existsSync(p) ? p : "";
+        const bundled = path.join(bundledDir, p);
+        if (fs.existsSync(bundled)) return bundled;
+        if (downloadedDir) {
+            const cached = path.join(downloadedDir, p);
+            if (fs.existsSync(cached)) return cached;
+        }
         return "";
+    }
+    if (
+        !(
+            ocrPath(l.detPath) ||
+            ocrPath(globalDetPath) ||
+            ocrPath(defaultPaths.det)
+        ) ||
+        !(ocrPath(l.recPath) || ocrPath(defaultPaths.rec)) ||
+        !(ocrPath(l.dicPath) || ocrPath(defaultPaths.dic)) ||
+        (op?.docCls && !ocrPath(defaultPaths.docCls))
+    ) {
+        downloadedDir = await renderInvoke("defaultOcrDirectory", []);
     }
     const detp =
         ocrPath(l.detPath) ||

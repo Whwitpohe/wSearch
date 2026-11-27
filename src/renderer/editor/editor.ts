@@ -1873,6 +1873,7 @@ function storeHistory() {
 
 /************************************引入 */
 
+renderOn("defaultOcrDownloading", () => editor.push(`OCR · ${t("下载中...")}`));
 renderOn("editorInit", ([name, list]) => {
     windowName = name;
 
@@ -2566,6 +2567,7 @@ async function localOcr(
                     const x = `${t("文字识别需要VS运行库才能正常使用")}\n${t("请下载并安装 Microsoft Visual C++ Runtime")}\nhttps://aka.ms/vs/17/release/vc_redist.${process.arch}.exe`;
                     return callback(new Error(x), null);
                 }
+                return callback(error, null);
             } else if (error) return callback(error as Error, null);
             if (!x) return callback(new Error("未找到OCR模型"), null);
 

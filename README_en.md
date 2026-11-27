@@ -33,6 +33,8 @@ Including **screenshot+OCR+search+translation+pasting+reverse image search+scree
 
 See the [wSearch releases](https://github.com/Whwitpohe/wSearch/releases) for published builds.
 
+The standard edition downloads the built-in models the first time you use local OCR and caches them for offline use. Choose the package with `-offline` in its filename to recognize text offline from the first launch.
+
 ## Launch
 
 Open wSearch from your launcher, and it will appear in the system tray.

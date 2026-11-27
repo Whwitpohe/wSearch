@@ -365,3 +365,5 @@ export function createAnnotations(
         filters,
     };
 }
+
+export { createPropertyPanels } from "./propertyPanels";

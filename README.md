@@ -33,6 +33,8 @@ eSearch 是[Information-portal](https://github.com/xushengfeng/Information-porta
 
 已发布的安装包可在 [wSearch 版本发布页](https://github.com/Whwitpohe/wSearch/releases)查看。
 
+标准版会在首次使用内置本地 OCR 时下载模型，之后可以离线识别。需要从第一次起就离线使用的设备，请选择文件名带 `-offline` 的安装包。
+
 ## 启动
 
 在你的启动器打开 wSearch，他将出现在托盘。

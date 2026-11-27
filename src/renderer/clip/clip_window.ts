@@ -17,7 +17,7 @@ import type {
     Rect,
 } from "fabric";
 import hotkeys from "hotkeys-js";
-import { findOffset } from "picture_match";
+
 import {
     captureTools,
     clipDrawTools,
@@ -25,11 +25,10 @@ import {
     isSelectionAction,
 } from "../../../lib/captureTools";
 import { ele2jsKeyCode, jsKeyCodeDisplay } from "../../../lib/key";
-import {
-    type LongFrame,
-    type LongStep,
+import type {
+    LongFrame,
+    LongStep,
     LongStitcher,
-    longOverlapLevel,
 } from "../../../lib/longStitch";
 import open_with from "../../../lib/open_with";
 import store from "../../../lib/store/renderStore";
@@ -926,6 +925,8 @@ let longWarnLevel: LongWarnLevel = 0;
 let longWarnTimer: NodeJS.Timeout | undefined;
 
 let longStitcher: LongStitcher | null = null;
+let longEngine: typeof import("./longEngine");
+let startingLong = false;
 type LongDebugRecord = {
     file: string;
     width: number;
@@ -1107,7 +1108,7 @@ function resetLongRunState() {
     longCompactStarted = false;
     longPreviewLastTime = 0;
     finishLongInside = false;
-    longStitcher = new LongStitcher({ findOffset, direction: longFX });
+    longStitcher = longEngine.createStitcher(longFX);
     longX.img = null;
     longX.imgXY = { x: 0, y: 0 };
 }
@@ -1149,7 +1150,7 @@ function setLongWarn(level: LongWarnLevel) {
 
 function updateLongWarn(step: LongStep, forceLast: boolean) {
     if (forceLast) return;
-    const level = longOverlapLevel(
+    const level = longEngine.longOverlapLevel(
         step.offset?.overlap,
         step.offset?.confidence,
     );
@@ -1286,6 +1287,13 @@ async function startLongCompact() {
 }
 
 async function startLong() {
+    if (startingLong || longRunning) return;
+    startingLong = true;
+    try {
+        longEngine = await import("./longEngine");
+    } finally {
+        startingLong = false;
+    }
     resetLongRunState();
     resetLongDebug();
     if (longDisplayMode() === "紧凑") {
@@ -1313,8 +1321,15 @@ function initLong(rect: number[]) {
         else renderSend("windowIgnoreMouse", [false]);
     }, 1000);
 
-    for (const i of longHide) {
-        i.style.display = "none";
+    for (const element of document.body.children) {
+        if (
+            !(element instanceof HTMLElement) ||
+            element === longTip.el.el ||
+            element === longPreview.el
+        )
+            continue;
+        hiddenDuringLong.set(element, element.style.display);
+        element.style.display = "none";
     }
 
     document.body.classList.remove("editor_bg");
@@ -1398,9 +1413,9 @@ async function stopLong() {
     lr.style({ opacity: "0" });
     renderSend("windowIgnoreMouse", [false]);
     addLong(undefined);
-    for (const i of longHide) {
-        i.style.display = "";
-    }
+    for (const [element, display] of hiddenDuringLong)
+        element.style.display = display;
+    hiddenDuringLong.clear();
 }
 
 async function addLong(x: ImageData | undefined, forceLast = false) {
@@ -1421,10 +1436,7 @@ async function addLong(x: ImageData | undefined, forceLast = false) {
     ctx.putImageData(x, -finalRect[0], -finalRect[1]);
 
     if (!longStitcher) {
-        longStitcher = new LongStitcher({
-            findOffset,
-            direction: longFX,
-        });
+        longStitcher = longEngine.createStitcher(longFX);
     }
     const frame: LongFrame = {
         width: canvas.width,
@@ -3268,7 +3280,7 @@ function setEditType<T extends keyof EditType>(
         const firstStroke = bufferAnnotationStroke(pending.signal);
         annotationImport ??= import("./annotations");
         void annotationImport
-            .then(({ createAnnotations }) => {
+            .then(({ createAnnotations, createPropertyPanels }) => {
                 if (pending.signal.aborted) return;
                 annotation = createAnnotations(
                     drawCanvas,
@@ -3276,6 +3288,11 @@ function setEditType<T extends keyof EditType>(
                     mainCanvas.height,
                     字体.等宽字体,
                     getArrowPro,
+                );
+                panels = createPropertyPanels(
+                    setColorTab,
+                    renderFonts,
+                    scheduleElementBarPosition,
                 );
                 fabricCanvas = annotation.canvas;
                 bindAnnotationEvents(fabricCanvas);
@@ -4383,44 +4400,11 @@ const drawBarSideElChildren: {
 
 drawBarSideEl.add(drawBarSideElChildren.map((i) => i.el));
 
-const elementBar = view()
-    .attr({ id: "element_bar" })
-    .class(Class.glassBar)
-    .addInto();
-const elementBarHeader = view()
-    .attr({ id: "element_bar_header" })
-    .addInto(elementBar);
-const elementBarBody = view()
-    .attr({ id: "element_bar_body" })
-    .addInto(elementBar);
-
 // 颜色弹层：旧色盘 + 项目取色器
 let colorPopoverTarget: ((v: string) => void) | null = null;
 let colorPopoverAnchor: HTMLElement | null = null;
 let colorPopoverOpen = false;
 let colorPopoverTab: "grid" | "picker" = "grid";
-const colorPopover = view("y").class(Class.gap, Class.glassBar).style({
-    position: "fixed",
-    inset: "auto",
-    display: "none",
-    margin: 0,
-    padding: "0px",
-    width: "224px",
-    maxHeight: "calc(100vh - 8px)",
-    overflowX: "hidden",
-    overflowY: "auto",
-    color: "var(--font-color)",
-    borderRadius: "var(--border-radius)",
-    boxShadow: "var(--shadow)",
-    visibility: "hidden",
-    zIndex: "120",
-});
-const colorTabs = view("x");
-const colorGrid = view().style({
-    display: "grid",
-    width: "100%",
-    gridTemplateColumns: "repeat(5, 1fr)",
-});
 let inlinePicker: ReturnType<typeof colorPicker> | undefined;
 
 function getInlinePicker() {
@@ -4432,37 +4416,26 @@ function getInlinePicker() {
             width: "100%",
         });
         picker.on("input", () => applyPopoverColor(picker.gv, true));
-        colorPopover.add(picker);
+        panels.colorPopover.add(picker);
         inlinePicker = picker;
     }
     return inlinePicker;
 }
-const colorTabGrid = button(t("色盘"))
-    .class("color_tab")
-    .style({ padding: "1px 6px", fontSize: "11px" })
-    .on("click", () => setColorTab("grid"));
-const colorTabPicker = button(t("取色器"))
-    .class("color_tab")
-    .style({ padding: "1px 6px", fontSize: "11px" })
-    .on("click", () => setColorTab("picker"));
-colorTabs.add([colorTabGrid, colorTabPicker]);
-colorPopover.add([colorTabs, colorGrid]).addInto();
-
 function setColorTab(tab: "grid" | "picker") {
     colorPopoverTab = tab;
-    colorGrid.style({ display: tab === "grid" ? "grid" : "none" });
+    panels.colorGrid.style({ display: tab === "grid" ? "grid" : "none" });
     inlinePicker?.style({ display: tab === "picker" ? "flex" : "none" });
-    colorTabGrid.style({
+    panels.colorTabGrid.style({
         background: tab === "grid" ? "var(--bar-focus-color)" : "transparent",
     });
-    colorTabPicker.style({
+    panels.colorTabPicker.style({
         background: tab === "picker" ? "var(--bar-focus-color)" : "transparent",
     });
     if (colorPopoverOpen) positionColorPopover();
 }
 
 function renderColorGrid(hue?: number, gray = false) {
-    colorGrid.clear();
+    panels.colorGrid.clear();
     const colors: { color: string; hue: number; gray?: boolean }[] = [];
     if (hue === undefined) {
         colors.push({ color: "#fff", hue: 0, gray: true });
@@ -4507,7 +4480,7 @@ function renderColorGrid(hue?: number, gray = false) {
                     );
                 }
             });
-        colorGrid.add(swatch);
+        panels.colorGrid.add(swatch);
     }
     if (colorPopoverOpen) positionColorPopover();
 }
@@ -4523,8 +4496,8 @@ function applyPopoverColor(v: string, fromPicker: boolean) {
 function positionColorPopover() {
     if (!colorPopoverOpen || !colorPopoverAnchor) return;
     const rect = colorPopoverAnchor.getBoundingClientRect();
-    const width = colorPopover.el.offsetWidth;
-    const height = colorPopover.el.offsetHeight;
+    const width = panels.colorPopover.el.offsetWidth;
+    const height = panels.colorPopover.el.offsetHeight;
     const gap = 6;
     const margin = 4;
     const below = rect.bottom + gap;
@@ -4533,7 +4506,7 @@ function positionColorPopover() {
         rect.top - height - gap < margin
             ? below
             : rect.top - height - gap;
-    colorPopover.style({
+    panels.colorPopover.style({
         left: `${Math.max(
             margin,
             Math.min(window.innerWidth - width - margin, rect.left),
@@ -4550,7 +4523,7 @@ function onColorOutside(e: PointerEvent) {
     const target = e.target as Node | null;
     if (!target) return;
     if (
-        colorPopover.el.contains(target) ||
+        panels.colorPopover.el.contains(target) ||
         colorPopoverAnchor?.contains(target)
     )
         return;
@@ -4564,7 +4537,7 @@ function onColorKey(e: KeyboardEvent) {
 function closeColorPopover() {
     if (colorPopoverOpen) {
         colorPopoverOpen = false;
-        colorPopover.style({ display: "none", visibility: "hidden" });
+        panels.colorPopover.style({ display: "none", visibility: "hidden" });
     }
     colorPopoverTarget = null;
     colorPopoverAnchor = null;
@@ -4583,7 +4556,7 @@ function openColorPopover(
     colorPopoverAnchor = anchor;
     if (!colorPopoverOpen) {
         colorPopoverOpen = true;
-        colorPopover.style({ display: "flex" });
+        panels.colorPopover.style({ display: "flex" });
         document.addEventListener("pointerdown", onColorOutside, true);
         document.addEventListener("keydown", onColorKey, true);
         window.addEventListener("resize", positionColorPopover);
@@ -4595,8 +4568,6 @@ function openColorPopover(
     setColorTab(colorPopoverTab);
     positionColorPopover();
 }
-
-colorPopover.on("contextmenu", (e) => e.preventDefault());
 
 const whEl = view("x").attr({ id: "clip_wh" }).class(Class.glassBar, Class.gap);
 const whX0 = input();
@@ -4849,9 +4820,7 @@ let lastLong = 0;
 let uIOhook: typeof import("uiohook-napi")["uIOhook"] | null;
 let longClipTime: NodeJS.Timeout | undefined;
 
-const longHide = Array.from(document.body.children).filter(
-    (i) => i !== longTip.el.el && i !== longPreview.el,
-) as HTMLElement[];
+const hiddenDuringLong = new Map<HTMLElement, string>();
 
 const longX = {
     img: null as HTMLCanvasElement | null,
@@ -5856,15 +5825,15 @@ document.onmousemove = (e) => {
 
             const isDrawBar = drawBar.contains(ev.target as HTMLElement);
             const isToolBar = toolBar.contains(ev.target as HTMLElement);
-            const isElementBar = elementBar.el.contains(
+            const isElementBar = panels?.elementBar.el.contains(
                 ev.target as HTMLElement,
             );
             const isColorPopover =
                 colorPopoverOpen &&
-                colorPopover.el.contains(ev.target as HTMLElement);
+                panels.colorPopover.el.contains(ev.target as HTMLElement);
             const isFontPanel =
                 fontPanelOpen &&
-                fontPanel.el.contains(ev.target as HTMLElement);
+                panels.fontPanel.el.contains(ev.target as HTMLElement);
             mouseBarEl.el.classList.toggle(
                 "mouse_bar_hide",
                 isDrawBar ||
@@ -5931,6 +5900,7 @@ drawSide操作.删除.on("click", () => {
 
 type Annotations = ReturnType<typeof import("./annotations").createAnnotations>;
 let annotation: Annotations;
+let panels: ReturnType<typeof import("./propertyPanels").createPropertyPanels>;
 let fabricCanvas: Canvas;
 let annotationImport: Promise<typeof import("./annotations")> | undefined;
 let pendingTool: AbortController | undefined;
@@ -6081,7 +6051,8 @@ function schedulePropertyHistory() {
 
 function setElementBarVisible(v: boolean) {
     elementBarVisible = v;
-    elementBar.el.style.display = v ? "block" : "none";
+    if (!panels) return;
+    panels.elementBar.el.style.display = v ? "block" : "none";
     if (v) scheduleElementBarPosition();
 }
 
@@ -6449,71 +6420,32 @@ let fontPanelButton: HTMLElement | null = null;
 let fontPanelTarget: ((v: string) => void) | null = null;
 let fontPanelValue = "";
 let fontList: string[] = [];
-let fontRenderFrame = 0;
-
-const fontPanel = view("y")
-    .attr({ id: "font_panel" })
-    .class(Class.gap, Class.glassBar)
-    .style({
-        position: "fixed",
-        inset: "auto",
-        display: "none",
-        margin: 0,
-        padding: "4px",
-        width: "240px",
-        maxHeight: "calc(100vh - 8px)",
-        overflow: "hidden",
-        color: "var(--font-color)",
-        borderRadius: "var(--border-radius)",
-        boxShadow: "var(--shadow)",
-        visibility: "hidden",
-        zIndex: "120",
-    })
-    .addInto();
-const fontSearch = input()
-    .attr({ placeholder: t("搜索字体") })
-    .style({ width: "100%", height: "24px", fontSize: "12px" })
-    .on("input", () => renderFonts(true));
-const fontScroll = view().style({
-    position: "relative",
-    height: "260px",
-    maxHeight: "calc(100vh - 60px)",
-    overflowY: "auto",
-});
-const fontSpacer = view().style({ position: "relative" });
-fontScroll.add(fontSpacer);
-fontPanel.add([fontSearch, fontScroll]);
-fontScroll.on("scroll", () => {
-    if (fontRenderFrame) return;
-    fontRenderFrame = requestAnimationFrame(() => {
-        fontRenderFrame = 0;
-        renderFonts();
-    });
-});
 
 function renderFonts(reset = false) {
     if (reset) {
-        const query = fontSearch.gv.trim().toLowerCase();
+        const query = panels.fontSearch.gv.trim().toLowerCase();
         const all = localFonts ?? [];
         fontList = query
             ? all.filter((f) => f.toLowerCase().includes(query))
             : all;
-        fontScroll.el.scrollTop = 0;
+        panels.fontScroll.el.scrollTop = 0;
     }
-    const height = fontScroll.el.clientHeight || 260;
+    const height = panels.fontScroll.el.clientHeight || 260;
     const start = Math.max(
         0,
-        Math.floor(fontScroll.el.scrollTop / fontItemHeight) - 4,
+        Math.floor(panels.fontScroll.el.scrollTop / fontItemHeight) - 4,
     );
     const end = Math.min(
         fontList.length,
         start + Math.ceil(height / fontItemHeight) + 8,
     );
-    fontSpacer.style({ height: `${fontList.length * fontItemHeight}px` });
-    fontSpacer.clear();
+    panels.fontSpacer.style({
+        height: `${fontList.length * fontItemHeight}px`,
+    });
+    panels.fontSpacer.clear();
     for (let n = start; n < end; n++) {
         const name = fontList[n];
-        fontSpacer.add(
+        panels.fontSpacer.add(
             view("x")
                 .class("font_item")
                 .style({
@@ -6538,8 +6470,8 @@ function renderFonts(reset = false) {
 function positionFontPanel() {
     if (!fontPanelOpen || !fontPanelOwner) return;
     const rect = fontPanelOwner.getBoundingClientRect();
-    const width = fontPanel.el.offsetWidth;
-    const height = fontPanel.el.offsetHeight;
+    const width = panels.fontPanel.el.offsetWidth;
+    const height = panels.fontPanel.el.offsetHeight;
     const gap = 4;
     const margin = 4;
     let left = rect.right + gap;
@@ -6551,7 +6483,7 @@ function positionFontPanel() {
             top = rect.top - height - gap;
         }
     }
-    fontPanel.style({
+    panels.fontPanel.style({
         left: `${Math.max(
             margin,
             Math.min(window.innerWidth - width - margin, left),
@@ -6567,7 +6499,10 @@ function positionFontPanel() {
 function onFontOutside(e: PointerEvent) {
     const target = e.target as Node | null;
     if (!target) return;
-    if (fontPanel.el.contains(target) || fontPanelButton?.contains(target))
+    if (
+        panels.fontPanel.el.contains(target) ||
+        fontPanelButton?.contains(target)
+    )
         return;
     closeFontPanel();
 }
@@ -6579,7 +6514,7 @@ function onFontKey(e: KeyboardEvent) {
 function closeFontPanel() {
     if (!fontPanelOpen) return;
     fontPanelOpen = false;
-    fontPanel.style({ display: "none", visibility: "hidden" });
+    panels.fontPanel.style({ display: "none", visibility: "hidden" });
     fontPanelOwner = null;
     fontPanelButton = null;
     fontPanelTarget = null;
@@ -6601,8 +6536,8 @@ async function openFontPanel(
     fontPanelButton = buttonEl;
     fontPanelTarget = apply;
     fontPanelValue = value;
-    fontSearch.sv("");
-    fontPanel.style({ display: "flex" });
+    panels.fontSearch.sv("");
+    panels.fontPanel.style({ display: "flex" });
     renderFonts(true);
     positionFontPanel();
     document.addEventListener("pointerdown", onFontOutside, true);
@@ -6614,16 +6549,16 @@ async function openFontPanel(
     renderFonts(true);
     const index = fontList.indexOf(fontPanelValue);
     if (index >= 0) {
-        fontScroll.el.scrollTop = Math.max(
+        panels.fontScroll.el.scrollTop = Math.max(
             0,
             index * fontItemHeight -
-                fontScroll.el.clientHeight / 2 +
+                panels.fontScroll.el.clientHeight / 2 +
                 fontItemHeight / 2,
         );
         renderFonts();
         positionFontPanel();
     }
-    fontSearch.el.focus();
+    panels.fontSearch.el.focus();
 }
 
 function propertyFont(
@@ -6736,7 +6671,7 @@ function setLineEndpoint(
 }
 
 function addLineEndpoints(o: Polyline) {
-    elementBarBody.add([
+    panels.elementBarBody.add([
         propertyPair(
             "起点X",
             numberControl(
@@ -6861,7 +6796,7 @@ function addHeader(
             }),
         );
     }
-    elementBarHeader.clear().add(list);
+    panels.elementBarHeader.clear().add(list);
 }
 
 function renderShapeToolPanel(kind: EditType["shape"]) {
@@ -6877,7 +6812,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
     };
 
     if (!["line", "arrow", "polyline", "frame"].includes(kind))
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyColor(
                 propIcon("fill", kind === "text" ? "文字颜色" : "填充"),
                 () => getShapePro(kind).fc,
@@ -6885,14 +6820,14 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
             ),
         );
     if (kind !== "mask" && kind !== "text") {
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyColor(
                 propIcon("stroke", "描边"),
                 () => getShapePro(kind).sc,
                 stroke,
             ),
         );
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyRange(
                 propIcon("width", "线宽"),
                 kind === "frame" ? 1 : 0,
@@ -6902,7 +6837,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
                 width,
             ),
         );
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertySelect(
                 "虚线",
                 dashOptions,
@@ -6913,7 +6848,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
     }
 
     if (kind === "rect" || kind === "frame" || kind === "mask") {
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyNumber(
                 propIcon("corner", kind === "mask" ? "洞口圆角" : "圆角"),
                 () => getShapePro(kind).rx,
@@ -6924,7 +6859,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
             ),
         );
         if (kind === "mask")
-            elementBarBody.add(
+            panels.elementBarBody.add(
                 propertyNumber(
                     "羽化",
                     () => getShapePro(kind).feather,
@@ -6937,7 +6872,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
     }
 
     if (kind === "text") {
-        elementBarBody.add([
+        panels.elementBarBody.add([
             propertyFont(
                 "字体",
                 () => getShapePro("text").fontFamily,
@@ -7015,7 +6950,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
     }
 
     if (kind === "number") {
-        elementBarBody.add([
+        panels.elementBarBody.add([
             propertyNumber(
                 "字号",
                 () => getShapePro("number").fontSize,
@@ -7036,7 +6971,7 @@ function renderShapeToolPanel(kind: EditType["shape"]) {
     }
 
     if (kind === "arrow") {
-        elementBarBody.add([
+        panels.elementBarBody.add([
             propertyNumber(
                 "头宽",
                 () => getArrowPro().arrowW,
@@ -7077,14 +7012,14 @@ function renderDrawToolPanel(modeType: EditType["draw"]) {
         `${modeType === "eraser" ? "橡皮" : modeType === "spray" ? "喷刷" : "画笔"} · 默认`,
     );
     if (modeType !== "eraser")
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyColor(
                 propIcon("stroke", "颜色"),
                 () => getShapePro(modeType).sc,
                 (v) => setFreePro("sc", v),
             ),
         );
-    elementBarBody.add([
+    panels.elementBarBody.add([
         propertyRange(
             propIcon("width", "粗细"),
             0,
@@ -7117,7 +7052,7 @@ function renderFilterToolPanel() {
     const filterKey = willFilter;
     const f = filtetMap[filterKey];
     if (filterKey === "gamma") {
-        elementBarBody.add(
+        panels.elementBarBody.add(
             gammaPropertyRanges(
                 () => f.value?.value as number[] | undefined,
                 (v) => {
@@ -7127,7 +7062,7 @@ function renderFilterToolPanel() {
             ),
         );
     } else if (f.value) {
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyRange(
                 "强度",
                 f.value.min ?? 0,
@@ -7147,8 +7082,8 @@ function renderFilterToolPanel() {
 
 function renderToolPropertyPanel() {
     closeFontPanel();
-    elementBarHeader.clear();
-    elementBarBody.clear();
+    panels.elementBarHeader.clear();
+    panels.elementBarBody.clear();
     if (nowType === "shape" && shape) {
         renderShapeToolPanel(shape);
     } else if (nowType === "draw" && mode) {
@@ -7172,7 +7107,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
         remove: true,
         advanced: single,
     });
-    elementBarBody.clear();
+    panels.elementBarBody.clear();
 
     if (single && propertyAdvanced) {
         const o = objects[0];
@@ -7233,7 +7168,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 1,
             ),
         );
-        elementBarBody.add(geometry);
+        panels.elementBarBody.add(geometry);
         if (kind === "line" || kind === "arrow")
             addLineEndpoints(objects[0] as Polyline);
     }
@@ -7243,7 +7178,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
         (o) => !["mask", "filter", "text"].includes(getObjectKind(o) ?? ""),
     );
     if (canFill)
-        elementBarBody.add(
+        panels.elementBarBody.add(
             propertyColor(
                 propIcon("fill", kind === "text" ? "文字颜色" : "填充"),
                 () => commonValue(objects, (o) => o.fill?.toString()),
@@ -7252,7 +7187,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
             ),
         );
     if (canStroke) {
-        elementBarBody.add([
+        panels.elementBarBody.add([
             propertyColor(
                 propIcon("stroke", "描边"),
                 () => commonValue(objects, (o) => o.stroke?.toString()),
@@ -7274,7 +7209,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
             ),
         ]);
         if (single) {
-            elementBarBody.add(
+            panels.elementBarBody.add(
                 propertySelect(
                     "虚线",
                     dashOptions,
@@ -7296,7 +7231,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
     if (single && kind) {
         const o = objects[0];
         if (kind === "text") {
-            elementBarBody.add([
+            panels.elementBarBody.add([
                 propertyText(
                     "内容",
                     () => (o as IText).text,
@@ -7432,7 +7367,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
             ]);
         } else if (kind === "number") {
             const n = o as InstanceType<Annotations["xnumber"]>;
-            elementBarBody.add([
+            panels.elementBarBody.add([
                 propertyNumber(
                     "数值",
                     () => Number(n.text),
@@ -7463,7 +7398,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
             ]);
         } else if (kind === "arrow") {
             const a = o as InstanceType<Annotations["arrow"]>;
-            elementBarBody.add([
+            panels.elementBarBody.add([
                 propertyNumber(
                     "头宽",
                     () => a.arrowW,
@@ -7501,7 +7436,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
             ]);
         } else if (kind === "rect" || kind === "frame" || kind === "mask") {
             const r = o as Rect;
-            elementBarBody.add(
+            panels.elementBarBody.add(
                 propertyNumber(
                     propIcon("corner", kind === "mask" ? "洞口圆角" : "圆角"),
                     () => r.rx || 0,
@@ -7515,7 +7450,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 ),
             );
             if (kind === "mask")
-                elementBarBody.add(
+                panels.elementBarBody.add(
                     propertyNumber(
                         "羽化",
                         () =>
@@ -7542,7 +7477,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 if (!filter) return;
                 const filterKey = typedKeys(filtetMap)[index];
                 if (filterKey === "gamma") {
-                    elementBarBody.add(
+                    panels.elementBarBody.add(
                         gammaPropertyRanges(
                             () =>
                                 (
@@ -7566,7 +7501,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                     (v) => typeof v === "number",
                 );
                 if (typeof value !== "number") return;
-                elementBarBody.add(
+                panels.elementBarBody.add(
                     propertyRange(
                         "强度",
                         fl.value.min ?? 0,
@@ -7645,8 +7580,8 @@ function positionElementBar() {
     }
     const margin = 8;
     const gap = 8;
-    const w = elementBar.el.offsetWidth || 180;
-    const h = elementBar.el.offsetHeight || 100;
+    const w = panels.elementBar.el.offsetWidth || 180;
+    const h = panels.elementBar.el.offsetHeight || 100;
     const maxX = window.innerWidth - w - margin;
     const maxY = window.innerHeight - h - margin;
     const space = {
@@ -7688,10 +7623,9 @@ function positionElementBar() {
     }
     x = Math.max(margin, Math.min(maxX, x));
     y = Math.max(margin, Math.min(maxY, y));
-    elementBar.el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
+    panels.elementBar.el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
 }
 
-new ResizeObserver(scheduleElementBarPosition).observe(elementBar.el);
 window.addEventListener("resize", scheduleElementBarPosition);
 
 // 编辑栏

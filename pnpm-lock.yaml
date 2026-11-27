@@ -27,7 +27,7 @@ overrides:
 
 patchedDependencies:
   esearch-ocr@8.5.2:
-    hash: d5ea97ed6d3a3495e9f9f8d53ea19863ebca502ed02657b4556806d5ecece875
+    hash: 7dc3634ab8983f020d5001cde4daeff613b94976a526cfb5022da12f777bf3d0
     path: patches/esearch-ocr@8.5.2.patch
   xtimelog@1.0.5:
     hash: 445eb225a90dbc327c341f5e81c37ba2ab0a18a7665b9709015c0e4efe5f0081
@@ -157,7 +157,7 @@ importers:
         version: 4.0.1(vite@7.3.7(@types/node@22.9.3)(jiti@2.6.1)(lightningcss@1.33.0))
       esearch-ocr:
         specifier: 8.5.2
-        version: 8.5.2(patch_hash=d5ea97ed6d3a3495e9f9f8d53ea19863ebca502ed02657b4556806d5ecece875)
+        version: 8.5.2(patch_hash=7dc3634ab8983f020d5001cde4daeff613b94976a526cfb5022da12f777bf3d0)
       fabric:
         specifier: ^7.4.0
         version: 7.4.0
@@ -4538,7 +4538,7 @@ snapshots:
 
   escape-string-regexp@4.0.0: {}
 
-  esearch-ocr@8.5.2(patch_hash=d5ea97ed6d3a3495e9f9f8d53ea19863ebca502ed02657b4556806d5ecece875):
+  esearch-ocr@8.5.2(patch_hash=7dc3634ab8983f020d5001cde4daeff613b94976a526cfb5022da12f777bf3d0):
     dependencies:
       onnxruntime-common: 1.22.0
 

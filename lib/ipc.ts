@@ -352,6 +352,8 @@ type Message = {
         to: string;
     }) => "ready" | "missing" | "unsupported" | "error";
     bergamot_clear: () => void;
+    defaultOcrDirectory: () => string;
+    defaultOcrDownloading: () => void;
     githubUrl: (path: string, _type?: GithubUrlType | "auto") => string;
     getScreens: () => Display[];
     /** 会话 D-Bus 总线地址，Wayland 截屏用 */
