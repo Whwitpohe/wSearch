@@ -1,0 +1,858 @@
+{
+  "method": {
+    "order": [
+      "cold-AB",
+      "warm-AB",
+      "warm-BA",
+      "cold-BA"
+    ],
+    "display": [
+      "2560x1440 at 100%",
+      "2560x1600 at 150%"
+    ],
+    "latency": "Windows global hotkey S key-down, visible badge, correct physical-screen hit. Matched Tauri A/B delivers drag messages to that native window; the separate physical audit uses Windows mouse injection. Electron reference retested on primary with its own Ctrl+Alt+S and visible toolbar/mask.",
+    "memory": "Sum of the process tree private working sets, in MiB; DWM-owned and shared surfaces do not all count.",
+    "excluded": "Setup runs with lost foreground, misdirected key or mismatching drag coordinates are excluded. Completed matched batches are all included."
+  },
+  "tauri": {
+    "cold": {
+      "metrics": {
+        "ready_ms": 170.35,
+        "border_ms": 183.4,
+        "grab_ms": 32.055,
+        "setup_paint_ms": 115.772,
+        "peak_private_mib": 18.634999999999998,
+        "release_verified_ms": 12.95,
+        "cpu_ms": 156.25,
+        "idle_private_mib": 1.6949999999999998,
+        "idle_commit_mib": 2.3099999999999996,
+        "returned_private_mib": 1.7650000000000001,
+        "launch_ms": 134.45,
+        "ready_range_ms": [
+          155.1,
+          196.9
+        ],
+        "by_dpi": {
+          "96": 172.0,
+          "144": 169.0
+        },
+        "distinct_hwnd_per_process": [
+          6,
+          6
+        ],
+        "sha256_executable": "089616843b923ecf4f41a39346cf162b76d95889e6df71f58a3b74846af109f9"
+      },
+      "batches": [
+        {
+          "name": "tauri",
+          "batch": "cold-AB",
+          "ui_visible_ms": null,
+          "launch_ms": 122.0,
+          "idle_private_mib": 1.69,
+          "idle_processes": 1,
+          "idle_commit_mib": 2.3,
+          "idle_cpu_ms_per_second": 0.0,
+          "trials": [
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 179.5,
+              "border_ms": 194.0,
+              "release_verified_ms": 15.3,
+              "pixels": "exact",
+              "peak_private_mib": 18.43,
+              "peak_private_commit_mib": 19.61,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 20,
+              "grab_ms": 32.14,
+              "setup_paint_ms": 119.151
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 196.9,
+              "border_ms": 212.3,
+              "release_verified_ms": 13.7,
+              "pixels": "exact",
+              "peak_private_mib": 17.34,
+              "peak_private_commit_mib": 18.58,
+              "cpu_ms": 203.12,
+              "observed_pids": 2,
+              "samples": 21,
+              "grab_ms": 30.791,
+              "setup_paint_ms": 135.13
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 165.2,
+              "border_ms": 179.5,
+              "release_verified_ms": 11.3,
+              "pixels": "exact",
+              "peak_private_mib": 17.22,
+              "peak_private_commit_mib": 18.42,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 19,
+              "grab_ms": 31.97,
+              "setup_paint_ms": 109.638
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 163.8,
+              "border_ms": 176.9,
+              "release_verified_ms": 12.8,
+              "pixels": "exact",
+              "peak_private_mib": 20.01,
+              "peak_private_commit_mib": 21.2,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 18,
+              "grab_ms": 33.745,
+              "setup_paint_ms": 107.832
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 163.9,
+              "border_ms": 177.8,
+              "release_verified_ms": 8.1,
+              "pixels": "exact",
+              "peak_private_mib": 18.84,
+              "peak_private_commit_mib": 20.19,
+              "cpu_ms": 140.62,
+              "observed_pids": 2,
+              "samples": 18,
+              "grab_ms": 32.16,
+              "setup_paint_ms": 110.726
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 159.3,
+              "border_ms": 172.0,
+              "release_verified_ms": 16.3,
+              "pixels": "exact",
+              "peak_private_mib": 18.94,
+              "peak_private_commit_mib": 20.16,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 19,
+              "grab_ms": 31.294,
+              "setup_paint_ms": 115.275
+            }
+          ],
+          "escape_preserves_clipboard": true,
+          "returned_private_mib": 1.76
+        },
+        {
+          "name": "tauri",
+          "batch": "cold-BA",
+          "ui_visible_ms": null,
+          "launch_ms": 146.9,
+          "idle_private_mib": 1.7,
+          "idle_processes": 1,
+          "idle_commit_mib": 2.32,
+          "idle_cpu_ms_per_second": 0.0,
+          "trials": [
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 166.6,
+              "border_ms": 179.2,
+              "release_verified_ms": 18.8,
+              "pixels": "exact",
+              "peak_private_mib": 18.41,
+              "peak_private_commit_mib": 18.59,
+              "cpu_ms": 140.62,
+              "observed_pids": 2,
+              "samples": 19,
+              "grab_ms": 32.465,
+              "setup_paint_ms": 116.269
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 155.1,
+              "border_ms": 168.1,
+              "release_verified_ms": 8.8,
+              "pixels": "exact",
+              "peak_private_mib": 18.43,
+              "peak_private_commit_mib": 18.59,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 18,
+              "grab_ms": 28.886,
+              "setup_paint_ms": 110.182
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 177.4,
+              "border_ms": 188.3,
+              "release_verified_ms": 12.7,
+              "pixels": "exact",
+              "peak_private_mib": 17.37,
+              "peak_private_commit_mib": 18.6,
+              "cpu_ms": 171.88,
+              "observed_pids": 2,
+              "samples": 20,
+              "grab_ms": 28.608,
+              "setup_paint_ms": 119.862
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 174.1,
+              "border_ms": 187.3,
+              "release_verified_ms": 13.5,
+              "pixels": "exact",
+              "peak_private_mib": 20.0,
+              "peak_private_commit_mib": 21.22,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 20,
+              "grab_ms": 33.57,
+              "setup_paint_ms": 119.439
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 174.5,
+              "border_ms": 188.0,
+              "release_verified_ms": 13.1,
+              "pixels": "exact",
+              "peak_private_mib": 19.99,
+              "peak_private_commit_mib": 21.21,
+              "cpu_ms": 171.88,
+              "observed_pids": 2,
+              "samples": 20,
+              "grab_ms": 35.598,
+              "setup_paint_ms": 105.879
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 176.9,
+              "border_ms": 191.0,
+              "release_verified_ms": 6.4,
+              "pixels": "exact",
+              "peak_private_mib": 20.0,
+              "peak_private_commit_mib": 21.21,
+              "cpu_ms": 156.25,
+              "observed_pids": 2,
+              "samples": 20,
+              "grab_ms": 31.698,
+              "setup_paint_ms": 121.025
+            }
+          ],
+          "escape_preserves_clipboard": true,
+          "returned_private_mib": 1.77
+        }
+      ]
+    },
+    "warm": {
+      "metrics": {
+        "ready_ms": 57.099999999999994,
+        "border_ms": 70.75,
+        "grab_ms": 32.1375,
+        "setup_paint_ms": 5.7685,
+        "peak_private_mib": 16.785,
+        "release_verified_ms": 14.0,
+        "cpu_ms": 15.62,
+        "idle_private_mib": 1.79,
+        "idle_commit_mib": 2.53,
+        "returned_private_mib": 1.815,
+        "launch_ms": 139.64999999999998,
+        "ready_range_ms": [
+          50.8,
+          67.1
+        ],
+        "by_dpi": {
+          "96": 53.3,
+          "144": 65.45
+        },
+        "distinct_hwnd_per_process": [
+          1,
+          1
+        ],
+        "sha256_executable": "65e624232e593a0272fb9d7244777dea71b1b9ef61d7abe100e734f2cafaf78a"
+      },
+      "batches": [
+        {
+          "name": "tauri",
+          "batch": "warm-AB",
+          "ui_visible_ms": null,
+          "launch_ms": 143.6,
+          "idle_private_mib": 1.79,
+          "idle_processes": 1,
+          "idle_commit_mib": 2.53,
+          "idle_cpu_ms_per_second": 0.0,
+          "trials": [
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 55.9,
+              "border_ms": 69.6,
+              "release_verified_ms": 12.4,
+              "pixels": "exact",
+              "peak_private_mib": 15.85,
+              "peak_private_commit_mib": 16.62,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 31.392,
+              "setup_paint_ms": 5.597
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 67.1,
+              "border_ms": 78.5,
+              "release_verified_ms": 18.3,
+              "pixels": "exact",
+              "peak_private_mib": 16.13,
+              "peak_private_commit_mib": 16.84,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 14,
+              "grab_ms": 33.192,
+              "setup_paint_ms": 5.94
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 50.9,
+              "border_ms": 62.2,
+              "release_verified_ms": 18.7,
+              "pixels": "exact",
+              "peak_private_mib": 16.13,
+              "peak_private_commit_mib": 16.9,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 29.617,
+              "setup_paint_ms": 5.486
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 65.5,
+              "border_ms": 78.5,
+              "release_verified_ms": 13.4,
+              "pixels": "exact",
+              "peak_private_mib": 17.57,
+              "peak_private_commit_mib": 18.29,
+              "cpu_ms": 46.88,
+              "observed_pids": 1,
+              "samples": 14,
+              "grab_ms": 33.792,
+              "setup_paint_ms": 6.396
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 65.4,
+              "border_ms": 77.6,
+              "release_verified_ms": 7.5,
+              "pixels": "exact",
+              "peak_private_mib": 17.69,
+              "peak_private_commit_mib": 18.41,
+              "cpu_ms": 46.88,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 32.439,
+              "setup_paint_ms": 6.834
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 53.0,
+              "border_ms": 65.3,
+              "release_verified_ms": 11.5,
+              "pixels": "exact",
+              "peak_private_mib": 17.69,
+              "peak_private_commit_mib": 18.47,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 32.843,
+              "setup_paint_ms": 5.288
+            }
+          ],
+          "escape_preserves_clipboard": true,
+          "returned_private_mib": 1.82
+        },
+        {
+          "name": "tauri",
+          "batch": "warm-BA",
+          "ui_visible_ms": null,
+          "launch_ms": 135.7,
+          "idle_private_mib": 1.79,
+          "idle_processes": 1,
+          "idle_commit_mib": 2.53,
+          "idle_cpu_ms_per_second": 0.0,
+          "trials": [
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 50.8,
+              "border_ms": 64.4,
+              "release_verified_ms": 15.1,
+              "pixels": "exact",
+              "peak_private_mib": 15.96,
+              "peak_private_commit_mib": 16.69,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 28.426,
+              "setup_paint_ms": 4.973
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 53.0,
+              "border_ms": 66.5,
+              "release_verified_ms": 14.6,
+              "pixels": "exact",
+              "peak_private_mib": 16.13,
+              "peak_private_commit_mib": 16.84,
+              "cpu_ms": 31.25,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 29.269,
+              "setup_paint_ms": 5.989
+            },
+            {
+              "display": [
+                0,
+                0,
+                2560,
+                1440,
+                96
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 53.6,
+              "border_ms": 66.2,
+              "release_verified_ms": 15.7,
+              "pixels": "exact",
+              "peak_private_mib": 16.13,
+              "peak_private_commit_mib": 16.9,
+              "cpu_ms": 31.25,
+              "observed_pids": 1,
+              "samples": 13,
+              "grab_ms": 31.841,
+              "setup_paint_ms": 5.049
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": false,
+              "ready_ms": 65.9,
+              "border_ms": 80.2,
+              "release_verified_ms": 11.5,
+              "pixels": "exact",
+              "peak_private_mib": 17.44,
+              "peak_private_commit_mib": 18.23,
+              "cpu_ms": 31.25,
+              "observed_pids": 1,
+              "samples": 14,
+              "grab_ms": 31.873,
+              "setup_paint_ms": 7.778
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": false,
+              "reverse": true,
+              "ready_ms": 58.3,
+              "border_ms": 71.9,
+              "release_verified_ms": 16.9,
+              "pixels": "exact",
+              "peak_private_mib": 17.56,
+              "peak_private_commit_mib": 18.38,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 14,
+              "grab_ms": 32.402,
+              "setup_paint_ms": 5.385
+            },
+            {
+              "display": [
+                2560,
+                0,
+                2560,
+                1600,
+                144
+              ],
+              "background_swapped": true,
+              "reverse": false,
+              "ready_ms": 65.5,
+              "border_ms": 78.7,
+              "release_verified_ms": 12.8,
+              "pixels": "exact",
+              "peak_private_mib": 17.68,
+              "peak_private_commit_mib": 18.47,
+              "cpu_ms": 15.62,
+              "observed_pids": 1,
+              "samples": 14,
+              "grab_ms": 32.963,
+              "setup_paint_ms": 5.95
+            }
+          ],
+          "escape_preserves_clipboard": true,
+          "returned_private_mib": 1.81
+        }
+      ]
+    }
+  },
+  "physical_drag": {
+    "name": "tauri",
+    "batch": "physical",
+    "ui_visible_ms": null,
+    "launch_ms": 141.3,
+    "idle_private_mib": 1.8,
+    "idle_processes": 1,
+    "idle_commit_mib": 2.55,
+    "idle_cpu_ms_per_second": 0.0,
+    "trials": [
+      {
+        "display": [
+          0,
+          0,
+          2560,
+          1440,
+          96
+        ],
+        "background_swapped": false,
+        "reverse": false,
+        "ready_ms": 66.2,
+        "border_ms": 90.5,
+        "release_verified_ms": 13.2,
+        "pixels": "exact",
+        "peak_private_mib": 15.86,
+        "peak_private_commit_mib": 16.67,
+        "cpu_ms": 46.88,
+        "observed_pids": 1,
+        "samples": 13,
+        "grab_ms": 39.754,
+        "setup_paint_ms": 5.148
+      },
+      {
+        "display": [
+          0,
+          0,
+          2560,
+          1440,
+          96
+        ],
+        "background_swapped": false,
+        "reverse": true,
+        "ready_ms": 60.0,
+        "border_ms": 81.4,
+        "release_verified_ms": 11.5,
+        "pixels": "exact",
+        "peak_private_mib": 16.02,
+        "peak_private_commit_mib": 16.79,
+        "cpu_ms": 15.62,
+        "observed_pids": 1,
+        "samples": 13,
+        "grab_ms": 29.784,
+        "setup_paint_ms": 6.008
+      },
+      {
+        "display": [
+          0,
+          0,
+          2560,
+          1440,
+          96
+        ],
+        "background_swapped": true,
+        "reverse": false,
+        "ready_ms": 52.5,
+        "border_ms": 76.9,
+        "release_verified_ms": 4.9,
+        "pixels": "exact",
+        "peak_private_mib": 16.14,
+        "peak_private_commit_mib": 16.92,
+        "cpu_ms": 15.62,
+        "observed_pids": 1,
+        "samples": 13,
+        "grab_ms": 31.174,
+        "setup_paint_ms": 4.99
+      },
+      {
+        "display": [
+          2560,
+          0,
+          2560,
+          1600,
+          144
+        ],
+        "background_swapped": false,
+        "reverse": false,
+        "ready_ms": 64.6,
+        "border_ms": 94.6,
+        "release_verified_ms": 5.3,
+        "pixels": "exact",
+        "peak_private_mib": 17.45,
+        "peak_private_commit_mib": 18.26,
+        "cpu_ms": 15.62,
+        "observed_pids": 1,
+        "samples": 13,
+        "grab_ms": 37.463,
+        "setup_paint_ms": 7.208
+      },
+      {
+        "display": [
+          2560,
+          0,
+          2560,
+          1600,
+          144
+        ],
+        "background_swapped": false,
+        "reverse": true,
+        "ready_ms": 63.1,
+        "border_ms": 87.2,
+        "release_verified_ms": 5.2,
+        "pixels": "exact",
+        "peak_private_mib": 17.57,
+        "peak_private_commit_mib": 18.37,
+        "cpu_ms": 15.62,
+        "observed_pids": 1,
+        "samples": 12,
+        "grab_ms": 38.353,
+        "setup_paint_ms": 5.947
+      },
+      {
+        "display": [
+          2560,
+          0,
+          2560,
+          1600,
+          144
+        ],
+        "background_swapped": true,
+        "reverse": false,
+        "ready_ms": 67.6,
+        "border_ms": 94.6,
+        "release_verified_ms": 10.6,
+        "pixels": "exact",
+        "peak_private_mib": 17.69,
+        "peak_private_commit_mib": 18.52,
+        "cpu_ms": 31.25,
+        "observed_pids": 1,
+        "samples": 14,
+        "grab_ms": 39.254,
+        "setup_paint_ms": 5.578
+      }
+    ],
+    "escape_preserves_clipboard": true,
+    "returned_private_mib": 1.82
+  },
+  "electron_primary": [
+    {
+      "ready_ms": 108.9,
+      "visible_ms": 223.6
+    },
+    {
+      "ready_ms": 88.0,
+      "visible_ms": 247.5
+    },
+    {
+      "ready_ms": 88.1,
+      "visible_ms": 194.1
+    },
+    {
+      "ready_ms": 104.0,
+      "visible_ms": 202.3
+    },
+    {
+      "ready_ms": 94.1,
+      "visible_ms": 196.9
+    },
+    {
+      "ready_ms": 99.8,
+      "visible_ms": 188.2
+    }
+  ],
+  "memory_audit": [
+    {
+      "mode": "cold",
+      "idle": {
+        "private_ws_mib": 1.699,
+        "summed_ws_mib": 14.82,
+        "private_commit_mib": 2.316
+      },
+      "hidden_before": 0
+    },
+    {
+      "mode": "warm",
+      "idle": {
+        "private_ws_mib": 1.781,
+        "summed_ws_mib": 15.645,
+        "private_commit_mib": 2.527
+      },
+      "hidden_before": 1,
+      "duplicate_trigger_held_same_window": true,
+      "escape_kept_clipboard": true
+    }
+  ],
+  "warm_zip_sha256": "26591ee19eaf4ca89b741c6dad3324405f8c6f22175f39cbb62e5c2714e0d75f"
+}

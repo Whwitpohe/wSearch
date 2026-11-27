@@ -1,8 +1,8 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+use std::{env, fs, path::PathBuf};
+#[cfg(not(windows))]
 use std::{
-    env, fs,
-    path::PathBuf,
     process::Command,
     sync::atomic::{AtomicBool, Ordering},
     thread,
@@ -15,7 +15,47 @@ use tauri::{
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const SHORTCUT: &str = "Ctrl+Alt+Shift+S";
+#[cfg(not(windows))]
 static CAPTURING: AtomicBool = AtomicBool::new(false);
+
+#[cfg(windows)]
+mod overlay {
+    use std::ffi::c_void;
+    use tauri::{AppHandle, Manager};
+    unsafe extern "C" {
+        fn wsearch_prepare_overlay() -> *mut c_void;
+        fn wsearch_begin_capture(hwnd: *mut c_void) -> i32;
+        fn wsearch_destroy_overlay(hwnd: *mut c_void);
+    }
+    struct Handle(usize);
+    pub fn prepare(app: &AppHandle) -> std::io::Result<()> {
+        // setup, request delivery, and RunEvent::Exit all execute on the HWND's owner thread.
+        let hwnd = unsafe { wsearch_prepare_overlay() };
+        if hwnd.is_null() {
+            return Err(std::io::Error::last_os_error());
+        }
+        app.manage(Handle(hwnd as usize));
+        Ok(())
+    }
+    pub fn capture(app: &AppHandle) {
+        let hwnd = app.state::<Handle>().0;
+        if let Err(e) = app.run_on_main_thread(move || {
+            if unsafe { wsearch_begin_capture(hwnd as *mut c_void) } == 0 {
+                eprintln!("Native screenshot failed");
+            }
+        }) {
+            eprintln!("Capture dispatch: {e}");
+        }
+    }
+    pub fn close(app: &AppHandle) {
+        if let Some(hwnd) = app.try_state::<Handle>() {
+            unsafe { wsearch_destroy_overlay(hwnd.0 as *mut c_void) };
+        }
+    }
+}
+
+#[cfg(windows)]
+use overlay::capture;
 
 fn marker(name: &str, message: &str) {
     if let Some(dir) = env::var_os("WSEARCH_TRIAL_BENCH_DIR") {
@@ -23,6 +63,7 @@ fn marker(name: &str, message: &str) {
     }
 }
 
+#[cfg(not(windows))]
 fn capture(app: &AppHandle) {
     if CAPTURING.swap(true, Ordering::AcqRel) {
         return;
@@ -74,6 +115,8 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
+            #[cfg(windows)]
+            overlay::prepare(app.handle())?;
             let registered = app
                 .global_shortcut()
                 .on_shortcut(SHORTCUT, |app, _, event| {
@@ -127,7 +170,11 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("initialize Tauri");
-    app.run(|_, event| {
+    app.run(|_handle, event| {
+        #[cfg(windows)]
+        if let RunEvent::Exit = &event {
+            overlay::close(_handle);
+        }
         if let RunEvent::ExitRequested {
             code: None, api, ..
         } = event

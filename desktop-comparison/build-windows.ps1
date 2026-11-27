@@ -2,15 +2,17 @@ param([ValidateSet("both","tauri","electrobun")][string]$Variant="both")
 $ErrorActionPreference="Stop"
 Push-Location $PSScriptRoot
 try {
-    cmd /d /c native\build-windows.cmd
-    if ($LASTEXITCODE -ne 0) {throw "Native capture build failed"}
     if ($Variant -ne "electrobun") {
         cargo build --locked --release --manifest-path tauri-host/Cargo.toml
         if ($LASTEXITCODE -ne 0) {throw "Tauri build failed"}
         $out=New-Item -Force -ItemType Directory artifacts/tauri-windows-x64
-        Copy-Item -LiteralPath tauri-host/target/release/wsearch-tauri-trial.exe,native/bin/win32-x64/wsearch-capture.exe -Destination $out.FullName
+        Copy-Item -LiteralPath tauri-host/target/release/wsearch-tauri-trial.exe -Destination $out.FullName
+        $oldHelper=Join-Path $out.FullName 'wsearch-capture.exe'
+        if(Test-Path -LiteralPath $oldHelper) { Remove-Item -LiteralPath $oldHelper }
     }
     if ($Variant -ne "tauri") {
+        cmd /d /c native\build-windows.cmd
+        if ($LASTEXITCODE -ne 0) {throw "Native capture build failed"}
         Push-Location electrobun-host
         try {
             bun install --frozen-lockfile
