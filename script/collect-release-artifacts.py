@@ -30,7 +30,7 @@ for run_id in os.environ["ARTIFACT_RUNS"].split(","):
             continue
         if target in collected:
             raise SystemExit(f"More than one successful build for {target}")
-        log = subprocess.check_output(["gh", "api", f"repos/{repo}/actions/jobs/{job['id']}/logs"])
+        log = subprocess.check_output(["gh", "api", "--allow-escape-sequences", f"repos/{repo}/actions/jobs/{job['id']}/logs"])
         if not re.search(rb"log -1 --format=%H[^\n]*\n[^\n]{0,80}" + commit.encode() + rb"\s*$", log, re.M):
             raise SystemExit(f"Cannot verify checkout of {commit} in job {job['id']}")
         platform, arch = targets[target]
