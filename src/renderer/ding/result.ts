@@ -166,6 +166,7 @@ function render(info: TranslationResultView) {
     }
     let revision = 0;
     let hovered = false,
+        editing = false,
         failed = false,
         closed = false;
     let status = "",
@@ -220,7 +221,12 @@ function render(info: TranslationResultView) {
                 icon: "free_draw",
                 show: true,
                 disabled: !result,
-                run: () => editDing(data),
+                run: () => {
+                    if (!result) return;
+                    const { x, y, width, height } =
+                        translated.el.getBoundingClientRect();
+                    editDing(data, result.image, { x, y, width, height });
+                },
             },
             {
                 label: "贴图",
@@ -258,7 +264,7 @@ function render(info: TranslationResultView) {
         }[];
     }
     function updatePanel() {
-        if (closed) return;
+        if (closed || editing) return;
         const state: PinPanelState = {
             id,
             rect: { x: 0, y: 0, width: innerWidth, height: innerHeight },
@@ -407,9 +413,15 @@ function render(info: TranslationResultView) {
             if (revision === request) updatePanel();
         }
     }
+    renderOn("translationResultEditing", ([active]) => {
+        editing = active;
+        translated.el.style.visibility = active ? "hidden" : "";
+        document.body.classList.toggle("is-hovered", hovered && !editing);
+        updatePanel();
+    });
     renderOn("translationResultHover", ([over]) => {
         hovered = over;
-        document.body.classList.toggle("is-hovered", over);
+        document.body.classList.toggle("is-hovered", over && !editing);
         if (over) {
             recent = store.get("屏幕翻译.截图偏好.最近语言");
             const target = screenshotTarget(store);

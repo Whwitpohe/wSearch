@@ -282,12 +282,16 @@ async function encodeDingSource(url: string, format: ImageFormat) {
     return encodeImageSource(url, format);
 }
 
-export function editDing(data: DingItemData, url = getUrl(data)) {
+export function editDing(
+    data: DingItemData,
+    url = getUrl(data),
+    pane?: Electron.Rectangle,
+) {
     const b = Buffer.from(
         url.replace(/^data:image\/\w+;base64,/, ""),
         "base64",
     );
-    renderSend("edit_pic", [b]);
+    renderSend("edit_pic", [b, pane]);
 }
 
 const panelActions = new Map<number, (action: PinPanelAction) => void>();

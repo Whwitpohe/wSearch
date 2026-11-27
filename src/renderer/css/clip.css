@@ -265,10 +265,10 @@ body input {
     position: absolute;
 }
 
-.editor_bg {
+.editor_bg:not(.translation-image-edit) {
     background-color: var(--bg) !important;
 }
-.editor_bg > #editor > * {
+.editor_bg:not(.translation-image-edit) > #editor > * {
     box-shadow: var(--shadow);
 }
 

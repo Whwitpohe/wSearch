@@ -1374,6 +1374,14 @@ let clipWindow: BrowserWindow | null = null;
 let clipReady: Promise<void>;
 let clipLoaded = false;
 let presentingDisplay: number | undefined;
+let translationEditOwner: number | undefined;
+
+function finishTranslationEdit() {
+    if (translationEditOwner === undefined) return;
+    const owner = translationResultWindows.get(translationEditOwner);
+    translationEditOwner = undefined;
+    mainSend(owner?.win.webContents, "translationResultEditing", [false]);
+}
 let clipPreloadTimer: NodeJS.Timeout | undefined;
 // 紧凑长截屏和保存对话框都会临时隐藏正在使用的截屏窗口。
 let clipInUse = false;
@@ -1455,6 +1463,7 @@ function createClipWindow() {
     });
     _clipWindow.on("closed", () => {
         if (clipWindow !== _clipWindow) return;
+        finishTranslationEdit();
         clipWindow = null;
         clipLoaded = false;
         presentingDisplay = undefined;
@@ -1912,6 +1921,17 @@ mainOn("long_compact_end", () => {
 mainOn("clip_show", ([trace], event) => {
     markCapture(trace, "mainShow");
     fullScreen();
+    if (
+        translationEditOwner !== undefined &&
+        event.sender === clipWindow?.webContents
+    ) {
+        closePinPanel(translationEditOwner);
+        mainSend(
+            translationResultWindows.get(translationEditOwner)?.win.webContents,
+            "translationResultEditing",
+            [true],
+        );
+    }
     if (trace && captureTracePath && event.sender === clipWindow?.webContents) {
         markCapture(trace, "shown");
         void appendFile(captureTracePath, `${JSON.stringify(trace)}\n`).catch(
@@ -2043,6 +2063,7 @@ async function sendCaptureEvent(
     data?: Buffer,
     type?: SelectionAction,
     trace = startCaptureTiming("capture"),
+    translationEdit?: { id: number; bounds: Electron.Rectangle },
 ) {
     markCapture(trace, "waitStart");
     if (trace)
@@ -2061,11 +2082,22 @@ async function sendCaptureEvent(
         return;
     markCapture(trace, "windowReady");
     const displays = screen.getAllDisplays();
+    if (translationEditOwner !== translationEdit?.id) finishTranslationEdit();
+    translationEditOwner = translationEdit?.id;
+    const bounds = translationEdit?.bounds;
     const display = screen.getDisplayNearestPoint(
-        screen.getCursorScreenPoint(),
+        bounds
+            ? {
+                  x: Math.round(bounds.x + bounds.width / 2),
+                  y: Math.round(bounds.y + bounds.height / 2),
+              }
+            : screen.getCursorScreenPoint(),
     );
     let excludeWindowId: number | undefined;
-    if (
+    if (bounds) {
+        presentingDisplay = display.id;
+        win.setBounds(display.bounds);
+    } else if (
         process.platform === "win32" &&
         fresh &&
         !win.isVisible() &&
@@ -2089,12 +2121,16 @@ async function sendCaptureEvent(
         process.pid,
         trace,
         excludeWindowId,
+        bounds
+            ? { bounds, zoomFactor: win.webContents.getZoomFactor() }
+            : undefined,
     ]);
 }
 
 /** 关闭或隐藏截屏 */
 function exitFullScreen() {
     if (!clipInUse || !clipWindow) return;
+    finishTranslationEdit();
     closeLongControl();
     clipInUse = false;
     if (store.get("保留截屏窗口")) {
@@ -2531,7 +2567,8 @@ const { close: closePinPanel, containsPointer: pointerInPinPanel } =
     initPinPanels(
         (id, sender) =>
             isPinSender(id, sender) ||
-            translationResultWindows.get(id)?.win.webContents === sender,
+            (id !== translationEditOwner &&
+                translationResultWindows.get(id)?.win.webContents === sender),
         (win) => rendererPath(win, "dingPanel.html"),
         (message) => tray?.setToolTip(message || app.name),
     );
@@ -3208,8 +3245,30 @@ mainOn("dingPickerTop", ([top], e) => {
     if (!win || win.isDestroyed()) return;
     win.setAlwaysOnTop(top, "screen-saver");
 });
-mainOn("edit_pic", ([img]) => {
-    sendCaptureEvent(img);
+mainOn("edit_pic", ([img, pane], event) => {
+    if (!pane) return void sendCaptureEvent(img);
+    if (
+        event.senderFrame !== event.sender.mainFrame ||
+        ![pane.x, pane.y, pane.width, pane.height].every(Number.isFinite) ||
+        pane.width <= 0 ||
+        pane.height <= 0
+    )
+        return;
+    for (const [id, { win }] of translationResultWindows) {
+        if (win.webContents !== event.sender) continue;
+        const origin = win.getContentBounds();
+        const zoom = event.sender.getZoomFactor();
+        void sendCaptureEvent(img, undefined, undefined, {
+            id,
+            bounds: {
+                x: origin.x + pane.x * zoom,
+                y: origin.y + pane.y * zoom,
+                width: pane.width * zoom,
+                height: pane.height * zoom,
+            },
+        });
+        return;
+    }
 });
 
 function createTranslator(op: Omit<translateWinType, "type">) {

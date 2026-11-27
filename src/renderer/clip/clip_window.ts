@@ -362,8 +362,7 @@ function setEditorP(zoom: number, x: number, y: number) {
     if (x != null) {
         let limitX = x;
         const min = -mainCanvas.width;
-        const max =
-            (window.innerWidth * window.devicePixelRatio) / editorP.zoom;
+        const max = window.innerWidth / editorP.zoom;
         if (x < min) limitX = min;
         if (x > max) limitX = max;
         t.push(`translateX(${limitX}px)`);
@@ -372,8 +371,7 @@ function setEditorP(zoom: number, x: number, y: number) {
     if (y != null) {
         let limitY = y;
         const min = -mainCanvas.height;
-        const max =
-            (window.innerHeight * window.devicePixelRatio) / editorP.zoom;
+        const max = window.innerHeight / editorP.zoom;
         if (y < min) limitY = min;
         if (y > max) limitY = max;
         t.push(`translateY(${limitY}px)`);
@@ -4718,6 +4716,7 @@ let liveDingRunning = false;
 let nowMouseE: MouseEvent;
 
 const editorP = { zoom: 1, x: 0, y: 0 };
+let translationEditHome: typeof editorP | undefined;
 
 let middleB: PointerEvent | null = null;
 const middleP = { x: 0, y: 0 };
@@ -5041,11 +5040,13 @@ async function initCapture(
     pid?: number,
     trace?: CaptureTiming,
     excludeWindowId?: number,
+    imagePlacement?: { bounds: Electron.Rectangle; zoomFactor: number },
 ) {
     markCapture(trace, "rendererReceived");
     console.log("clip_init displays:", _displays);
     currentDisplays = _displays;
     importedImage = !!imgBuffer;
+    document.body.classList.toggle("translation-image-edit", !!imagePlacement);
     mainPid = pid ?? 0;
     const wx = await screenShots(
         _displays,
@@ -5061,8 +5062,27 @@ async function initCapture(
     await setScreen(i, trace);
     markCapture(trace, "canvasReady");
     const nowScreen = _displays.find((i) => i.id === mainId) || _displays[0]; // 非截屏，是屏幕
-    const xy = { x: 0, y: 0 };
-    if (wx.type === "normal") {
+    let zoom: number | undefined;
+    let offsetX = 0,
+        offsetY = 0;
+    if (imagePlacement && wx.type === "img") {
+        const { bounds, zoomFactor } = imagePlacement;
+        const fit = Math.min(
+            bounds.width / mainCanvas.width,
+            bounds.height / mainCanvas.height,
+        );
+        const x = bounds.x + (bounds.width - mainCanvas.width * fit) / 2;
+        const y = bounds.y + (bounds.height - mainCanvas.height * fit) / 2;
+        ratio = 1 / fit;
+        zoom = fit / zoomFactor;
+        offsetX = (x - nowScreen.bounds.x) / fit;
+        offsetY = (y - nowScreen.bounds.y) / fit;
+        zoomW = mainCanvas.width * zoom;
+        i.bounds.x = x;
+        i.bounds.y = y;
+        finalRect = [0, 0, mainCanvas.width, mainCanvas.height];
+        rectSelect = true;
+    } else if (wx.type === "normal") {
         zoomW = i.size.width;
         ratio = i.scaleFactor;
     } else if (wx.type === "command") {
@@ -5076,18 +5096,11 @@ async function initCapture(
             i.size.width < nowScreen.size.width ||
             i.size.height < nowScreen.size.height
         ) {
-            const x =
-                (nowScreen.size.width * window.devicePixelRatio) / 2 -
-                i.size.width / 2;
-            const y =
-                (nowScreen.size.height * window.devicePixelRatio) / 2 -
-                i.size.height / 2;
-            xy.x = x;
-            xy.y = y;
             zoomW = i.size.width;
             ratio = devicePixelRatio;
         }
-    setEditorP(1 / ratio, 0, 0);
+    setEditorP(zoom ?? 1 / ratio, offsetX, offsetY);
+    translationEditHome = imagePlacement ? { ...editorP } : undefined;
     undoStack.reset({
         rect: finalRect,
         canvas: fabricCanvas?.toJSON() ?? { objects: [] },
@@ -5159,6 +5172,11 @@ async function initCapture(
     setDefaultAction(act ?? store.get("框选后默认操作"));
 
     drawClipRect();
+    if (imagePlacement)
+        followBar({
+            x: src2screenX(mainCanvas.width),
+            y: src2screenY(mainCanvas.height),
+        });
     setTimeout(() => {
         whBar(finalRect);
     }, 0);
@@ -5226,8 +5244,14 @@ document.onwheel = (e) => {
 document.onkeyup = (e) => {
     if (e.key === "0") {
         if (e.ctrlKey) {
-            setEditorP(1 / window.devicePixelRatio, 0, 0); // todo 统一缩放标准
-            zoomW = mainCanvas.width;
+            if (translationEditHome) {
+                const { zoom, x, y } = translationEditHome;
+                setEditorP(zoom, x, y);
+                zoomW = mainCanvas.width * zoom;
+            } else {
+                setEditorP(1 / window.devicePixelRatio, 0, 0);
+                zoomW = mainCanvas.width;
+            }
         }
     }
 };

@@ -126,9 +126,10 @@ type Message = {
         mainPid?: number,
         trace?: CaptureTiming,
         excludeWindowId?: number,
+        imagePlacement?: { bounds: Electron.Rectangle; zoomFactor: number },
     ) => void;
     open_this_browser: (window_name: number, url: string) => void;
-    edit_pic: (img: Buffer<ArrayBufferLike>) => void;
+    edit_pic: (img: Buffer<ArrayBufferLike>, pane?: Electron.Rectangle) => void;
     dialogMessage: (op: MessageBoxSyncOptions) => number;
     openUrl: (url: string) => void;
     noti: (op: { body: string; title: string }) => void;
@@ -239,6 +240,7 @@ type Message = {
     ) => void;
     pinPanelPlacement: (placement: PinPanelPlacement) => void;
     translationResultHover: (hovered: boolean) => void;
+    translationResultEditing: (editing: boolean) => void;
     translationResultLayout: (
         id: number,
         compare: boolean,
