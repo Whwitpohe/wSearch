@@ -12,6 +12,10 @@ on:
         description: Optional single platform-architecture to build as a CI artifact
         type: string
         required: false
+      artifact_runs:
+        description: Publish previously verified builds of this tag from these comma-separated workflow run IDs
+        type: string
+        required: false
 permissions:
   contents: read
 
@@ -27,11 +31,14 @@ jobs:
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           SINGLE_TARGET: ${{ inputs.target }}
+          ARTIFACT_RUNS: ${{ inputs.artifact_runs }}
         run: |
           import json, os, re
           tag = os.environ["RELEASE_TAG"]
           if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", tag):
               raise SystemExit("Expected a version tag")
+          if os.environ.get("ARTIFACT_RUNS") and (os.environ.get("SINGLE_TARGET") or not re.fullmatch(r"[0-9]+(?:,[0-9]+){0,5}", os.environ["ARTIFACT_RUNS"])):
+              raise SystemExit("Specify build run IDs or a single build target")
           rows = [
               ("ubuntu-24.04", "linux", "x64"), ("ubuntu-24.04-arm", "linux", "arm64"),
               ("macos-15-intel", "darwin", "x64"), ("macos-15", "darwin", "arm64"),
@@ -48,6 +55,7 @@ jobs:
 
   build:
     needs: plan
+    if: ${{ !inputs.artifact_runs }}
     name: ${{ matrix.platform }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 75
@@ -124,10 +132,11 @@ jobs:
 
   publish:
     needs: [plan, build]
-    if: ${{ !inputs.target }}
+    if: ${{ !cancelled() && needs.plan.result == 'success' && !inputs.target && (needs.build.result == 'success' || (inputs.artifact_runs && needs.build.result == 'skipped')) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -137,10 +146,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions/download-artifact@v4
+        if: ${{ !inputs.artifact_runs }}
         with:
           pattern: packages-*
           path: release-files
           merge-multiple: true
+      - name: Recover verified packages for this tag
+        if: ${{ inputs.artifact_runs }}
+        env:
+          ARTIFACT_RUNS: ${{ inputs.artifact_runs }}
+        run: python3 script/collect-release-artifacts.py
       - name: Publish the verified packages
         run: |
           notes="$RUNNER_TEMP/release-notes.md"
