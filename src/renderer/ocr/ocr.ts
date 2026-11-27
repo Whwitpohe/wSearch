@@ -1,5 +1,4 @@
 import type { InitOcrBase } from "esearch-ocr";
-import ort from "../lib/ort";
 import { defaultOcrId } from "./ocrList";
 
 const path = require("node:path") as typeof import("path");
@@ -7,7 +6,7 @@ const fs = require("node:fs") as typeof import("fs");
 
 export { defaultOcrId, loadOCR };
 
-function loadOCR(
+async function loadOCR(
     store: typeof import("../../../lib/store/renderStore")["default"],
     type: string,
     op?: {
@@ -61,7 +60,10 @@ function loadOCR(
         console.error("OCR路径错误");
         return null;
     }
-    const localOCR = require("esearch-ocr") as typeof import("esearch-ocr");
+    const [localOCR, { default: ort }] = await Promise.all([
+        import("esearch-ocr"),
+        import("../lib/ort"),
+    ]);
     const provider = store.get("AI.运行后端") || "cpu";
     console.log("ocr provider", provider);
 

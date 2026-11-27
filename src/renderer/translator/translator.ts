@@ -281,15 +281,19 @@ const toolsEl = view("x")
     ]);
 
 type Ocr = Awaited<ReturnType<typeof import("esearch-ocr").init>>;
-let loadingOcr: Promise<Ocr> | undefined;
+let loadingOcr: Promise<Ocr | null> | undefined;
 function readyOcr() {
     if (loadingOcr) return loadingOcr;
-    const model = loadOCR(store, store.get("OCR.类型") || defaultOcrId);
-    if (!model) return null;
-    loadingOcr = model.ocr.init(model.config).catch((error: unknown) => {
-        loadingOcr = undefined;
-        throw error;
-    });
+    loadingOcr = loadOCR(store, store.get("OCR.类型") || defaultOcrId)
+        .then((model) => {
+            if (model) return model.ocr.init(model.config);
+            loadingOcr = undefined;
+            return null;
+        })
+        .catch((error: unknown) => {
+            loadingOcr = undefined;
+            throw error;
+        });
     return loadingOcr;
 }
 ele("style")

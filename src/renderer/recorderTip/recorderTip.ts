@@ -14,7 +14,6 @@ import { jsKeyCodeDisplay } from "../../../lib/key";
 import store from "../../../lib/store/renderStore";
 import { typedEntries } from "../../../lib/utils";
 import type { IconType } from "../../iconTypes";
-import ort from "../lib/ort";
 import { Class, cssVar, getImgUrl, initStyle } from "../root/root";
 
 function initRecord() {
@@ -247,6 +246,7 @@ async function initSeg() {
     }
     segEl.add([cameraCanvas, bgEl, segCanvas]);
     seg = require("esearch-seg") as typeof import("esearch-seg");
+    const { default: ort } = await import("../lib/ort");
     await seg.init({
         segPath: path.join(__dirname, "../../assets/onnx/seg", "seg.onnx"),
         ort,

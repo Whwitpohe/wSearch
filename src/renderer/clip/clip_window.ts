@@ -309,7 +309,7 @@ async function setScreen(i: (typeof allScreens)[0], trace?: CaptureTiming) {
             const __img = frame.toImageData();
             markCapture(trace, "pixelsReady");
             if (__img) {
-                screenShotCache.set(i.id, __img);
+                if (allScreens.length > 1) screenShotCache.set(i.id, __img);
                 _img = __img;
             }
         } catch (error) {
@@ -1913,7 +1913,6 @@ function getClipPhotoSVG() {
 }
 
 function getClipPhoto() {
-    const mainCtx = mainCanvas.getContext("2d")!;
     if (!finalRect) finalRect = [0, 0, mainCanvas.width, mainCanvas.height];
 
     if (typeof fabricCanvas !== "undefined") {
@@ -1925,13 +1924,7 @@ function getClipPhoto() {
     const tmpctx = tmpCanvas.getContext("2d")!;
     tmpCanvas.width = finalRect[2];
     tmpCanvas.height = finalRect[3];
-    const gid = mainCtx.getImageData(
-        finalRect[0],
-        finalRect[1],
-        finalRect[2],
-        finalRect[3],
-    ); // 裁剪
-    tmpctx.putImageData(gid, 0, 0);
+    tmpctx.drawImage(mainCanvas, -finalRect[0], -finalRect[1]);
     if (fabricCanvas)
         tmpctx.drawImage(
             fabricCanvas.toCanvasElement(1, {

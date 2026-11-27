@@ -60,9 +60,13 @@ const tmpTextPath = path.join(
     `/wSearch/wSearch_${Date.now()}.txt`,
 );
 
-import { rotateImg } from "esearch-ocr";
 import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
-import { safeJSONParse, tryD, tryx, typedEntries } from "../../../lib/utils";
+import {
+    safeJSONParse,
+    tryD,
+    tryxAwait,
+    typedEntries,
+} from "../../../lib/utils";
 import type { IconType } from "../../iconTypes";
 import closeSvg from "../assets/icons/close.svg";
 import reloadSvg from "../assets/icons/reload.svg";
@@ -2556,7 +2560,7 @@ async function localOcr(
     try {
         task.l("ocr_load");
         if (type !== locr.type || !locr.runner) {
-            const [x, error] = tryx(() => loadOCR(store, type));
+            const [x, error] = await tryxAwait(() => loadOCR(store, type));
             if (error instanceof Error) {
                 if (error.message.includes("A dynamic link library")) {
                     const x = `${t("文字识别需要VS运行库才能正常使用")}\n${t("请下载并安装 Microsoft Visual C++ Runtime")}\nhttps://aka.ms/vs/17/release/vc_redist.${process.arch}.exe`;
@@ -2763,6 +2767,7 @@ async function addOcrText(r: ocrResult, i: number, rotate?: number) {
         const ctx = c.getContext("2d")!;
         ctx.drawImage(img, 0, 0);
         const data = ctx.getImageData(0, 0, w, h);
+        const { rotateImg } = await import("esearch-ocr");
         const nData = rotateImg(data, 360 - rotate);
         const nCanvas = ele("canvas").attr({
             width: nData.width,

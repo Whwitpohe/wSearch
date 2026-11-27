@@ -37,11 +37,18 @@ export function ocrOmniLoad(
             },
         };
     }
-    const x = loadOCR(store, type);
-    if (!x) throw new Error("不支持的 OCR 类型");
-    const ocr = x.ocr.init(x.config);
+    const init = async () => {
+        const x = await loadOCR(store, type);
+        if (!x) throw new Error("不支持的 OCR 类型");
+        return x.ocr.init(x.config);
+    };
+    let ocr: ReturnType<typeof init> | undefined;
     return {
         ocr: async (img: string) => {
+            ocr ??= init().catch((error: unknown) => {
+                ocr = undefined;
+                throw error;
+            });
             const res = await (await ocr).ocr(img);
             return res.columns
                 .flatMap((c) => c.parragraphs)

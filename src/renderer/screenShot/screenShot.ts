@@ -273,23 +273,21 @@ async function displayToScreen(
                     };
                 }
 
-                const data = toCanvas(buffer);
-                const image = data.image;
+                const image = nativeImage.createFromBuffer(buffer);
                 const s = image.getSize();
                 x.bounds = { x: 0, y: 0, width: s.width, height: s.height };
                 x.size = { width: s.width, height: s.height };
                 x.scaleFactor = 1;
                 return {
-                    toImageData: () => data.data,
-                    toNativeImage: () => data.image,
+                    toImageData: () => nativePixels(image),
+                    toNativeImage: () => image,
                 };
             },
         };
         return { screen: [x], windowRects: [], type: "command" };
     }
     if (buffer) {
-        const data = toCanvas(buffer);
-        const image = data.image;
+        const image = nativeImage.createFromBuffer(buffer);
         const s = image.getSize();
         return {
             screen: [
@@ -299,8 +297,8 @@ async function displayToScreen(
                     scaleFactor: 1,
                     id: -1,
                     capture: async () => ({
-                        toImageData: () => data.data,
-                        toNativeImage: () => data.image,
+                        toImageData: () => nativePixels(image),
+                        toNativeImage: () => image,
                     }),
                 },
             ],
@@ -337,8 +335,7 @@ async function displayToScreen(
                             fs.readFile(imgPath),
                         );
                         if (imgBuffer === null) return empty;
-                        const data = toCanvas(imgBuffer);
-                        const image = data.image;
+                        const image = nativeImage.createFromBuffer(imgBuffer);
                         fs.rm(imgPath);
                         // 在kde和gnome上，其他桌面环境也如此，获取的是多屏拼接图像
                         // 存在不同缩放时，会保证任何屏幕物理像素都被截取，缩放后几何关系表留
@@ -361,7 +358,7 @@ async function displayToScreen(
                         });
 
                         return {
-                            toImageData: () => nImage2Imagedata(phy).data,
+                            toImageData: () => nativePixels(phy),
                             toNativeImage: () => {
                                 return pixScreen;
                             },
@@ -517,27 +514,22 @@ function emptyImageData() {
     } as const;
 }
 
-function toCanvas(img: Buffer) {
-    const image = nativeImage.createFromBuffer(img);
-    return nImage2Imagedata(image);
-}
-
-function nImage2Imagedata(image: NativeImage) {
+function nativePixels(image: NativeImage) {
     const { width: w, height: h } = image.getSize();
 
-    if (typeof ImageData === "undefined")
-        return { data: emptyImageData(), image };
+    if (typeof ImageData === "undefined") return emptyImageData();
     const bitmap = image.toBitmap();
-    const x = new Uint8ClampedArray(bitmap.length);
+    const x = new Uint8ClampedArray(
+        bitmap.buffer,
+        bitmap.byteOffset,
+        bitmap.byteLength,
+    );
     for (let i = 0; i < bitmap.length; i += 4) {
-        // 交换R和B通道的值，同时复制G和Alpha通道的值
-        x[i] = bitmap[i + 2];
-        x[i + 1] = bitmap[i + 1];
-        x[i + 2] = bitmap[i];
-        x[i + 3] = bitmap[i + 3];
+        const b = x[i];
+        x[i] = x[i + 2];
+        x[i + 2] = b;
     }
-    const d = new ImageData(x, w, h);
-    return { data: d, image };
+    return new ImageData(x, w, h);
 }
 
 export default init;

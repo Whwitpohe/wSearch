@@ -296,6 +296,7 @@ const build = {
     appId: "com.whwitpohe.wsearch",
     publish: { provider: "github", owner: "Whwitpohe", repo: "wSearch" },
     executableName: "wSearch",
+    compression: "maximum",
     directories: {
         output: "build",
     },
@@ -413,6 +414,16 @@ const otherPlatform = Object.keys(platformMap).filter((i) => i !== platform);
 /** @type {string[]|undefined} */
 // @ts-ignore
 const files = build[platform2]?.files;
+files?.unshift(
+    "out/main/**/*",
+    "out/renderer/**/*",
+    "assets/**/*",
+    "lib/translate/*.json",
+    "lib/copy.exe",
+    "lib/gtk-open-with",
+    "lib/kde-open-with",
+    "LICENSE",
+);
 
 // 移除 onnxruntime-node/bin/napi-v6/
 files?.push(
@@ -477,7 +488,6 @@ const ignoreDir = [
     "node_modules/onnxruntime-node/script",
     "node_modules/**/**esm**",
     "node_modules/**/*.es*",
-    "node_modules/esearch-ocr/dist/esearch-ocr.js",
 ];
 const ignoreModule = [
     "qr-scanner-wechat",
