@@ -2,30 +2,22 @@ import { ele } from "dkh-ui";
 import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import { loadTranslator } from "../lib/translate";
-import { defaultOcrId, loadOCR } from "../ocr/ocr";
+import { defaultOcrId, idleOcr, loadOCR } from "../ocr/ocr";
 import { foreground, type TextBox, trailingAccent } from "./translationInk";
 import { drawTranslation } from "./translationOverlay";
 
-let lo: import("esearch-ocr").initType;
+const localOcr = idleOcr(async () => {
+    const x = await loadOCR(store, store.get("OCR.类型") || defaultOcrId);
+    if (!x) throw Error(t("此模式无法加载所选 OCR 引擎"));
+    return { runner: await x.ocr.init(x.config), release: x.release };
+});
 
-export async function initOCR() {
-    if (!lo) {
-        const x = await loadOCR(store, store.get("OCR.类型") || defaultOcrId);
-        if (!x) throw Error(t("此模式无法加载所选 OCR 引擎"));
-        lo = await x.ocr.init(x.config);
-    }
-}
-
-export type OcrResult = Awaited<ReturnType<typeof ocr>>;
-
-async function ocr(img: string) {
-    const p = await lo.ocr(img);
-    return p.columns.flatMap((c) => c.parragraphs);
-}
+export type OcrResult = Awaited<ReturnType<typeof recognizeImage>>;
 
 export async function recognizeImage(url: string) {
-    await initOCR();
-    return ocr(url);
+    const p = await localOcr.run((runner) => runner.ocr(url));
+    if (!p) throw Error(t("此模式无法加载所选 OCR 引擎"));
+    return p.columns.flatMap((c) => c.parragraphs);
 }
 
 export class UnConfigTranslateError extends Error {}

@@ -5,7 +5,53 @@ import { defaultOcrId } from "./ocrList";
 const path = require("node:path") as typeof import("path");
 const fs = require("node:fs") as typeof import("fs");
 
-export { defaultOcrId, loadOCR };
+export { defaultOcrId, idleOcr, loadOCR };
+
+type LocalOcr = Awaited<ReturnType<typeof import("esearch-ocr").init>>;
+
+/** 用时加载本地 OCR，空闲后释放 ONNX 会话占用的内存 */
+function idleOcr(
+    load: () => Promise<{
+        runner: LocalOcr;
+        release: () => Promise<unknown>;
+    } | null>,
+    idleMs = 30_000,
+) {
+    let loading: ReturnType<typeof load> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let active = 0;
+    const schedule = () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+            if (active || !loading) return;
+            const current = loading;
+            loading = undefined;
+            const loaded = await current.catch(() => null);
+            await loaded?.release();
+        }, idleMs);
+    };
+    return {
+        async run<T>(task: (runner: LocalOcr) => Promise<T>) {
+            clearTimeout(timer);
+            active++;
+            try {
+                loading ??= load().catch((error: unknown) => {
+                    loading = undefined;
+                    throw error;
+                });
+                const loaded = await loading;
+                if (!loaded) {
+                    loading = undefined;
+                    return null;
+                }
+                return await task(loaded.runner);
+            } finally {
+                active--;
+                if (!active) schedule();
+            }
+        },
+    };
+}
 
 async function loadOCR(
     store: typeof import("../../../lib/store/renderStore")["default"],
@@ -84,9 +130,25 @@ async function loadOCR(
     ]);
     const provider = store.get("AI.运行后端") || "cpu";
     console.log("ocr provider", provider);
+    // esearch-ocr 不暴露会话，经由传入的 ort 记录下来以便释放
+    const sessions: { release(): Promise<void> }[] = [];
+    const trackedOrt = {
+        ...ort,
+        InferenceSession: {
+            create: async (
+                ...args: Parameters<typeof ort.InferenceSession.create>
+            ) => {
+                const session = await ort.InferenceSession.create(...args);
+                sessions.push(session);
+                return session;
+            },
+        },
+    } as typeof ort;
 
     return {
         ocr: localOCR,
+        release: () =>
+            Promise.allSettled(sessions.splice(0).map((s) => s.release())),
         config: {
             det: {
                 input: detp,
@@ -106,7 +168,7 @@ async function loadOCR(
                       },
                   }
                 : {}),
-            ort,
+            ort: trackedOrt,
             ortOption: { executionProviders: [{ name: provider }] },
         } as InitOcrBase,
     };

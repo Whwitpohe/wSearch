@@ -20,7 +20,7 @@ import { t } from "../../../lib/translate/translate";
 import type { IconType } from "../../iconTypes";
 import { writeText } from "../lib/clipboard";
 import { loadTranslator } from "../lib/translate";
-import { defaultOcrId, loadOCR } from "../ocr/ocr";
+import { defaultOcrId, idleOcr, loadOCR } from "../ocr/ocr";
 import { Class, getImgUrl, initStyle, setTitle } from "../root/root";
 
 initStyle(store);
@@ -113,13 +113,13 @@ const sl = () =>
     });
 
 async function run() {
-    const OCR = await readyOcr();
-    if (!OCR) return;
-    const data = await screenshot(screenId, rect);
-    if (!data) return;
-    document.body.style.opacity = "1";
-
-    const ocrData = await OCR.ocr(data);
+    const ocrData = await localOcr.run(async (runner) => {
+        const data = await screenshot(screenId, rect);
+        if (!data) return null;
+        document.body.style.opacity = "1";
+        return runner.ocr(data);
+    });
+    if (!ocrData) return;
 
     textEl.clear();
     const textL: { text: string; el: ElType<HTMLDivElement> }[] = [];
@@ -280,22 +280,14 @@ const toolsEl = view("x")
             .on("click", () => renderSend("windowClose", [])),
     ]);
 
-type Ocr = Awaited<ReturnType<typeof import("esearch-ocr").init>>;
-let loadingOcr: Promise<Ocr | null> | undefined;
-function readyOcr() {
-    if (loadingOcr) return loadingOcr;
-    loadingOcr = loadOCR(store, store.get("OCR.类型") || defaultOcrId)
-        .then((model) => {
-            if (model) return model.ocr.init(model.config);
-            loadingOcr = undefined;
-            return null;
-        })
-        .catch((error: unknown) => {
-            loadingOcr = undefined;
-            throw error;
-        });
-    return loadingOcr;
-}
+const localOcr = idleOcr(async () => {
+    const model = await loadOCR(store, store.get("OCR.类型") || defaultOcrId);
+    if (!model) return null;
+    return {
+        runner: await model.ocr.init(model.config),
+        release: model.release,
+    };
+});
 ele("style")
     .add(
         noI18n(`

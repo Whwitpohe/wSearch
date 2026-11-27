@@ -114,7 +114,11 @@ type WorkerEntry = {
     worker: Worker;
     pending: Map<number, Pending>;
     lastUsed: number;
+    idle?: ReturnType<typeof setTimeout>;
 };
+
+/** 翻译进程常驻时会持有模型和 WASM 内存，空闲后结束，下次翻译重新加载 */
+const ROUTE_IDLE_MS = 120_000;
 
 let githubBase = (path: string) => `https://github.com/${path}`;
 let manifestPromise: Promise<BergamotManifest> | undefined;
@@ -510,6 +514,7 @@ function spawnWorker(specs: ModelSpec[], runtime: FileSpec) {
     );
 
     const fail = (error: Error) => {
+        clearTimeout(entry.idle);
         for (const pending of entry.pending.values()) {
             pending.reject(error);
         }
@@ -570,11 +575,26 @@ async function getRoute(specs: ModelSpec[], runtime: FileSpec) {
     }
 }
 
+function retireWhenIdle(entry: WorkerEntry) {
+    clearTimeout(entry.idle);
+    entry.idle = setTimeout(() => {
+        if (entry.pending.size) return;
+        for (const [key, value] of routes) {
+            if (value === entry) routes.delete(key);
+        }
+        void entry.worker.terminate();
+    }, ROUTE_IDLE_MS);
+}
+
 function send(entry: WorkerEntry, texts: string[]) {
+    clearTimeout(entry.idle);
     return new Promise<string[]>((resolve, reject) => {
         const id = nextId++;
         entry.pending.set(id, { resolve, reject });
         entry.worker.postMessage({ id, texts, html: false });
+    }).finally(() => {
+        if (!entry.pending.size && [...routes.values()].includes(entry))
+            retireWhenIdle(entry);
     });
 }
 

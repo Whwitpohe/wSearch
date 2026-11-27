@@ -71,7 +71,7 @@ import type { IconType } from "../../iconTypes";
 import closeSvg from "../assets/icons/close.svg";
 import reloadSvg from "../assets/icons/reload.svg";
 import { runAI } from "../lib/ai";
-import { defaultOcrId, loadOCR } from "../ocr/ocr";
+import { defaultOcrId, idleOcr, loadOCR } from "../ocr/ocr";
 import { ocrOnline } from "../ocr/ocr_online";
 import { ocrList } from "../ocr/ocrList";
 
@@ -127,10 +127,10 @@ const historyList: { [key: string]: { text: string } } =
 let fileWatcher: FSWatcher | null = null;
 
 const locr: {
-    runner: import("esearch-ocr").initType | null;
+    ocr: ReturnType<typeof idleOcr> | null;
     type: string;
 } = {
-    runner: null,
+    ocr: null,
     type: "",
 };
 
@@ -2558,93 +2558,96 @@ async function localOcr(
     arg: string,
     callback: (error: Error | null, result: OCROutPut | null) => void,
 ) {
-    try {
-        task.l("ocr_load");
-        if (type !== locr.type || !locr.runner) {
-            const [x, error] = await tryxAwait(() => loadOCR(store, type));
-            if (error instanceof Error) {
-                if (error.message.includes("A dynamic link library")) {
-                    const x = `${t("文字识别需要VS运行库才能正常使用")}\n${t("请下载并安装 Microsoft Visual C++ Runtime")}\nhttps://aka.ms/vs/17/release/vc_redist.${process.arch}.exe`;
-                    return callback(new Error(x), null);
-                }
-                return callback(error, null);
-            } else if (error) return callback(error as Error, null);
-            if (!x) return callback(new Error("未找到OCR模型"), null);
-
-            x.config.det.on = (dr) => {
-                if (dr.length <= 2) return;
-                mainSectionEl.style({ gap: cssVar("o-padding") });
-                ocrImagePel.style({ height: "100%" });
-                baseEditorEl.style({ height: "0" });
-
-                ocrImageView.style({
-                    [ocrImageViewWidthK]: "min(100%, 300px)",
-                });
-
-                const x = Array.from(ocrImageS.values())[0];
-                if (!x) return; // todo 获取准确的任务
-                const w = x.imgEl.el.naturalWidth;
-                const h = x.imgEl.el.naturalHeight;
-                const boxT = ocrBox2Style(w, h);
-
-                for (const [index, i] of dr.entries()) {
-                    const xel = view().style({
-                        ...boxT(i.box),
-                        overflow: "hidden",
-                        backdropFilter: "blur(10px)",
-                    });
-                    x.maskEls.pel.add(xel);
-                    x.maskEls.masks.set(index, xel);
-                }
-            };
-            x.config.rec.on = (i, _, a) => {
-                const x = Array.from(ocrImageS.values())[0];
-                if (!x) return; // todo 获取准确的任务
-                x.maskEls.masks.get(i)?.remove();
-
-                if (i + 1 === a) {
-                    x.maskEls.pel.clear();
-                    // todo 所有任务完成才执行
-                    baseEditorEl.style({ height: "100%" });
-                    ocrImageView.style({
-                        [ocrImageViewWidthK]: "100%",
-                    });
-                    setTimeout(() => {
-                        setOcrFontSize();
-                    }, 400);
-                }
-            };
-            locr.runner = await x.ocr.init(x.config);
-            locr.type = type;
-        }
-        task.l("ocr_s");
-        locr.runner
-            .ocr(arg)
-            .then((l) => {
-                console.log(l);
-                let t = "";
-                if (store.get("OCR.识别段落")) {
-                    for (const i of l.parragraphs) {
-                        t += `${i.text}\n`;
-                    }
-                } else {
-                    for (const i of l.columns.flatMap((i) => i.src)) {
-                        t += `${i.text}\n`;
-                    }
-                }
-                const ll = l.columns
-                    .flatMap((i) => i.src)
-                    .map((i) => ({ box: i.box, text: i.text }));
-                callback(null, { raw: ll, text: t, rotate: l.docDir });
-                task.l("ocr_e");
-                task.clear();
-            })
-            .catch((e) => {
-                callback(e, null);
-            });
-    } catch (error) {
-        callback(error as Error, null);
+    task.l("ocr_load");
+    if (type !== locr.type || !locr.ocr) {
+        locr.type = type;
+        locr.ocr = idleOcr(() => loadEditorOcr(type));
     }
+    locr.ocr
+        .run(async (runner) => {
+            task.l("ocr_s");
+            return runner.ocr(arg);
+        })
+        .then((l) => {
+            if (!l) throw new Error("未找到OCR模型");
+            console.log(l);
+            let t = "";
+            if (store.get("OCR.识别段落")) {
+                for (const i of l.parragraphs) {
+                    t += `${i.text}\n`;
+                }
+            } else {
+                for (const i of l.columns.flatMap((i) => i.src)) {
+                    t += `${i.text}\n`;
+                }
+            }
+            const ll = l.columns
+                .flatMap((i) => i.src)
+                .map((i) => ({ box: i.box, text: i.text }));
+            callback(null, { raw: ll, text: t, rotate: l.docDir });
+            task.l("ocr_e");
+            task.clear();
+        })
+        .catch((e) => {
+            callback(e, null);
+        });
+}
+
+async function loadEditorOcr(type: string) {
+    const [x, error] = await tryxAwait(() => loadOCR(store, type));
+    if (error instanceof Error) {
+        if (error.message.includes("A dynamic link library")) {
+            throw new Error(
+                `${t("文字识别需要VS运行库才能正常使用")}\n${t("请下载并安装 Microsoft Visual C++ Runtime")}\nhttps://aka.ms/vs/17/release/vc_redist.${process.arch}.exe`,
+            );
+        }
+        throw error;
+    } else if (error) throw error;
+    if (!x) throw new Error("未找到OCR模型");
+    x.config.det.on = (dr) => {
+        if (dr.length <= 2) return;
+        mainSectionEl.style({ gap: cssVar("o-padding") });
+        ocrImagePel.style({ height: "100%" });
+        baseEditorEl.style({ height: "0" });
+
+        ocrImageView.style({
+            [ocrImageViewWidthK]: "min(100%, 300px)",
+        });
+
+        const x = Array.from(ocrImageS.values())[0];
+        if (!x) return; // todo 获取准确的任务
+        const w = x.imgEl.el.naturalWidth;
+        const h = x.imgEl.el.naturalHeight;
+        const boxT = ocrBox2Style(w, h);
+
+        for (const [index, i] of dr.entries()) {
+            const xel = view().style({
+                ...boxT(i.box),
+                overflow: "hidden",
+                backdropFilter: "blur(10px)",
+            });
+            x.maskEls.pel.add(xel);
+            x.maskEls.masks.set(index, xel);
+        }
+    };
+    x.config.rec.on = (i, _, a) => {
+        const x = Array.from(ocrImageS.values())[0];
+        if (!x) return; // todo 获取准确的任务
+        x.maskEls.masks.get(i)?.remove();
+
+        if (i + 1 === a) {
+            x.maskEls.pel.clear();
+            // todo 所有任务完成才执行
+            baseEditorEl.style({ height: "100%" });
+            ocrImageView.style({
+                [ocrImageViewWidthK]: "100%",
+            });
+            setTimeout(() => {
+                setOcrFontSize();
+            }, 400);
+        }
+    };
+    return { runner: await x.ocr.init(x.config), release: x.release };
 }
 
 ocrImageFile.el.onchange = () => {

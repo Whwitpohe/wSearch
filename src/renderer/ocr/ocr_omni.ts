@@ -1,4 +1,4 @@
-import { loadOCR } from "./ocr";
+import { idleOcr, loadOCR } from "./ocr";
 import { ocrOnline } from "./ocr_online";
 
 type ocrResult = {
@@ -37,19 +37,15 @@ export function ocrOmniLoad(
             },
         };
     }
-    const init = async () => {
+    const local = idleOcr(async () => {
         const x = await loadOCR(store, type);
         if (!x) throw new Error("不支持的 OCR 类型");
-        return x.ocr.init(x.config);
-    };
-    let ocr: ReturnType<typeof init> | undefined;
+        return { runner: await x.ocr.init(x.config), release: x.release };
+    });
     return {
         ocr: async (img: string) => {
-            ocr ??= init().catch((error: unknown) => {
-                ocr = undefined;
-                throw error;
-            });
-            const res = await (await ocr).ocr(img);
+            const res = await local.run((runner) => runner.ocr(img));
+            if (!res) throw new Error("不支持的 OCR 类型");
             return res.columns
                 .flatMap((c) => c.parragraphs)
                 .map((p) => p.parse.text);
