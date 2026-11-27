@@ -2647,7 +2647,7 @@ async function loadEditorOcr(type: string) {
             }, 400);
         }
     };
-    return { runner: await x.ocr.init(x.config), release: x.release };
+    return x.init();
 }
 
 ocrImageFile.el.onchange = () => {

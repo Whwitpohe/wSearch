@@ -9,7 +9,7 @@ import { drawTranslation } from "./translationOverlay";
 const localOcr = idleOcr(async () => {
     const x = await loadOCR(store, store.get("OCR.类型") || defaultOcrId);
     if (!x) throw Error(t("此模式无法加载所选 OCR 引擎"));
-    return { runner: await x.ocr.init(x.config), release: x.release };
+    return x.init();
 });
 
 export type OcrResult = Awaited<ReturnType<typeof recognizeImage>>;

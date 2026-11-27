@@ -211,6 +211,8 @@ type Message = {
     ) => void;
     /** 覆盖层贴图移动或缩放后的位置，相对发送窗口 */
     dingFrame: (id: string, x: number, y: number, w: number, h: number) => void;
+    dingRequestImage: (id: number, displayId: number) => void;
+    dingSupplyImage: (id: number, displayId: number, url: string) => void;
     superRecorderInit: (sourceId: string, fixed?: RecordRect) => void;
     superPhotoEditorInit: (img: string) => void;
     recordMemWarning: () => void;

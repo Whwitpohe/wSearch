@@ -398,6 +398,10 @@ function mouseEnd() {
 }
 
 export function init() {
+    renderOn("dingRequestImage", ([id, displayId]) => {
+        const image = items.get(String(id))?.data.url;
+        if (image) renderSend("dingSupplyImage", [id, displayId, image]);
+    });
     addStyle({
         body: {
             width: "100vw",

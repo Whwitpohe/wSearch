@@ -2790,8 +2790,21 @@ function sendOverlayPin(
     displayIdNow: number,
     id: number,
     pin: NonNullable<ReturnType<typeof overlayPins.get>>,
+    image = pin.url,
 ) {
-    if (!pin.url || (pin.live && displayIdNow !== pin.displayId)) return;
+    if (pin.live && displayIdNow !== pin.displayId) return;
+    if (!image) {
+        // 新接入的显示器仍可从已有覆盖层取图，无需主进程长驻一份图片。
+        const donor = dingOverlayList
+            .entries()
+            .find(([key]) => key !== displayIdNow && readyOverlays.has(key));
+        if (donor)
+            mainSend(donor[1].win.webContents, "dingRequestImage", [
+                id,
+                displayIdNow,
+            ]);
+        return;
+    }
     const b = win.getBounds();
     mainSend(win.webContents, "addDing", [
         id,
@@ -2799,7 +2812,7 @@ function sendOverlayPin(
         pin.y - b.y,
         pin.w,
         pin.h,
-        pin.url,
+        image,
         pin.type,
         pin.live,
         pin.live ? pin.displayId : undefined,
@@ -3163,6 +3176,27 @@ mainOn("dingFrame", ([id, x, y, w, h], e) => {
     const b = win.getBounds();
     pin.frame = { x: x + b.x, y: y + b.y, w, h };
     coverPin({ ...pin.frame, live: pin.live, displayId: pin.displayId });
+});
+
+mainOn("dingSupplyImage", ([id, displayId, image], event) => {
+    const pin = overlayPins.get(id);
+    const target = dingOverlayList
+        .entries()
+        .find(([key]) => key === displayId)?.[1].win;
+    if (
+        !pin ||
+        !target ||
+        !image ||
+        event.senderFrame !== event.sender.mainFrame ||
+        !isPinSender(id, event.sender) ||
+        target.webContents === event.sender
+    )
+        return;
+    sendOverlayPin(target, displayId, id, pin, image);
+    if (overlayDrag?.id === String(id))
+        mainSend(target.webContents, "dingShare", [
+            { type: "move_start", more: overlayDrag },
+        ]);
 });
 
 mainOn("dingSetBounds", ([x, y, w, h], e) => {

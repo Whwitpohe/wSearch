@@ -40,7 +40,7 @@ export function ocrOmniLoad(
     const local = idleOcr(async () => {
         const x = await loadOCR(store, type);
         if (!x) throw new Error("不支持的 OCR 类型");
-        return { runner: await x.ocr.init(x.config), release: x.release };
+        return x.init();
     });
     return {
         ocr: async (img: string) => {

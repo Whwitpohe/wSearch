@@ -145,31 +145,41 @@ async function loadOCR(
         },
     } as typeof ort;
 
+    const release = () =>
+        Promise.allSettled(
+            sessions.splice(0).map((session) => session.release()),
+        );
+    const config = {
+        det: {
+            input: detp,
+            ratio: 0.75,
+        },
+        rec: {
+            input: recp,
+            decodeDic: fs.readFileSync(字典).toString(),
+            optimize: {
+                space: l.optimize?.space,
+            },
+        },
+        ...(docCls
+            ? {
+                  docCls: {
+                      input: docCls,
+                  },
+              }
+            : {}),
+        ort: trackedOrt,
+        ortOption: { executionProviders: [{ name: provider }] },
+    } as InitOcrBase;
     return {
-        ocr: localOCR,
-        release: () =>
-            Promise.allSettled(sessions.splice(0).map((s) => s.release())),
-        config: {
-            det: {
-                input: detp,
-                ratio: 0.75,
-            },
-            rec: {
-                input: recp,
-                decodeDic: fs.readFileSync(字典).toString(),
-                optimize: {
-                    space: l.optimize?.space,
-                },
-            },
-            ...(docCls
-                ? {
-                      docCls: {
-                          input: docCls,
-                      },
-                  }
-                : {}),
-            ort: trackedOrt,
-            ortOption: { executionProviders: [{ name: provider }] },
-        } as InitOcrBase,
+        config,
+        async init() {
+            try {
+                return { runner: await localOCR.init(config), release };
+            } catch (error) {
+                await release();
+                throw error;
+            }
+        },
     };
 }

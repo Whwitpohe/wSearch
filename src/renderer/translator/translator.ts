@@ -283,10 +283,7 @@ const toolsEl = view("x")
 const localOcr = idleOcr(async () => {
     const model = await loadOCR(store, store.get("OCR.类型") || defaultOcrId);
     if (!model) return null;
-    return {
-        runner: await model.ocr.init(model.config),
-        release: model.release,
-    };
+    return model.init();
 });
 ele("style")
     .add(
