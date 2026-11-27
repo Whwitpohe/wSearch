@@ -23,6 +23,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
+      PYTHONIOENCODING: utf-8
       TAG: ${{ inputs.tag }}
       PLATFORM: ${{ matrix.platform }}
       ARCH: ${{ matrix.arch }}
