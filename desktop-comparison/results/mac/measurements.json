@@ -148,5 +148,16 @@
       }
     }
   },
-  "trials": []
+  "trials": [],
+  "permission_rechecks": [
+    {
+      "local_launch_time": "2026-11-27T14:36:51+08:00",
+      "hotkey_registered": true,
+      "capture_helper_started": true,
+      "capture_helper_exit_code": 2,
+      "screen_capture_tcc": "denied",
+      "overlay_observation_timeout_ms": 4500,
+      "clipboard": "unchanged"
+    }
+  ]
 }
