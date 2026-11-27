@@ -289,6 +289,50 @@ const beforePack = async () => {
     }
 };
 
+const packagedRoot = new Set([
+    "LICENSE",
+    "assets",
+    "lib",
+    "node_modules",
+    "out",
+    "package.json",
+]);
+const packagedOut = new Set(["main", "renderer"]);
+
+/**
+ * @param {import("electron-builder").AfterPackContext} context
+ */
+const afterPack = async (context) => {
+    const root =
+        context.electronPlatformName === "darwin"
+            ? path.join(
+                  context.appOutDir,
+                  `${context.packager.appInfo.productFilename}.app`,
+                  "Contents/Resources/app",
+              )
+            : path.join(context.appOutDir, "resources/app");
+    const unexpected = [];
+    for (const entry of fs.readdirSync(root, {
+        recursive: true,
+        withFileTypes: true,
+    })) {
+        const rel = path
+            .relative(root, path.join(entry.parentPath, entry.name))
+            .replaceAll("\\", "/");
+        const [top, sub] = rel.split("/");
+        if (
+            !packagedRoot.has(top) ||
+            (top === "out" && sub && !packagedOut.has(sub)) ||
+            (entry.isFile() && rel.endsWith(".map"))
+        )
+            unexpected.push(rel);
+    }
+    if (unexpected.length)
+        throw new Error(
+            `安装包包含不应发布的文件：\n${unexpected.slice(0, 20).join("\n")}`,
+        );
+};
+
 /**
  * @type import("electron-builder").Configuration
  */
@@ -340,6 +384,7 @@ const build = {
     asar: false,
     artifactName: `\${productName}-\${version}-\${platform}-${arch}.\${ext}`,
     beforePack: beforePack,
+    afterPack: afterPack,
     linux: {
         category: "Utility",
         target: [
@@ -399,6 +444,8 @@ const build = {
             "!assets/logo/512x512.png",
             "!node_modules/onnxruntime-node/bin/napi-v6/linux",
             "!node_modules/onnxruntime-node/bin/napi-v6/darwin",
+            // ONNX Runtime 的 WebGPU 后端会从程序目录加载 Electron 自带的 dxcompiler.dll
+            "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll",
         ],
     },
     nsis: {
