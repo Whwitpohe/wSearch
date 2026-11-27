@@ -6,13 +6,16 @@ on:
         description: Published version to start on each native runner
         type: string
         required: true
-permissions: {}
+permissions:
+  contents: read
 jobs:
   verify:
     strategy:
       fail-fast: false
       matrix:
         include:
+          - { runner: windows-latest, platform: win32, arch: x64, ext: zip }
+          - { runner: windows-11-arm, platform: win32, arch: arm64, ext: zip }
           - { runner: macos-15, platform: darwin, arch: arm64, ext: zip }
           - { runner: macos-15-intel, platform: darwin, arch: x64, ext: zip }
           - { runner: ubuntu-24.04, platform: linux, arch: x64, ext: tar.gz }
@@ -25,31 +28,60 @@ jobs:
       ARCH: ${{ matrix.arch }}
       EXT: ${{ matrix.ext }}
     steps:
-      - name: Fetch and extract the public package
-        shell: bash
-        run: |
-          [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-][A-Za-z0-9.-]+)?$ ]]
-          name="wSearch-$TAG-$PLATFORM-$ARCH.$EXT"
-          curl --fail --location --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$name" -o "$name"
-          mkdir unpacked
-          if [[ "$PLATFORM" = darwin ]]; then
-            ditto -x -k "$name" unpacked
-          else
-            tar -xzf "$name" -C unpacked
-          fi
-      - name: Run the packaged executable
+      - name: Fetch, verify and start the published editions
         shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          import os, pathlib, subprocess
-          root = pathlib.Path("unpacked")
-          if os.environ["PLATFORM"] == "darwin":
-              exe = next(root.glob("**/wSearch.app/Contents/MacOS/wSearch"))
-              command = [str(exe.resolve())]
-          else:
-              exe = next(p for p in root.rglob("wSearch") if p.is_file())
-              command = ["xvfb-run","-a",str(exe.resolve()),"--no-sandbox"]
-          subprocess.run(["file",str(exe)],check=True)
-          result = subprocess.run([*command,"--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=90)
-          print(result.stdout[-5000:],flush=True)
-          if result.returncode != 0 or os.environ["TAG"] not in result.stdout.splitlines():
-              raise SystemExit(f"Application version check failed ({result.returncode})")
+          import hashlib, json, os, pathlib, re, subprocess, sys, zipfile
+          tag, platform, arch, ext = (os.environ[k] for k in ("TAG", "PLATFORM", "ARCH", "EXT"))
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?", tag):
+              raise SystemExit("Invalid release tag")
+          repo = os.environ["GITHUB_REPOSITORY"]
+          endpoint = f"repos/{repo}/releases/tags/{tag}"
+          release = json.loads(subprocess.check_output(["gh", "api", endpoint]))
+          assets = json.loads(subprocess.check_output(["gh", "api", f"repos/{repo}/releases/{release['id']}/assets?per_page=100"]))
+          files = {asset["name"]: asset for asset in assets}
+          prefix = f"wSearch-{tag}-{platform}-{arch}"
+          two_editions = any("-offline." in name for name in files)
+          if platform == "win32" and not two_editions and f"{prefix}.zip" not in files:
+              print("This older release did not publish a Windows ZIP for this target.")
+              sys.exit(0)
+          for suffix in (("", "-offline") if two_editions else ("",)):
+              name = f"{prefix}{suffix}.{ext}"
+              asset = files[name]
+              subprocess.run(["curl", "--fail", "--location", "--retry", "3", "--output", name, asset["browser_download_url"]], check=True)
+              with open(name, "rb") as archive:
+                  digest = hashlib.sha256()
+                  for block in iter(lambda: archive.read(1024*1024), b""):
+                      digest.update(block)
+              if asset.get("digest") and asset["digest"] != "sha256:" + digest.hexdigest():
+                  raise SystemExit(f"Release digest mismatch: {name}")
+              root = pathlib.Path("unpacked" + suffix)
+              root.mkdir()
+              if platform == "darwin":
+                  subprocess.run(["ditto", "-x", "-k", name, str(root)], check=True)
+                  app = next(root.glob("**/wSearch.app"))
+                  exe, resources = app/"Contents/MacOS/wSearch", app/"Contents/Resources/app"
+              elif platform == "linux":
+                  subprocess.run(["tar", "-xzf", name, "-C", str(root)], check=True)
+                  exe = next(p for p in root.rglob("wSearch") if p.is_file())
+                  resources = exe.parent / "resources/app"
+              else:
+                  with zipfile.ZipFile(name) as archive:
+                      archive.extractall(root)
+                  exe = next(root.rglob("wSearch.exe"))
+                  resources = exe.parent / "resources/app"
+              if json.loads((resources/"package.json").read_text("utf8"))["version"] != tag:
+                  raise SystemExit(f"Package version mismatch: {name}")
+              if two_editions:
+                  model_dir = resources/"assets/onnx/ppocr"
+                  models = {p.name for p in model_dir.glob("*") if p.is_file()}
+                  wanted = {"doc_cls.onnx", "dic.txt", "ppocr6_small_det.onnx", "ppocr6_small_rec.onnx"} if suffix else set()
+                  if models != wanted:
+                      raise SystemExit(f"Incorrect model payload: {name}")
+              command = ["xvfb-run", "-a", str(exe.resolve()), "--no-sandbox"] if platform == "linux" else [str(exe.resolve())]
+              result = subprocess.run(command + ["--version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf8", errors="replace", timeout=90)
+              print(name, result.stdout[-2000:], flush=True)
+              if result.returncode != 0 or tag not in result.stdout.splitlines():
+                  raise SystemExit(f"Launch verification failed: {name} ({result.returncode})")
