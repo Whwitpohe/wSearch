@@ -125,19 +125,21 @@ jobs:
       - name: Publish the verified packages
         run: |
           notes="$RUNNER_TEMP/release-notes.md"
+          (cd release-files && sha256sum wSearch-* > SHA256SUMS.txt)
           if ! gh release view "$TAG" >/dev/null; then
             bash script/release-notes.sh "$TAG" "$notes"
-            gh release create "$TAG" --verify-tag --title "wSearch $TAG" --notes-file "$notes"
+            gh release create "$TAG" --draft --verify-tag --title "wSearch $TAG" --notes-file "$notes"
           elif test -f "docs/releases/$TAG.md"; then
             bash script/release-notes.sh "$TAG" "$notes"
             gh release edit "$TAG" --notes-file "$notes"
           fi
           for file in release-files/*; do
             name=$(basename "$file")
-            remote=$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq ".assets[] | select(.name==\"$name\") | .digest")
+            remote=$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$name\") | .digest")
             if test -n "$remote"; then
               test "$remote" = "sha256:$(sha256sum "$file" | cut -d ' ' -f 1)" || { echo "Asset already exists with different contents: $name"; exit 1; }
             else
               gh release upload "$TAG" "$file"
             fi
           done
+          gh release edit "$TAG" --draft=false

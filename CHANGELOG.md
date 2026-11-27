@@ -1,5 +1,14 @@
 # 更新记录
 
+## 15.8.2 · 2026-11-27
+
+- 本地 OCR 和 Bergamot 翻译在空闲后释放模型资源。标准版首次使用本地 OCR 时下载模型，文件名带 `-offline` 的完整离线版内置模型。
+- 截图预热保留取屏和拖框，标注和长截图按需加载。自动框选可选择 RGB 差分或 Canny 边缘检测。
+- 截图翻译支持原位覆盖、并排对照、切换语言及分别复制原文、译文和图片。进入编辑时保留译图的位置和大小，桌面背景透明。
+- 多显示器贴图按需创建覆盖窗口，拖动到另一块显示器时接续显示。
+
+[中英双语发布说明](docs/releases/15.8.2.md) · [下载安装包](https://github.com/Whwitpohe/wSearch/releases/tag/15.8.2)
+
 ## 15.8.1 · 2026-11-25
 
 [中英双语发布说明](docs/releases/15.8.1.md) · [发布日志及下载](https://github.com/Whwitpohe/wSearch/releases/tag/15.8.1) · [多语言介绍页](https://whwitpohe.github.io/wSearch/#changes)
