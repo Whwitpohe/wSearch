@@ -26,10 +26,19 @@ import {
     setTitle,
 } from "../root/root";
 
-const { uIOhook, UiohookKey } =
-    require("uiohook-napi") as typeof import("uiohook-napi");
-type KeyCode = `${keyof typeof UiohookKey}`;
-const fs = require("node:fs") as typeof import("fs");
+import {
+    captureStream,
+    editFrame,
+    getFreeMemory,
+    pickExport,
+    releaseSource,
+    renderOn,
+    renderSend,
+    startInput,
+    writeExport,
+} from "./videoHost";
+
+type KeyCode = keyof typeof import("uiohook-napi").UiohookKey;
 
 // @ts-expect-error
 import { applyPalette, GIFEncoder, quantize } from "gifenc";
@@ -46,7 +55,6 @@ import {
     WebMOutputFormat,
 } from "mediabunny";
 import type { RecordRect } from "../../../lib/ipc";
-import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
 import { t } from "../../../lib/translate/translate";
 import { typedEntries } from "../../../lib/utils";
 import type { IconType } from "../../iconTypes";
@@ -624,14 +632,6 @@ function MathClamp(min: number, value: number, max: number) {
     return Math.min(Math.max(min, value), max);
 }
 
-function getFreeMemory() {
-    const mem = process.getSystemMemoryInfo();
-    const sysFree = (mem.free + mem.swapFree) * 1024;
-    // @ts-ignore
-    const processFree = performance.memory.jsHeapSizeLimit;
-    return Math.min(sysFree, processFree);
-}
-
 function frameTrans2Canvas(frame: VideoFrame) {
     const canvas = new OffscreenCanvas(frame.codedWidth, frame.codedHeight);
     const ctx = canvas.getContext("2d")!;
@@ -644,55 +644,13 @@ function listLength() {
     return srcCs.length;
 }
 
-let hookStarted = false;
-
-function initKeys(push: (x: Omit<superRecording[0], "time" | "posi">) => void) {
-    const keyCodeMap = new Map<number, KeyCode>();
-    for (const [i, v] of typedEntries(UiohookKey)) {
-        keyCodeMap.set(v, String(i) as KeyCode);
-    }
-
-    uIOhook.on("keydown", (e) => {
-        const k = keyCodeMap.get(e.keycode);
-        if (k)
-            push({
-                keydown: k,
-            });
+let stopInput: (() => void) | undefined;
+function initKeys(
+    push: (event: Omit<superRecording[0], "time" | "posi">) => void,
+) {
+    stopInput = startInput(push, (p) => {
+        mousePosi = p;
     });
-
-    uIOhook.on("keyup", (e) => {
-        const k = keyCodeMap.get(e.keycode);
-        if (k)
-            push({
-                keyup: k,
-            });
-    });
-
-    const map = { 1: 0, 2: 1, 3: 2 } as const;
-
-    uIOhook.on("mousedown", (e) => {
-        push({
-            mousedown: map[e.button as 1 | 2 | 3],
-        });
-    });
-    uIOhook.on("mouseup", (e) => {
-        push({
-            mouseup: map[e.button as 1 | 2 | 3],
-        });
-    });
-
-    uIOhook.on("wheel", (e) => {
-        console.log(e.direction, e.rotation);
-        push({ wheel: true });
-    });
-
-    uIOhook.on("mousemove", (e) => {
-        mousePosi = { x: e.x, y: e.y };
-        push({});
-    });
-
-    uIOhook.start();
-    hookStarted = true;
 }
 
 async function afterRecord(chunks: EncodedVideoChunk[]) {
@@ -2311,13 +2269,6 @@ async function save() {
     }
 }
 
-function getSavePath(type: baseType) {
-    return renderSendSync("save_file_path", [
-        type,
-        type === "mp4" || type === "webm",
-    ]);
-}
-
 const audioExportBitrate = 128000;
 
 /** 按容器支持与浏览器可编码能力选择音轨编码，不能带音频时返回 null */
@@ -2357,27 +2308,28 @@ function tipNoAudio() {
 
 async function saveImages() {
     // todo 大小警告
-    const exportPath = getSavePath("png");
+    const exportPath = await pickExport("png");
     if (!exportPath) return;
 
-    try {
-        fs.mkdirSync(exportPath, { recursive: true });
-    } catch (error) {}
-
+    const writes: Promise<void>[] = [];
     await waitProcessing(); // todo 不可取消
 
     let i = 0;
     const decoder = new VideoDecoder({
         output: (frame: VideoFrame) => {
+            const timestamp = frame.timestamp;
             const t = frameTrans2Canvas(frame);
-            t.convertToBlob({ type: "image/png" }).then(async (blob) => {
-                const buffer = Buffer.from(await blob.arrayBuffer());
-                fs.writeFile(
-                    `${exportPath}/${frame.timestamp}.png`,
-                    buffer,
-                    (_err) => {},
-                );
-            });
+            writes.push(
+                t
+                    .convertToBlob({ type: "image/png" })
+                    .then(async (blob) =>
+                        writeExport(
+                            exportPath,
+                            await blob.arrayBuffer(),
+                            timestamp,
+                        ),
+                    ),
+            );
             i++;
             imgProgress.sv(i / transformCs.length);
         },
@@ -2388,12 +2340,16 @@ async function saveImages() {
 
     decoder.configure(decoderVideoConfig);
     for (const [_, chunk] of transformCs.entries()) {
-        if (chunk.type === "key") await decoder.flush();
+        if (chunk.type === "key" || decoder.decodeQueueSize > 12) {
+            await decoder.flush();
+            await Promise.all(writes.splice(0));
+        }
         decoder.decode(chunk);
     }
 
     await decoder.flush();
 
+    await Promise.all(writes);
     imgProgress.remove();
 
     renderSend("ok_save", [exportPath]);
@@ -2614,7 +2570,7 @@ function finishTimedFrames<T extends { delayMs: number }>(
 }
 
 async function saveGif(op?: { dither: "floyd-steinberg" | "none" }) {
-    const exportPath = getSavePath("gif");
+    const exportPath = await pickExport("gif");
     if (!exportPath) return;
 
     const gif = GIFEncoder();
@@ -2693,7 +2649,7 @@ async function saveGif(op?: { dither: "floyd-steinberg" | "none" }) {
     decoder.close();
     gif.finish();
     const bytes = gif.bytes();
-    fs.writeFileSync(exportPath, Buffer.from(bytes));
+    await writeExport(exportPath, bytes);
 
     gifProgress.remove();
 
@@ -2701,7 +2657,7 @@ async function saveGif(op?: { dither: "floyd-steinberg" | "none" }) {
 }
 
 async function saveApng() {
-    const exportPath = getSavePath("apng");
+    const exportPath = await pickExport("apng");
     if (!exportPath) return;
 
     await waitProcessing();
@@ -2759,13 +2715,13 @@ async function saveApng() {
         height: outputV.height,
         frames,
     });
-    fs.writeFileSync(exportPath, Buffer.from(bytes));
+    await writeExport(exportPath, bytes);
     progress.remove();
     renderSend("ok_save", [exportPath]);
 }
 
 async function saveWebp() {
-    const exportPath = getSavePath("webp");
+    const exportPath = await pickExport("webp");
     if (!exportPath) return;
 
     await waitProcessing();
@@ -2849,14 +2805,14 @@ async function saveWebp() {
         height: outputV.height,
         frames,
     });
-    fs.writeFileSync(exportPath, Buffer.from(bytes));
+    await writeExport(exportPath, bytes);
     progress.remove();
     renderSend("ok_save", [exportPath]);
 }
 
 /** AVIF 直接封装已编码的 AV1 帧，不重新解码 */
 async function saveAvif() {
-    const exportPath = getSavePath("avif");
+    const exportPath = await pickExport("avif");
     if (!exportPath) return;
     if (!codecMap.has("av1")) return;
 
@@ -2891,7 +2847,7 @@ async function saveAvif() {
             samples,
             fallbackCodec: codecMap.get("av1")?.codec,
         });
-        fs.writeFileSync(exportPath, Buffer.from(bytes));
+        await writeExport(exportPath, bytes);
         renderSend("ok_save", [exportPath]);
     } catch (e) {
         console.error("AVIF 导出失败", e);
@@ -2899,7 +2855,7 @@ async function saveAvif() {
 }
 
 async function saveWebm(op: { codec: "vp8" | "vp9" | "av1" }) {
-    const exportPath = getSavePath("webm");
+    const exportPath = await pickExport("webm");
     if (!exportPath) return;
 
     await waitProcessing({ codec: op.codec });
@@ -2938,7 +2894,7 @@ async function saveWebm(op: { codec: "vp8" | "vp9" | "av1" }) {
     await output.finalize();
     const { buffer } = output.target;
     if (buffer) {
-        fs.writeFileSync(exportPath, Buffer.from(buffer)); // todo stream
+        await writeExport(exportPath, buffer); // todo stream
         console.log("saved webm");
         renderSend("ok_save", [exportPath, true]);
     } else {
@@ -2996,7 +2952,7 @@ async function encodeMp4(op: { codec: "avc" | "vp9" | "av1"; audio: boolean }) {
 }
 
 async function saveMp4(op: { codec: "avc" | "vp9" | "av1" }) {
-    const exportPath = getSavePath("mp4");
+    const exportPath = await pickExport("mp4");
     if (!exportPath) return;
 
     if (!(await waitProcessing({ codec: op.codec }))) return;
@@ -3008,7 +2964,7 @@ async function saveMp4(op: { codec: "avc" | "vp9" | "av1" }) {
         return;
     }
     if (!bytes) return;
-    fs.writeFileSync(exportPath, Buffer.from(bytes)); // todo stream
+    await writeExport(exportPath, bytes); // todo stream
     console.log("saved mp4");
     renderSend("ok_save", [exportPath, true]);
 }
@@ -4150,16 +4106,14 @@ const exportEl = frame("export", {
         const canvas = await fetchFrame(mainFrameGet, willPlayI);
         if (!canvas) return;
         canvas.convertToBlob({ type: "image/png" }).then(async (blob) => {
-            const buffer = Buffer.from(await blob.arrayBuffer());
-            renderSend("edit_pic", [buffer]);
+            await editFrame(blob);
         });
     }),
     editSrc: button(t("编辑原图")).on("click", async () => {
         const canvas = await clipFrameGet.getFrame(trans2src(willPlayI));
         if (!canvas) return;
         canvas.convertToBlob({ type: "image/png" }).then(async (blob) => {
-            const buffer = Buffer.from(await blob.arrayBuffer());
-            renderSend("edit_pic", [buffer]);
+            await editFrame(blob);
         });
     }),
 });
@@ -4190,41 +4144,7 @@ pack(document.body).style({
     const wantSysAudio =
         store.get("录屏.音频.启用系统内录") &&
         audioDevices.includes(sysAudioId);
-    const videoConstraint = {
-        mandatory: {
-            chromeMediaSource: "desktop",
-            chromeMediaSourceId: sourceId,
-        },
-    };
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({
-            audio: wantSysAudio
-                ? {
-                      // @ts-ignore
-                      mandatory: {
-                          chromeMediaSource: "desktop",
-                      },
-                  }
-                : false,
-            // @ts-ignore
-            video: videoConstraint,
-        });
-    } catch (e) {
-        console.error(e);
-    }
-    if (!stream && wantSysAudio) {
-        // 系统内录获取失败时回退为纯视频，保证录制可用
-        console.warn("超级录屏：获取系统音频失败，回退为无音频");
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                // @ts-ignore
-                video: videoConstraint,
-            });
-        } catch (e) {
-            console.error(e);
-        }
-    }
+    stream = await captureStream(sourceId, wantSysAudio);
     if (!stream) return;
 
     audioCapture.setSourceId(sourceId);
@@ -4351,7 +4271,8 @@ pack(document.body).style({
 
         console.log("stop");
 
-        if (hookStarted) uIOhook.stop();
+        stopInput?.();
+        stopInput = undefined;
         lisenerS.abort();
 
         reader.cancel();
@@ -4365,6 +4286,9 @@ pack(document.body).style({
                 return null;
             });
 
+        void audioStop.finally(() => {
+            if (stream) releaseSource(stream);
+        });
         if (cancel) {
             renderSend("windowClose", []);
             return;

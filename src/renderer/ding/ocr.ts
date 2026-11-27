@@ -3,10 +3,10 @@ import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import { loadTranslator } from "../lib/translate";
 import { defaultOcrId, loadOCR } from "../ocr/ocr";
-import type { DingItemData } from "./item";
+import { foreground, type TextBox, trailingAccent } from "./translationInk";
+import { drawTranslation } from "./translationOverlay";
 
 let lo: import("esearch-ocr").initType;
-let translateE: ((input: string[]) => Promise<string[]>) | undefined;
 
 export async function initOCR() {
     if (!lo) {
@@ -23,9 +23,7 @@ async function ocr(img: string) {
     return p.columns.flatMap((c) => c.parragraphs);
 }
 
-/** OCR 并准备翻译器 */
-export async function preTranAndOcr(url: string) {
-    translateE = loadTranslator(store);
+export async function recognizeImage(url: string) {
     await initOCR();
     return ocr(url);
 }
@@ -41,44 +39,94 @@ export function loadImage(url: string) {
     });
 }
 
-/** 将翻译结果绘制到图片上 */
-export async function drawTranslation(
-    imgView: { el: HTMLElement },
-    data: DingItemData,
-    p: OcrResult,
-    srcUrl?: string,
+export async function paintOcrLayer(
+    source: HTMLImageElement,
+    paragraphs: OcrResult,
+    target: string,
 ) {
-    const image = imgView.el.querySelector("img");
-    if (!image) return;
-    const source = srcUrl ? await loadImage(srcUrl) : image;
-    const canvas = ele("canvas")
-        .attr({
-            width: source.naturalWidth || source.width,
-            height: source.naturalHeight || source.height,
-        })
-        .style({ position: "absolute", pointerEvents: "none" })
-        .addInto(imgView.el).el;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.drawImage(source, 0, 0);
-    console.log(p);
+    const canvas = ele("canvas").attr({
+        width: source.naturalWidth,
+        height: source.naturalHeight,
+    }).el;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw Error(t("无法绘制截图"));
+    const translateE = loadTranslator(store, target);
     if (!translateE) throw new UnConfigTranslateError();
-    const tr = await translateE(p.map((i) => i.parse.text));
-    console.log(tr);
-
-    for (const [i, t] of tr.entries()) {
-        const x = p[i];
-        if (t !== x.parse.text) drawText(t, ctx, x.parse.box, x.src);
+    const lines = paragraphs.length
+        ? await translateE(paragraphs.map((p) => p.parse.text))
+        : [];
+    if (!lines.length) return { layer: canvas, lines };
+    ctx.drawImage(source, 0, 0);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function bounds(box: OcrResult[0]["parse"]["box"]): TextBox {
+        const xs = box.map((p) => p[0]),
+            ys = box.map((p) => p[1]);
+        return {
+            left: Math.max(0, Math.floor(Math.min(...xs))),
+            top: Math.max(0, Math.floor(Math.min(...ys))),
+            right: Math.min(canvas.width, Math.ceil(Math.max(...xs))),
+            bottom: Math.min(canvas.height, Math.ceil(Math.max(...ys))),
+        };
     }
-    data.translation = canvas.toDataURL("image/png", 1);
-    data.isTranslate = true;
+    const boxes = paragraphs.map((p) => bounds(p.parse.box));
+    const obstacles = [...boxes];
+    for (const [index, text] of lines.entries()) {
+        const paragraph = paragraphs[index];
+        if (paragraph?.src.length && text !== paragraph.parse.text)
+            eraseText(ctx, paragraph.src);
+    }
+    for (const [index, text] of lines.entries()) {
+        const paragraph = paragraphs[index];
+        if (!paragraph?.src.length || text === paragraph.parse.text) continue;
+        const { box } = paragraph.parse;
+        const rect = boxes[index];
+        if (rect.right <= rect.left || rect.bottom <= rect.top) continue;
+        ctx.fillStyle = color2rgb(paragraph.src[0].style.text);
+        if (
+            box[1][0] > box[0][0] &&
+            Math.abs(box[1][1] - box[0][1]) <= 1 &&
+            Math.abs(box[3][0] - box[0][0]) <= 1 &&
+            box[3][1] > box[0][1]
+        ) {
+            const first = paragraph.src[0];
+            const lineBoxes = paragraph.src.map((l) => bounds(l.box));
+            const ink = foreground(
+                pixels,
+                lineBoxes,
+                first.style.bg,
+                first.style.text,
+            );
+            ctx.fillStyle = color2rgb(ink);
+            drawTranslation(
+                ctx,
+                pixels,
+                rect,
+                obstacles,
+                text,
+                first.style.bg,
+                Math.max(1, Math.round(distance(first.box[3], first.box[0]))),
+                trailingAccent(
+                    pixels,
+                    lineBoxes[lineBoxes.length - 1],
+                    paragraph.src[paragraph.src.length - 1].style.bg,
+                    ink,
+                    paragraph.parse.text,
+                    text,
+                ),
+            );
+        } else {
+            drawRotatedText(text, ctx, box, paragraph.src);
+        }
+    }
+    return { layer: canvas, lines };
 }
 
 function distance(a: [number, number], b: [number, number]) {
     return Math.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2);
 }
 
-function drawText(
+function drawRotatedText(
     text: string,
     ctx: CanvasRenderingContext2D,
     box: OcrResult[0]["parse"]["box"],
@@ -104,26 +152,12 @@ function drawText(
         lineNum === 1 ? 0 : (boxHeight - lineHeight * lineNum) / (lineNum - 1);
     const lines = splitText(textList, ctx, boxWidth);
 
-    for (const b of boxSrc) {
-        ctx.fillStyle = color2rgb(b.style.bg);
-        ctx.strokeStyle = color2rgb(b.style.bg); // 拓展外边
-        ctx.beginPath();
-        ctx.moveTo(b.box[0][0], b.box[0][1]);
-        ctx.lineTo(b.box[1][0], b.box[1][1]);
-        ctx.lineTo(b.box[2][0], b.box[2][1]);
-        ctx.lineTo(b.box[3][0], b.box[3][1]);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-    }
-
     const angle = Math.atan2(box[1][1] - box[0][1], box[1][0] - box[0][0]);
     const yBaseVector = [
         (box[3][0] - box[0][0]) / boxHeight,
         (box[3][1] - box[0][1]) / boxHeight,
     ];
     ctx.textBaseline = "top";
-    ctx.fillStyle = color2rgb(boxSrc[0].style.text);
     for (const [i, line] of lines.entries()) {
         const yn = i * lineHeight + i * gap;
         const x = box[0][0] + yBaseVector[0] * yn;
@@ -133,6 +167,19 @@ function drawText(
         ctx.rotate(angle);
         ctx.fillText(line, 0, 0, boxWidth);
         ctx.restore();
+    }
+}
+
+function eraseText(ctx: CanvasRenderingContext2D, lines: OcrResult[0]["src"]) {
+    for (const { box, style } of lines) {
+        ctx.fillStyle = color2rgb(style.bg);
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.beginPath();
+        ctx.moveTo(...box[0]);
+        for (const point of box.slice(1)) ctx.lineTo(...point);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
     }
 }
 

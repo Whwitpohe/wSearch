@@ -18,11 +18,14 @@ export function ocrOnline(
         err: Error | null,
         result: { raw: ocrResult; text: string } | null,
     ) => void,
+    transport: typeof fetch = fetch,
 ) {
     if (type === "baidu") {
-        baiduOcr(store, arg, callback);
+        baiduOcr(store, arg, callback, transport);
     } else if (type === "youdao") {
-        youdaoOcr(store, arg, callback);
+        void youdaoOcr(store, arg, callback, transport).catch((e) =>
+            callback(e, null),
+        );
     } else {
         llmOCR(store, type, arg, callback);
     }
@@ -71,6 +74,7 @@ function baiduOcr(
         err: Error | null,
         result: { raw: ocrResult; text: string } | null,
     ) => void,
+    transport: typeof fetch = fetch,
 ) {
     const clientId = store.get("在线OCR.baidu.id");
     const clientSecret = store.get("在线OCR.baidu.secret");
@@ -81,14 +85,13 @@ function baiduOcr(
         !store.get("在线OCR.baidu.token") ||
         store.get("在线OCR.baidu.time") < Date.now()
     )
-        fetch(
+        transport(
             `https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`,
             { method: "GET" },
         )
             .then((t) => t.json())
             .then((result) => {
                 const access_token = result?.access_token;
-                console.log(access_token);
                 if (!access_token) {
                     if (result.error) {
                         if (result.error_description === "unknown client id") {
@@ -115,7 +118,7 @@ function baiduOcr(
     }
 
     function ocrGet(token: string) {
-        fetch(`${store.get("在线OCR.baidu.url")}?access_token=${token}`, {
+        transport(`${store.get("在线OCR.baidu.url")}?access_token=${token}`, {
             method: "POST",
             headers: {
                 "content-type": "application/x-www-form-urlencoded",
@@ -219,28 +222,33 @@ function baiduOcr(
     }
 }
 
-function youdaoOcr(
+async function youdaoOcr(
     store: typeof import("../../../lib/store/renderStore")["default"],
     sarg: string,
     callback: (
         err: Error | null,
         result: { raw: ocrResult; text: string } | null,
     ) => void,
+    transport: typeof fetch = fetch,
 ) {
     const clientId = store.get("在线OCR.youdao.id");
     const clientSecret = store.get("在线OCR.youdao.secret");
     if (!clientId || !clientSecret)
         return callback(new Error("未填写 API Key 或 Secret Key"), null);
     const arg = sarg.replace("data:image/png;base64,", "");
-    const crypto = require("node:crypto") as typeof import("crypto");
     const input =
         arg.length >= 20 ? arg.slice(0, 10) + arg.length + arg.slice(-10) : arg;
     const curtime = String(Math.round(Date.now() / 1000));
     const salt = crypto.randomUUID();
-    const sign = crypto
-        .createHash("sha256")
-        .update(clientId + input + salt + curtime + clientSecret)
-        .digest("hex");
+    const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(
+            clientId + input + salt + curtime + clientSecret,
+        ),
+    );
+    const sign = Array.from(new Uint8Array(digest), (v) =>
+        v.toString(16).padStart(2, "0"),
+    ).join("");
     const data = {
         img: arg,
         langType: "auto",
@@ -254,7 +262,7 @@ function youdaoOcr(
         curtime,
     };
 
-    fetch("https://openapi.youdao.com/ocrapi", {
+    transport("https://openapi.youdao.com/ocrapi", {
         method: "POST",
         headers: {
             "content-type": "application/x-www-form-urlencoded",

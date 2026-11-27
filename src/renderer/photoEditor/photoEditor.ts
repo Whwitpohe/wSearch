@@ -16,27 +16,20 @@ import {
     view,
 } from "dkh-ui";
 import store from "../../../lib/store/renderStore";
+import { t } from "../../../lib/translate/translate";
+import type { IconType } from "../../iconTypes";
 import type { setting } from "../../ShareTypes";
-import { writeImage } from "../lib/clipboard";
 import { colorPicker } from "../lib/colorPicker";
 import {
     clipboardImageFormat,
     encodeCanvasImage,
     type ImageFormat,
-    imageFormatMime,
     isImageFormatSupported,
 } from "../lib/imageExport";
 import { alert } from "../lib/messageDialog";
-import { Class, cssVar, getImgUrl, initStyle, setTitle } from "../root/root";
-
-const { existsSync, writeFileSync } = require("node:fs") as typeof import("fs");
-const { join } = require("node:path") as typeof import("path");
-
-import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
-import { t } from "../../../lib/translate/translate";
-import type { IconType } from "../../iconTypes";
-import ort from "../lib/ort";
 import removeobj from "../lib/removeObj";
+import { Class, cssVar, getImgUrl, initStyle, setTitle } from "../root/root";
+import { copyPhoto, inpaintModel, receivePhoto, savePhoto } from "./host";
 
 function icon(src: IconType) {
     return image(getImgUrl(`${src}.svg`), noI18n("icon")).class("icon");
@@ -50,9 +43,6 @@ setTitle(t("高级编辑"));
 
 const maskPens: Map<string, { w: number; ps: { x: number; y: number }[] }> =
     new Map();
-
-let maskOrt: Awaited<ReturnType<typeof ort.InferenceSession.create>> | null =
-    null;
 
 const pz = store.get("高级图片编辑.配置");
 const defaultConfig: typeof styleData = {
@@ -375,18 +365,13 @@ const controls = frame("sidebar", {
             save: button(icon("save"))
                 .attr({ title: "保存" })
                 .on("click", async () => {
-                    const path = renderSendSync("save_file_path", [
-                        els.formart.gv,
-                    ]);
-                    if (!path) return;
                     try {
-                        writeFileSync(path, await getImgBytes());
+                        await savePhoto(els.formart.gv as ImageFormat, () =>
+                            getImgBytes(),
+                        );
                     } catch (e) {
-                        console.error("保存失败", e);
-                        return;
+                        await alert(String(e));
                     }
-                    renderSend("ok_save", [path]);
-                    renderSend("windowClose", []);
                 }),
             copy: button(icon("copy"))
                 .attr({ title: "复制" })
@@ -396,14 +381,11 @@ const controls = frame("sidebar", {
                     );
                     try {
                         const img = await getImgBytes(format);
-                        await writeImage(
-                            new Blob([img], { type: imageFormatMime[format] }),
-                        );
+                        await copyPhoto(format, img);
                     } catch (e) {
                         console.error("复制失败", e);
                         return;
                     }
-                    renderSend("windowClose", []);
                 }),
         },
     },
@@ -1436,21 +1418,8 @@ function updateHandles() {
 }
 
 async function magicPen() {
-    if (!maskOrt) {
-        const modelPath = join(
-            renderSendSync("userDataPath", []),
-            "models",
-            "inpaint",
-            "migan_pipeline_v2.onnx",
-        );
-        if (!existsSync(modelPath)) {
-            alert("未下载魔法橡皮模型，请在设置的“人工智能”页面下载");
-            return;
-        }
-        maskOrt = await ort.InferenceSession.create(modelPath, {
-            executionProviders: [{ name: store.get("AI.运行后端") || "cpu" }],
-        });
-    }
+    const runtime = await inpaintModel();
+    if (!runtime) return;
     if (!photo || !photoSrc) return;
     const w = photo.naturalWidth;
     const h = photo.naturalHeight;
@@ -1510,8 +1479,7 @@ async function magicPen() {
         mask = maskCtx.getImageData(0, 0, w, h);
     }
     const outputData = await removeobj({
-        ort,
-        session: maskOrt,
+        ...runtime,
         img: photoSrc,
         mask: mask,
     });
@@ -1630,7 +1598,7 @@ trackPoint(magicPenPreview, {
     },
 });
 
-renderOn("superPhotoEditorInit", ([data]) => {
+receivePhoto((data) => {
     const img = new Image();
     img.onload = () => {
         photo = img;

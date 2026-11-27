@@ -210,18 +210,32 @@ function init(
                 }
             }
         }
-    return (displays?: Electron.Display[], imgBuffer?: Buffer) =>
-        displayToScreen(command, useXDGDesktopPortal, displays, imgBuffer);
+    return (
+        displays?: Electron.Display[],
+        imgBuffer?: Buffer,
+        includeWindowRects = false,
+        excludeWindowId?: number,
+    ) =>
+        displayToScreen(
+            command,
+            useXDGDesktopPortal,
+            includeWindowRects,
+            excludeWindowId,
+            displays,
+            imgBuffer,
+        );
 }
 
 async function displayToScreen(
     command: { c: string; path?: string },
     useXDGDesktopPortal: boolean,
+    includeWindowRects: boolean,
+    excludeWindowId: number | undefined,
     displays?: Electron.Display[],
     imgBuffer?: Buffer,
 ): Promise<{
     screen: ReturnData[];
-    window: WindowData[];
+    windowRects: WindowData["rect"][];
     type: "normal" | "img" | "command";
 }> {
     let buffer = imgBuffer;
@@ -271,7 +285,7 @@ async function displayToScreen(
                 };
             },
         };
-        return { screen: [x], window: [], type: "command" };
+        return { screen: [x], windowRects: [], type: "command" };
     }
     if (buffer) {
         const data = toCanvas(buffer);
@@ -290,7 +304,7 @@ async function displayToScreen(
                     }),
                 },
             ],
-            window: [],
+            windowRects: [],
             type: "img",
         };
     }
@@ -365,11 +379,30 @@ async function displayToScreen(
                 capture: async () => empty,
             });
         }
-        return { screen: allScreens, type: "normal", window: [] };
+        return { screen: allScreens, type: "normal", windowRects: [] };
     }
 
     const screens = Screenshots.Monitor.all();
-    const windows = Screenshots.Window.all();
+    const windowRects: WindowData["rect"][] = [];
+    if (includeWindowRects) {
+        try {
+            for (const win of Screenshots.Window.all()) {
+                if (
+                    excludeWindowId !== undefined &&
+                    win.id() === excludeWindowId
+                )
+                    continue;
+                windowRects.push({
+                    x: win.x(),
+                    y: win.y(),
+                    w: win.width(),
+                    h: win.height(),
+                });
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
 
     const allScreens: ReturnData[] = [];
 
@@ -393,101 +426,22 @@ async function displayToScreen(
         // 以displays为基准进行匹配
 
         // 先尝试id匹配
-        const screenIds = screens.map((i) => i.id());
-        if (
-            screenIds.toSorted().join(",") ===
-            displays
-                .map((i) => i.id)
-                .toSorted()
-                .join(",")
-        ) {
-            for (const display of displays) {
-                const matchedScreen = screens.find(
-                    (s) => s.id() === display.id,
-                )!;
-
-                const x: ReturnData = {
-                    bounds: display.bounds,
-                    size: {
-                        width: display.bounds.width,
-                        height: display.bounds.height,
-                    },
-                    scaleFactor: display.scaleFactor,
-                    id: display.id,
-                    capture: async () => {
-                        const data = await matchedScreen.captureImage();
-                        return {
-                            toImageData: () =>
-                                toCanvas2(
-                                    data.toRawSync(true),
-                                    data.width,
-                                    data.height,
-                                ),
-                            toNativeImage: () => {
-                                return nativeImage.createFromBuffer(
-                                    data.toPngSync(true),
-                                );
-                            },
-                        };
-                    },
-                };
-                allScreens.push(x);
-            }
-        }
-
+        const byId = new Map(screens.map((monitor) => [monitor.id(), monitor]));
+        const displayIds = new Set(displays.map((display) => display.id));
+        const unmatched = screens.filter(
+            (monitor) => !displayIds.has(monitor.id()),
+        );
         for (const display of displays) {
-            const matchedScreens = new Set<number>();
-            let matchedScreen = screens[0];
-
-            // 如果id匹配不上，用xy宽高匹配屏幕中心点
-            let minDistance = Number.POSITIVE_INFINITY;
-            for (const screen of screens) {
-                if (matchedScreens.has(screen.id())) {
-                    continue; // 跳过已匹配的screen
-                }
-                const screenBounds = {
-                    x: screen.x(),
-                    y: screen.y(),
-                    width: screen.width(),
-                    height: screen.height(),
-                };
-                const distance = getCenterDistance(
-                    display.bounds,
-                    screenBounds,
-                );
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    matchedScreen = screen;
-                }
-            }
-
-            matchedScreens.add(matchedScreen.id());
-            const x: ReturnData = {
+            const matched =
+                byId.get(display.id) ??
+                takeNearestMonitor(unmatched, display.bounds);
+            allScreens.push({
                 bounds: display.bounds,
-                size: {
-                    width: display.bounds.width,
-                    height: display.bounds.height,
-                },
+                size: display.size,
                 scaleFactor: display.scaleFactor,
                 id: display.id,
-                capture: async () => {
-                    const data = await matchedScreen!.captureImage();
-                    return {
-                        toImageData: () =>
-                            toCanvas2(
-                                data.toRawSync(true),
-                                data.width,
-                                data.height,
-                            ),
-                        toNativeImage: () => {
-                            return nativeImage.createFromBuffer(
-                                data.toPngSync(true),
-                            );
-                        },
-                    };
-                },
-            };
-            allScreens.push(x);
+                capture: () => captureMonitor(matched),
+            });
         }
     } else {
         // 如果没有displays，使用screens（但信息可能不正确）
@@ -502,22 +456,7 @@ async function displayToScreen(
                 size: { width: screen.width(), height: screen.height() },
                 scaleFactor: screen.scaleFactor(),
                 id: screen.id(),
-                capture: async () => {
-                    const data = await screen.captureImage();
-                    return {
-                        toImageData: () =>
-                            toCanvas2(
-                                data.toRawSync(true),
-                                data.width,
-                                data.height,
-                            ),
-                        toNativeImage: () => {
-                            return nativeImage.createFromBuffer(
-                                data.toPngSync(true),
-                            );
-                        },
-                    };
-                },
+                capture: () => captureMonitor(screen),
             };
             allScreens.push(x);
         }
@@ -525,8 +464,47 @@ async function displayToScreen(
 
     return {
         screen: allScreens,
-        window: getWindowInfos(displays, windows),
+        windowRects,
         type: "normal",
+    };
+}
+
+type Monitor = ReturnType<typeof Screenshots.Monitor.all>[number];
+
+function takeNearestMonitor(monitors: Monitor[], bounds: Electron.Rectangle) {
+    let nearest = 0;
+    let minDistance = Number.POSITIVE_INFINITY;
+    for (const [index, monitor] of monitors.entries()) {
+        const distance = getCenterDistance(bounds, {
+            x: monitor.x(),
+            y: monitor.y(),
+            width: monitor.width(),
+            height: monitor.height(),
+        });
+        if (distance < minDistance) {
+            nearest = index;
+            minDistance = distance;
+        }
+    }
+    return monitors.splice(nearest, 1)[0];
+}
+
+async function captureMonitor(monitor: Monitor) {
+    const data = await monitor.captureImage();
+    return {
+        toImageData: () => {
+            const pixels = data.toRawSync(true);
+            return new ImageData(
+                new Uint8ClampedArray(
+                    pixels.buffer,
+                    pixels.byteOffset,
+                    pixels.byteLength,
+                ),
+                data.width,
+                data.height,
+            );
+        },
+        toNativeImage: () => nativeImage.createFromBuffer(data.toPngSync(true)),
     };
 }
 
@@ -560,12 +538,6 @@ function nImage2Imagedata(image: NativeImage) {
     }
     const d = new ImageData(x, w, h);
     return { data: d, image };
-}
-
-function toCanvas2(img: Buffer, w: number, h: number) {
-    const x = new Uint8ClampedArray(img);
-    const d = new ImageData(x, w, h);
-    return d;
 }
 
 export default init;

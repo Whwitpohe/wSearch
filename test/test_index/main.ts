@@ -378,6 +378,7 @@ const defaultSetting: setting = {
     框选: {
         自动框选: {
             图像识别: true,
+            算法: "lightweight",
             最小阈值: 50,
             最大阈值: 150,
         },
@@ -598,6 +599,11 @@ const defaultSetting: setting = {
         },
     },
     屏幕翻译: {
+        截图偏好: {
+            并排对照: false,
+            译文语言: "auto",
+            最近语言: ["zh-Hans", "en"],
+        },
         type: "ding",
         dTime: 3000,
         color: { bg: "", text: "" },

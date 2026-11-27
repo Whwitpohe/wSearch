@@ -1,4 +1,3 @@
-import bmp from "bmp-js";
 import { muxAvifStill } from "../videoEditor/avifMuxer";
 
 export const imageFormatMime = {
@@ -102,19 +101,27 @@ function encodeBmp(canvas: HTMLCanvasElement) {
     }) as CanvasRenderingContext2D;
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = image.data;
-    const buffer = Buffer.alloc(data.length);
-    for (let i = 0; i < data.length; i += 4) {
-        buffer[i] = data[i + 3];
-        buffer[i + 1] = data[i + 2];
-        buffer[i + 2] = data[i + 1];
-        buffer[i + 3] = data[i];
-    }
-    const out = bmp.encode({
-        data: buffer,
-        width: image.width,
-        height: image.height,
-    }).data;
-    return new Uint8Array(out.buffer, out.byteOffset, out.byteLength);
+    const stride = (image.width * 3 + 3) & ~3;
+    const bytes = new Uint8Array(54 + stride * image.height);
+    const head = new DataView(bytes.buffer);
+    bytes.set([0x42, 0x4d]);
+    head.setUint32(2, bytes.length, true);
+    head.setUint32(10, 54, true);
+    head.setUint32(14, 40, true);
+    head.setUint32(18, image.width, true);
+    head.setInt32(22, -image.height, true);
+    head.setUint16(26, 1, true);
+    head.setUint16(28, 24, true);
+    head.setUint32(34, stride * image.height, true);
+    for (let y = 0; y < image.height; y++)
+        for (let x = 0; x < image.width; x++) {
+            const src = (y * image.width + x) * 4,
+                dst = 54 + y * stride + x * 3;
+            bytes[dst] = data[src + 2];
+            bytes[dst + 1] = data[src + 1];
+            bytes[dst + 2] = data[src];
+        }
+    return bytes;
 }
 
 async function encodeAvif(canvas: HTMLCanvasElement, quality: number) {

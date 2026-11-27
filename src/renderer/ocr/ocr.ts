@@ -1,12 +1,11 @@
 import type { InitOcrBase } from "esearch-ocr";
 import ort from "../lib/ort";
+import { defaultOcrId } from "./ocrList";
 
 const path = require("node:path") as typeof import("path");
 const fs = require("node:fs") as typeof import("fs");
 
 export { defaultOcrId, loadOCR };
-
-const defaultOcrId = "0";
 
 function loadOCR(
     store: typeof import("../../../lib/store/renderStore")["default"],

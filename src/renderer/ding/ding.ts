@@ -3,6 +3,7 @@ import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import { initStyle, setTitle } from "../root/root";
 import { init as initOverlay } from "./overlay";
+import { initTranslationResult } from "./result";
 import { init as initSingle } from "./single";
 
 initStyle(store);
@@ -18,7 +19,10 @@ addStyle({
 });
 
 // single: 每个贴图独立的系统窗口；默认：一个全屏窗口模拟多个小窗口
-if (new URLSearchParams(location.search).get("mode") === "single") {
+const mode = new URLSearchParams(location.search).get("mode");
+if (mode === "translation") {
+    initTranslationResult();
+} else if (mode === "single") {
     initSingle();
 } else {
     initOverlay();

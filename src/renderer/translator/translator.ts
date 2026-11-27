@@ -1,4 +1,13 @@
-import { addClass, button, type ElType, image, pack, view } from "dkh-ui";
+import {
+    addClass,
+    button,
+    type ElType,
+    ele,
+    image,
+    noI18n,
+    pack,
+    view,
+} from "dkh-ui";
 import initScreenShots from "../screenShot/screenShot";
 
 function iconEl(src: IconType) {
@@ -42,6 +51,8 @@ const bgColor = store.get("屏幕翻译.color.bg") || "rgb(255,255,255,0.5)";
 const textColor = store.get("屏幕翻译.color.text") || "#000";
 
 let pause = false;
+let sourceText = "";
+let translatedText = "";
 
 const cropCanvas = document.createElement("canvas");
 const cropContext = cropCanvas.getContext("2d", { willReadFrequently: true });
@@ -102,6 +113,7 @@ const sl = () =>
     });
 
 async function run() {
+    const OCR = await readyOcr();
     if (!OCR) return;
     const data = await screenshot(screenId, rect);
     if (!data) return;
@@ -134,7 +146,13 @@ async function run() {
         textEl.add(item);
         textL.push({ el: item, text });
     }
+    sourceText = textL.map((item) => item.text).join("\n\n");
+    translatedText = "";
+    updateCopyOptions();
     await translate(textL);
+    translatedText = textL.map((i) => i.el.el.textContent ?? "").join("\n\n");
+    comparisonText.el.textContent = translatedText;
+    updateCopyOptions();
 }
 
 let refreshTimer: null | ReturnType<typeof setTimeout> = null;
@@ -179,6 +197,65 @@ const runEl = button(iconEl("ocr"))
         mainEl.el.style.opacity = "1";
     });
 
+let compare = false;
+const compareButton = button(iconEl("compare"))
+    .attr({ title: "并排对照", ariaPressed: "false" })
+    .on("click", () => {
+        compare = !compare;
+        compareButton.el.setAttribute("aria-pressed", String(compare));
+        comparison.el.hidden = !compare;
+        textEl.el.hidden = compare;
+    });
+const copyMenu = view()
+    .class("live-copy-menu")
+    .attr({ popover: "auto", role: "group", ariaLabel: t("复制") })
+    .addInto();
+const copyChoices = [
+    { label: "复制原文", icon: "text", value: () => sourceText },
+    { label: "复制译文", icon: "translate", value: () => translatedText },
+] as const;
+const copyOptions = copyChoices.map((choice) =>
+    button()
+        .add([iconEl(choice.icon), noI18n(t(choice.label))])
+        .on("click", () => {
+            const text = choice.value();
+            if (!text) return;
+            void writeText(text);
+            copyMenu.el.hidePopover();
+        }),
+);
+copyMenu.add(copyOptions);
+function updateCopyOptions() {
+    copyOptions.forEach((option, i) => {
+        option.el.disabled = !copyChoices[i].value();
+    });
+}
+const copyButton = button(iconEl("copy"))
+    .attr({ title: "复制", ariaExpanded: "false" })
+    .on("click", () => {
+        if (copyMenu.el.matches(":popover-open")) {
+            copyMenu.el.hidePopover();
+            return;
+        }
+        updateCopyOptions();
+        copyMenu.el.showPopover();
+        const rect = copyButton.el.getBoundingClientRect();
+        const top =
+            rect.bottom + copyMenu.el.offsetHeight + 4 <= innerHeight
+                ? rect.bottom + 4
+                : Math.max(0, rect.top - copyMenu.el.offsetHeight - 4);
+        copyMenu.style({
+            top: `${top}px`,
+            left: `${Math.max(0, Math.min(innerWidth - copyMenu.el.offsetWidth, rect.right - copyMenu.el.offsetWidth))}px`,
+        });
+    });
+copyMenu.el.addEventListener("toggle", () =>
+    copyButton.el.setAttribute(
+        "aria-expanded",
+        String(copyMenu.el.matches(":popover-open")),
+    ),
+);
+
 const toolsEl = view("x")
     .style({ position: "absolute", right: 0, top: 0 })
     .class(
@@ -192,27 +269,111 @@ const toolsEl = view("x")
             },
         ),
     )
-    .class(Class.smallSize, Class.screenBar)
+    .class(Class.smallSize, "live-translation-bar")
     .add([
+        compareButton,
         playEl,
         runEl,
-        button(iconEl("copy"))
-            .attr({ title: "复制" })
-            .on("click", () => {
-                const text = textEl.el.innerText;
-                writeText(text);
-            }),
+        copyButton,
         button(iconEl("close"))
             .attr({ title: "关闭" })
             .on("click", () => renderSend("windowClose", [])),
     ]);
 
-let OCR: Awaited<ReturnType<typeof import("esearch-ocr").init>> | null = null;
-
-const ocrX = loadOCR(store, store.get("OCR.类型") || defaultOcrId);
-
-OCR = ocrX ? await ocrX.ocr.init(ocrX.config) : null;
-
+type Ocr = Awaited<ReturnType<typeof import("esearch-ocr").init>>;
+let loadingOcr: Promise<Ocr> | undefined;
+function readyOcr() {
+    if (loadingOcr) return loadingOcr;
+    const model = loadOCR(store, store.get("OCR.类型") || defaultOcrId);
+    if (!model) return null;
+    loadingOcr = model.ocr.init(model.config).catch((error: unknown) => {
+        loadingOcr = undefined;
+        throw error;
+    });
+    return loadingOcr;
+}
+ele("style")
+    .add(
+        noI18n(`
+.live-copy-menu[popover] { inset:auto;margin:0;padding:4px;border:1px solid light-dark(#0002,#fff2);border-radius:6px;background:light-dark(#f7f7f7,#2c2c2c);color:light-dark(#191919,#fafafa);max-width:100vw;max-height:100vh;overflow:auto; }
+.live-copy-menu:popover-open { display:grid;gap:2px; }
+.live-copy-menu button { display:flex;align-items:center;gap:8px;width:auto;min-height:28px;padding:2px 8px;border:0;background:transparent; }
+.live-copy-menu button:enabled:hover {background:light-dark(#0001,#fff2)}
+.live-copy-menu button:disabled {opacity:.4}
+.live-translation-bar {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    padding: 3px;
+    max-width: 100%;
+    flex-wrap: wrap;
+    border: 1px solid light-dark(#0002, #fff2);
+    border-radius: 6px;
+    background: light-dark(#f7f7f7, #2c2c2c);
+    box-shadow: 0 1px 3px #0002;
+    color-scheme: light dark;
+}
+.live-translation-bar button {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+}
+.live-translation-bar button:hover,
+.live-translation-bar button[aria-pressed="true"] {
+    background: light-dark(#0001, #fff2);
+}
+.live-translation-bar button:focus-visible {
+    outline: 2px solid Highlight;
+}
+.live-compare {
+    box-sizing: border-box;
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: light-dark(#dedede, #444);
+    color-scheme: light dark;
+}
+.live-compare[hidden] {
+    display: none;
+}
+.live-compare > div {
+    min-width: 0;
+    overflow: auto;
+    background: light-dark(#fafafa, #252525);
+    color: light-dark(#202020, #f6f6f6);
+    padding: 6px;
+}
+.live-compare canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.live-compare-text {
+    white-space: pre-wrap;
+    font:
+        14px / 1.6 "Segoe UI Variable Text",
+        "Segoe UI",
+        "Microsoft YaHei UI",
+        sans-serif;
+    user-select: text;
+    overflow-wrap: anywhere;
+}
+`),
+    )
+    .addInto(document.head);
+const comparisonText = view().class("live-compare-text");
+const comparison = view()
+    .class("live-compare")
+    .add([view().add(cropCanvas), comparisonText]);
+comparison.el.hidden = true;
 const mainEl = view().style({
     position: "absolute",
     overflow: "hidden",
@@ -228,7 +389,7 @@ const textEl = view().style({
     background: bgColor,
     color: textColor,
 });
-mainEl.add([textEl]);
+mainEl.add([textEl, comparison]);
 
 mainEl.addInto();
 

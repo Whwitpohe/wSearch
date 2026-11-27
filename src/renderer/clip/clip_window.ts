@@ -1,30 +1,20 @@
+import { type CaptureTiming, markCapture } from "../../../lib/captureTiming";
 import { toolbarLayout } from "../../../lib/toolbarLayout";
 import { selectedVisionModel } from "../../../lib/visionModel";
 import { alert } from "../lib/messageDialog";
 /// <reference types="vite/client" />
 
-import { EraserBrush } from "@erase2d/fabric";
 import chroma from "chroma-js";
 import type { Border } from "edge_det";
-import {
-    ActiveSelection,
+import type {
     Canvas,
-    Circle,
-    type CircleProps,
-    classRegistry,
-    controlsUtils,
     FabricImage,
-    type FabricObject,
+    FabricObject,
     filters,
     IText,
-    PencilBrush,
     Point,
-    Polygon,
     Polyline,
     Rect,
-    Shadow,
-    SprayBrush,
-    util,
 } from "fabric";
 import hotkeys from "hotkeys-js";
 import { findOffset } from "picture_match";
@@ -47,16 +37,12 @@ import { t } from "../../../lib/translate/translate";
 import { isWaylandSession } from "../../../lib/wayland";
 import type { SelectionAction } from "../../ShareTypes";
 import { writeImage, writeText } from "../lib/clipboard";
-import { colorPicker } from "../lib/colorPicker";
-import {
-    clipboardImageFormat,
-    encodeCanvasImage,
-    imageFormatMime,
-    isImageFormatSupported,
-} from "../lib/imageExport";
+import type { colorPicker } from "../lib/colorPicker";
+
 import { Class, cssColor, getImgUrl, initStyle, setTitle } from "../root/root";
 
 import initScreenShots, { getWindowInfos } from "../screenShot/screenShot";
+import type { EdgeWorkerMessage, EdgeWorkerResult } from "./edgeWorker";
 import EdgeWorker from "./edgeWorker?worker";
 
 const screenShots = initScreenShots(
@@ -94,7 +80,7 @@ import type {
     功能,
 } from "../../ShareTypes.js";
 import xhistory from "../lib/history";
-import { ocrList } from "../ocr/ocr_omni";
+import { ocrList } from "../ocr/ocrList";
 
 type SrcPoint = { x: number; y: number } & { readonly _: unique symbol };
 
@@ -300,7 +286,6 @@ function rangeBar(
 }
 
 function setSetting() {
-    const 工具栏 = store.get("工具栏");
     setProperties({
         "--color-size": `${colorSize * colorISize}px`,
         "--color-i-size": `${colorISize}px`,
@@ -314,11 +299,15 @@ function toCanvas(canvas: HTMLCanvasElement, img: ImageData) {
     canvas.getContext("2d")!.putImageData(img, 0, 0);
 }
 
-async function setScreen(i: (typeof allScreens)[0]) {
+async function setScreen(i: (typeof allScreens)[0], trace?: CaptureTiming) {
     let _img = screenShotCache.get(i.id);
     if (!_img) {
         try {
-            const __img = (await i.capture()).toImageData();
+            markCapture(trace, "grabStart");
+            const frame = await i.capture();
+            markCapture(trace, "grabEnd");
+            const __img = frame.toImageData();
+            markCapture(trace, "pixelsReady");
             if (__img) {
                 screenShotCache.set(i.id, __img);
                 _img = __img;
@@ -332,13 +321,16 @@ async function setScreen(i: (typeof allScreens)[0]) {
     if (!img) return;
     const w = img.width;
     const h = img.height;
-    mainCanvas.width = w;
-    mainCanvas.height = h;
+    if (mainCanvas.width !== w) mainCanvas.width = w;
+    if (mainCanvas.height !== h) mainCanvas.height = h;
     // 由 Fabric 同步上下层画布，避免尺寸不一致导致点击位置偏移
-    fabricCanvas.setDimensions({ width: w, height: h });
+    if (fabricCanvas && (fabricCanvas.width !== w || fabricCanvas.height !== h))
+        fabricCanvas.setDimensions({ width: w, height: h });
     setClipSize(w, h);
     toCanvas(mainCanvas, img);
+    edgeRect.length = 0;
     resetImageEdge();
+    setWindowEdges(i);
     finalRect = [0, 0, mainCanvas.width, mainCanvas.height];
     if (记忆框选)
         if (记忆框选值?.[i.id]?.[2]) {
@@ -348,7 +340,15 @@ async function setScreen(i: (typeof allScreens)[0]) {
         } // 记忆框选边不为0时
     drawClipRect();
     nowScreenId = i.id;
-    if (store.get("框选.自动框选.图像识别")) setTimeout(ensureImageEdge, 0);
+    if (store.get("框选.自动框选.图像识别")) {
+        const request = edgeRequestId;
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (request === edgeRequestId && !longInited)
+                    ensureImageEdge(img);
+            }),
+        );
+    }
 
     if (w < window.innerWidth || h < window.innerHeight)
         document.body.classList.add("editor_bg");
@@ -534,6 +534,12 @@ function setClipCursor(c: string) {
 let edgeWorker: Worker | null = null;
 let edgeRequestId = 0;
 let edgeState: "idle" | "running" | "done" = "idle";
+let edgeScale: number | undefined;
+let detailTile: Border | undefined;
+let detailBorders: Border[] = [];
+let detailPending: ReturnType<typeof Promise.withResolvers<void>> | undefined;
+let clickRevision = 0;
+let detailTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** 清掉视觉识别结果，窗口结果保留 */
 function clearImageEdge() {
@@ -545,7 +551,16 @@ function clearImageEdge() {
 /** 切换屏幕时作废进行中的识别 */
 function resetImageEdge() {
     edgeRequestId++;
+    clickRevision++;
+    rectInRect = [];
     edgeState = "idle";
+    clearTimeout(detailTimer);
+    detailTimer = undefined;
+    detailPending?.resolve();
+    detailPending = undefined;
+    detailTile = undefined;
+    detailBorders = [];
+    edgeScale = undefined;
     clearImageEdge();
     setEdge([]);
 }
@@ -553,9 +568,17 @@ function resetImageEdge() {
 function getEdgeWorker() {
     if (edgeWorker) return edgeWorker;
     const worker = new EdgeWorker();
-    worker.onmessage = (e: MessageEvent<{ id: number; borders: Border[] }>) => {
-        const { id, borders } = e.data;
+    worker.onmessage = (e: MessageEvent<EdgeWorkerResult>) => {
+        const { id, borders, tile } = e.data;
         if (id !== edgeRequestId) return;
+        if (tile) {
+            detailPending?.resolve();
+            detailPending = undefined;
+            detailTile = tile;
+            detailBorders = borders;
+            refreshEdgeHint();
+            return;
+        }
         edgeState = "done";
         for (const r of borders) {
             edgeRect.push({
@@ -573,7 +596,10 @@ function getEdgeWorker() {
         worker.terminate();
         if (edgeWorker === worker) {
             edgeWorker = null;
-            edgeState = "idle";
+            detailPending?.resolve();
+            detailPending = undefined;
+            edgeScale = undefined;
+            if (edgeState === "running") edgeState = "idle";
         }
     };
     edgeWorker = worker;
@@ -581,41 +607,157 @@ function getEdgeWorker() {
 }
 
 /** 每个屏幕只识别一次，按 S 时若未识别过则补上 */
-function ensureImageEdge() {
+async function ensureImageEdge(source?: ImageData) {
     if (edgeState !== "idle") return;
     const canvas = mainCanvas;
     const width = canvas.width;
     const height = canvas.height;
-    const data = canvas.getContext("2d")?.getImageData(0, 0, width, height);
-    if (!data) return;
+    if (!width || !height) return;
+    const algorithm =
+        store.get("框选.自动框选.算法") === "classic"
+            ? "classic"
+            : "lightweight";
+    const scale = Math.min(
+        1,
+        1280 / Math.max(width, height),
+        Math.sqrt((1280 * 720) / (width * height)),
+    );
+    // Classic already runs the full-resolution detector when the image fits in the overview.
+    edgeScale = algorithm === "classic" && scale === 1 ? undefined : scale;
     edgeState = "running";
     const id = ++edgeRequestId;
+    try {
+        if (scale < 1) {
+            const bitmap = await createImageBitmap(source ?? canvas, {
+                resizeWidth: Math.max(1, Math.round(width * scale)),
+                resizeHeight: Math.max(1, Math.round(height * scale)),
+                resizeQuality: "low",
+            });
+            try {
+                if (id === edgeRequestId) sendEdgePixels(bitmap, algorithm);
+            } finally {
+                bitmap.close();
+            }
+        } else {
+            const pixels =
+                source?.width === width && source.height === height
+                    ? new ImageData(source.data.slice(), width, height)
+                    : canvas
+                          .getContext("2d")!
+                          .getImageData(0, 0, width, height);
+            sendEdgePixels(pixels, algorithm);
+        }
+    } catch (error) {
+        if (id === edgeRequestId) {
+            edgeState = "idle";
+            edgeScale = undefined;
+        }
+        console.error("图像识别失败", error);
+    }
+}
+
+function sendEdgePixels(
+    pixels: ImageData | ImageBitmap,
+    algorithm: EdgeWorkerMessage["algorithm"],
+    tile?: Border,
+) {
+    const input = pixels instanceof ImageBitmap ? pixels : pixels.data.buffer;
     getEdgeWorker().postMessage(
         {
-            id,
-            buffer: data.data.buffer,
-            width,
-            height,
+            id: edgeRequestId,
+            algorithm,
+            input,
+            width: pixels.width,
+            height: pixels.height,
+            sourceWidth: mainCanvas.width,
+            sourceHeight: mainCanvas.height,
+            tile,
             lowThreshold: store.get("框选.自动框选.最小阈值"),
             highThreshold: store.get("框选.自动框选.最大阈值"),
-        },
-        [data.data.buffer],
+        } satisfies EdgeWorkerMessage,
+        [input],
     );
 }
 
-function getWin() {
-    for (const win of windows) {
-        const x = Math.max(win.rect.x, 0);
-        const y = Math.max(win.rect.y, 0);
-        const w = Math.min(win.rect.w, mainCanvas.width - x);
-        const h = Math.min(win.rect.h, mainCanvas.height - y);
-        edgeRect.push({
-            x: x,
-            y: y,
-            width: w,
-            height: h,
-            type: "system",
-        });
+function inDetailTile(p: editor_position) {
+    if (!detailTile) return false;
+    const { x, y, w, h } = detailTile;
+    // Keep a margin so small controls beside the pointer fit inside the patch.
+    return (
+        p.x >= x + (x > 0 ? 48 : 0) &&
+        p.x < x + w - (x + w < mainCanvas.width ? 48 : 0) &&
+        p.y >= y + (y > 0 ? 48 : 0) &&
+        p.y < y + h - (y + h < mainCanvas.height ? 48 : 0)
+    );
+}
+
+function scheduleEdgeDetail(p: editor_position) {
+    if (
+        edgeScale === undefined ||
+        edgeState !== "done" ||
+        detailTimer ||
+        detailPending ||
+        inDetailTile(p) ||
+        down
+    )
+        return;
+    detailTimer = setTimeout(() => {
+        detailTimer = undefined;
+        if (rectSelect || drawingMode || down || !nowMouseE) return;
+        void requestEdgeDetail(src2pXYdb(e2srcPoint(nowMouseE)));
+    }, 40);
+}
+
+async function requestEdgeDetail(
+    cursor: editor_position,
+    revision = clickRevision,
+) {
+    const id = edgeRequestId;
+    while (detailPending) await detailPending.promise;
+    if (
+        id !== edgeRequestId ||
+        revision !== clickRevision ||
+        edgeScale === undefined
+    )
+        return;
+    const width = mainCanvas.width,
+        height = mainCanvas.height;
+    if (
+        cursor.x < 0 ||
+        cursor.y < 0 ||
+        cursor.x >= width ||
+        cursor.y >= height ||
+        inDetailTile(cursor)
+    )
+        return;
+    const w = Math.min(256, width),
+        h = Math.min(256, height);
+    const x = Math.max(0, Math.min(width - w, Math.floor(cursor.x - w / 2)));
+    const y = Math.max(0, Math.min(height - h, Math.floor(cursor.y - h / 2)));
+    try {
+        const pixels = mainCanvas.getContext("2d")!.getImageData(x, y, w, h);
+        const task = Promise.withResolvers<void>();
+        detailPending = task;
+        sendEdgePixels(pixels, "classic", { x, y, w, h });
+        await task.promise;
+    } catch (error) {
+        detailPending?.resolve();
+        detailPending = undefined;
+        edgeScale = undefined;
+        console.error("图像识别失败", error);
+    }
+}
+
+function setWindowEdges(screen: (typeof allScreens)[number]) {
+    for (const rect of windowRects) {
+        const left = rect.x - screen.bounds.x;
+        const top = rect.y - screen.bounds.y;
+        const x = Math.max(left, 0);
+        const y = Math.max(top, 0);
+        const width = Math.min(left + rect.w, mainCanvas.width) - x;
+        const height = Math.min(top + rect.h, mainCanvas.height) - y;
+        if (width > 0 && height > 0)
+            edgeRect.push({ x, y, width, height, type: "system" });
     }
 }
 
@@ -671,14 +813,12 @@ function 记忆框选f() {
 }
 
 // 关闭
-async function closeWin() {
-    mainCanvas.width = drawCanvas.width = mainCanvas.width; // 确保清空画布
-    cleanClip();
+function closeWin() {
+    clickRevision++;
+    pendingTool?.abort();
     document.documentElement.style.display = "none";
     记忆框选f();
     stopLongInput();
-    // @ts-expect-error
-    await scheduler.yield();
     renderSend("clip_close", []);
 }
 
@@ -723,8 +863,8 @@ function drawM(v: boolean) {
     } else {
         // 裁切模式
         clipEl.style.pointerEvents = "auto";
-        fabricCanvas.discardActiveObject();
-        fabricCanvas.renderAll();
+        fabricCanvas?.discardActiveObject();
+        fabricCanvas?.renderAll();
         whEl.style({ pointerEvents: "auto" });
         hideElementBar();
     }
@@ -1345,6 +1485,8 @@ function applyLongStep(frameCanvas: HTMLCanvasElement, step: LongStep) {
 function pjLong() {
     const oCanvas = longX.img;
     if (!oCanvas) return;
+    edgeRect.length = 0;
+    resetImageEdge();
     mainCanvas.width = oCanvas.width;
     mainCanvas.height = oCanvas.height;
     setClipSize(oCanvas.width, oCanvas.height);
@@ -1358,7 +1500,7 @@ function pjLong() {
     // 尺寸变了，立即按当前形态重绘
     drawClip();
 
-    fabricCanvas.setDimensions({
+    fabricCanvas?.setDimensions({
         width: oCanvas.width,
         height: oCanvas.height,
     });
@@ -1624,6 +1766,7 @@ async function translate(forceImage = false) {
                 w: finalRect[2] / ratio,
                 h: finalRect[3] / ratio,
             },
+            importedImage || longInited || !!fabricCanvas?.getObjects().length,
         ]);
     } else
         renderSend("clip_translate", [
@@ -1655,15 +1798,18 @@ async function runCopy() {
     toolsX.close.f();
 }
 // 保存
-function runSave() {
+async function runSave() {
     if (store.get("保存.快速保存")) {
         type = store.get("保存.默认格式");
         save(() => renderSendSync("save_file_path", [type]));
         return;
     }
+    saveOptions ??= buildSaveOptions().catch((error) => {
+        saveOptions = undefined;
+        throw error;
+    });
+    const { suffixList: els, saveTypeList: type2N } = await saveOptions;
     showSaveBar(true);
-    const els = suffixList;
-    const type2N = saveTypeList;
     for (const i of els) {
         i.el.className = "";
     }
@@ -1691,6 +1837,8 @@ function runSave() {
     });
 }
 async function save(getPath: () => string) {
+    const { encodeCanvasImage, clipboardImageFormat, imageFormatMime } =
+        await import("../lib/imageExport");
     const fs = require("node:fs");
     const nc = getClipPhoto();
     let dataBuffer: Uint8Array;
@@ -1784,16 +1932,17 @@ function getClipPhoto() {
         finalRect[3],
     ); // 裁剪
     tmpctx.putImageData(gid, 0, 0);
-    tmpctx.drawImage(
-        fabricCanvas.toCanvasElement(1, {
-            left: finalRect[0],
-            top: finalRect[1],
-            width: finalRect[2],
-            height: finalRect[3],
-        }),
-        0,
-        0,
-    );
+    if (fabricCanvas)
+        tmpctx.drawImage(
+            fabricCanvas.toCanvasElement(1, {
+                left: finalRect[0],
+                top: finalRect[1],
+                width: finalRect[2],
+                height: finalRect[3],
+            }),
+            0,
+            0,
+        );
     if (!isRect) {
         const ctx = tmpctx;
 
@@ -1949,7 +2098,7 @@ function pickColor(e: MouseEvent | PointerEvent) {
     }
 }
 
-function clipEnd(e: MouseEvent) {
+function clipEnd(e: MouseEvent, tap: boolean) {
     const p = src2pXY(e2srcPoint(e));
     selecting = false;
     if (isRect) {
@@ -1977,7 +2126,7 @@ function clipEnd(e: MouseEvent) {
                     nr = rect;
                 }
             }
-            if (nr && (e.shiftKey || (!moved && down))) {
+            if (nr && (e.shiftKey || tap)) {
                 rectSelect = true;
                 finalRect = nr;
             } else {
@@ -2132,13 +2281,6 @@ function drawClip() {
     else drawClipPoly(freeSelect);
 }
 
-function cleanClip() {
-    showMask(null);
-    edgeKey = "";
-    for (const el of clipCkx) setElBox(el.el, 0, 0, 0, 0);
-    clipEdge.el.replaceChildren();
-}
-
 /** 缩放、平移后刷新遮罩和参考线 */
 function refreshClipUi() {
     drawClip();
@@ -2165,6 +2307,14 @@ function inEdge(p: editor_position) {
     }
 
     rectInRect = [];
+    scheduleEdgeDetail(p);
+    const details = inDetailTile(p)
+        ? detailBorders.filter(
+              (r) =>
+                  p.x > r.x && p.y > r.y && p.x < r.x + r.w && p.y < r.y + r.h,
+          )
+        : [];
+    const tolerance = Math.ceil(2 / (edgeScale ?? 1));
     for (const i of edgeRect) {
         if (!识别窗口 && i.type === "system") continue;
         const x0 = i.x;
@@ -2172,9 +2322,21 @@ function inEdge(p: editor_position) {
         const x1 = i.x + i.width;
         const y1 = i.y + i.height;
         if (x0 < p.x && p.x < x1 && y0 < p.y && p.y < y1) {
+            if (
+                i.type === "image" &&
+                details.some(
+                    (r) =>
+                        Math.abs(r.x - x0) <= tolerance &&
+                        Math.abs(r.y - y0) <= tolerance &&
+                        Math.abs(r.x + r.w - x1) <= tolerance &&
+                        Math.abs(r.y + r.h - y1) <= tolerance,
+                )
+            )
+                continue;
             rectInRect.push([i.x, i.y, i.width, i.height]);
         }
     }
+    for (const r of details) rectInRect.push([r.x, r.y, r.w, r.h]);
     setEdge(rectInRect);
 }
 
@@ -2939,7 +3101,7 @@ function movePoly(
  * 保存历史
  */
 function hisPush() {
-    const canvas = fabricCanvas?.toJSON() || {};
+    const canvas = fabricCanvas?.toJSON() ?? { objects: [] };
     undoStack.setData({ rect: finalRect, canvas: canvas });
     undoStack.apply();
 }
@@ -3080,16 +3242,70 @@ function getShapePro(name: keyof typeof shapePro) {
     return v;
 }
 
+// A global drawing shortcut can be followed by a stroke before the local module finishes loading.
+function bufferAnnotationStroke(signal: AbortSignal) {
+    const events: MouseEvent[] = [];
+    let pressed = false;
+    function buffer(event: MouseEvent) {
+        if (event.type === "mousedown") {
+            if (event.button !== 0 || !editor.el.contains(event.target as Node))
+                return;
+            pressed = true;
+        }
+        if (!pressed) return;
+        events.push(new MouseEvent(event.type, event));
+        if (event.type === "mouseup") pressed = false;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }
+    for (const type of ["mousedown", "mousemove", "mouseup"] as const)
+        window.addEventListener(type, buffer, { capture: true, signal });
+    return events;
+}
+
 function setEditType<T extends keyof EditType>(
     mainType: T,
     type: EditType[T],
 ): void {
+    pendingTool?.abort();
+    pendingTool = undefined;
+    if (!fabricCanvas && (mainType !== "select" || type === "draw")) {
+        const pending = new AbortController();
+        pendingTool = pending;
+        const firstStroke = bufferAnnotationStroke(pending.signal);
+        annotationImport ??= import("./annotations");
+        void annotationImport
+            .then(({ createAnnotations }) => {
+                if (pending.signal.aborted) return;
+                annotation = createAnnotations(
+                    drawCanvas,
+                    mainCanvas.width,
+                    mainCanvas.height,
+                    字体.等宽字体,
+                    getArrowPro,
+                );
+                fabricCanvas = annotation.canvas;
+                bindAnnotationEvents(fabricCanvas);
+                setEditType(mainType, type);
+                for (const event of firstStroke)
+                    fabricCanvas.upperCanvasEl.dispatchEvent(event);
+            })
+            .catch((error) => {
+                annotationImport = undefined;
+                if (!pending.signal.aborted) {
+                    pending.abort();
+                    void alert(String(error));
+                }
+                console.error(error);
+            });
+        return;
+    }
     if (mainType !== "select") {
         fabricCanvas.discardActiveObject();
     }
     if (!(mainType === "select" && type === "draw")) {
         nowType = mainType;
-        if (mainType === "select") {
+        if (mainType === "select" && selectEditType !== type) {
             selectEditType = type as EditType["select"];
             store.set("图像编辑.记忆.select", selectEditType);
         }
@@ -3125,9 +3341,11 @@ function setEditType<T extends keyof EditType>(
 
     if (mainType === "select") {
         if (type !== "draw") {
-            exitFree();
-            exitShape();
-            exitFilter();
+            if (fabricCanvas) {
+                exitFree();
+                exitShape();
+                exitFilter();
+            }
             drawM(false);
             if (type === "free") {
                 isRect = false;
@@ -3279,7 +3497,7 @@ function showBars(b: boolean) {
     else hideElementBar();
 }
 function pencilElClick() {
-    fabricCanvas.freeDrawingBrush = new PencilBrush(fabricCanvas);
+    fabricCanvas.freeDrawingBrush = new annotation.PencilBrush(fabricCanvas);
     fabricCanvas.freeDrawingBrush.color = getShapePro("free").sc;
     fabricCanvas.freeDrawingBrush.width = getShapePro("free").sw;
 
@@ -3287,18 +3505,18 @@ function pencilElClick() {
 }
 function eraserElClick() {
     // todo
-    const eraser = new EraserBrush(fabricCanvas);
+    const eraser = new annotation.EraserBrush(fabricCanvas);
     fabricCanvas.freeDrawingBrush = eraser;
     fabricCanvas.freeDrawingBrush.width = getShapePro("eraser").sw;
 }
 function freeSprayElClick() {
-    fabricCanvas.freeDrawingBrush = new SprayBrush(fabricCanvas);
+    fabricCanvas.freeDrawingBrush = new annotation.SprayBrush(fabricCanvas);
     fabricCanvas.freeDrawingBrush.color = getShapePro("spray").sc;
     fabricCanvas.freeDrawingBrush.width = getShapePro("spray").sw;
 }
 function freeShadow() {
     if (fabricCanvas.freeDrawingBrush)
-        fabricCanvas.freeDrawingBrush.shadow = new Shadow({
+        fabricCanvas.freeDrawingBrush.shadow = new annotation.Shadow({
             blur: getShapePro("free").shadow,
             color: getShapePro("free").sc,
         });
@@ -3332,17 +3550,12 @@ function freeDrawCursor() {
 }
 
 function fabricDelete() {
+    if (!fabricCanvas) return;
     for (const o of fabricCanvas.getActiveObjects()) {
         fabricCanvas.remove(o);
     }
     getFilters();
     hisPush();
-}
-
-function rotate(x: number, y: number, r: number) {
-    const s = Math.sin(r);
-    const c = Math.cos(r);
-    return [x * c - y * s, x * s + y * c];
 }
 
 // 画一般图形
@@ -3366,7 +3579,7 @@ function draw(
     const h = Math.abs(y1 - y2);
     let shapeX: FabricObject | null = null;
     if (shape === "line") {
-        shapeX = new line(
+        shapeX = new annotation.line(
             [
                 { x: x1, y: y1 },
                 { x: x2, y: y2 },
@@ -3382,7 +3595,7 @@ function draw(
             },
         );
     } else if (shape === "circle") {
-        shapeX = new Circle({
+        shapeX = new annotation.Circle({
             radius: Math.max(w, h) / 2,
             left: x,
             top: y,
@@ -3396,7 +3609,7 @@ function draw(
             形状: "circle",
         });
     } else if (shape === "rect") {
-        shapeX = new Rect({
+        shapeX = new annotation.Rect({
             left: x,
             top: y,
             width: w,
@@ -3413,7 +3626,7 @@ function draw(
             形状: "rect",
         });
     } else if (shape === "frame") {
-        shapeX = new Frame({
+        shapeX = new annotation.Frame({
             left: x,
             top: y,
             width: w,
@@ -3429,7 +3642,7 @@ function draw(
             形状: "frame",
         });
     } else if (shape === "text") {
-        shapeX = new IText(t("点击输入文字"), {
+        shapeX = new annotation.IText(t("点击输入文字"), {
             left: x,
             top: y,
             originX: "left",
@@ -3448,7 +3661,7 @@ function draw(
         });
     } else if (shape === "arrow") {
         const arrowPro = getArrowPro();
-        shapeX = new arrow(
+        shapeX = new annotation.arrow(
             [
                 { x: x1, y: y1 },
                 { x: x2, y: y2 },
@@ -3466,7 +3679,7 @@ function draw(
             },
         );
     } else if (shape === "mask") {
-        const m = new mask({
+        const m = new annotation.mask({
             left: x,
             top: y,
             originX: "left",
@@ -3497,7 +3710,7 @@ function drawPoly(shape: EditType["shape"]) {
     }
     let shapeX: FabricObject | null = null;
     if (shape === "polyline") {
-        shapeX = new polyline(polyOP, {
+        shapeX = new annotation.polyline(polyOP, {
             fill: "#0000",
             stroke: strokeColor,
             strokeWidth: strokeWidth,
@@ -3508,7 +3721,7 @@ function drawPoly(shape: EditType["shape"]) {
         });
     }
     if (shape === "polygon") {
-        shapeX = new polygon(polyOP, {
+        shapeX = new annotation.polygon(polyOP, {
             fill: fillColor,
             stroke: strokeColor,
             strokeWidth: strokeWidth,
@@ -3527,7 +3740,7 @@ function drawPoly(shape: EditType["shape"]) {
 
 function drawNumber(p: point) {
     const pro = getShapePro("number");
-    const txt = new xnumber({
+    const txt = new annotation.xnumber({
         left: p.x,
         top: p.y,
         fontSize: pro.fontSize,
@@ -3605,7 +3818,7 @@ function newFilterSelect(o: point, no: point) {
     tmpCanvas.height = h;
     const gid = mainCtx.getImageData(x, y, w, h); // 裁剪
     tmpCanvas.getContext("2d")!.putImageData(gid, 0, 0);
-    const img = new FabricImage(tmpCanvas, {
+    const img = new annotation.FabricImage(tmpCanvas, {
         left: x,
         top: y,
         originX: "left",
@@ -3686,9 +3899,10 @@ function exitFilter() {
 }
 
 async function fabricCopy() {
+    if (!fabricCanvas) return;
     const dx = store.get("图像编辑.复制偏移.x");
     const dy = store.get("图像编辑.复制偏移.y");
-    const activeObject = fabricCanvas.getActiveObject();
+    const activeObject = fabricCanvas?.getActiveObject();
     if (!activeObject) return;
     const fabricClipboard = await activeObject.clone();
     const clonedObj = await fabricClipboard.clone();
@@ -3698,7 +3912,7 @@ async function fabricCopy() {
         top: clonedObj.top + dy,
         evented: true,
     });
-    if (clonedObj instanceof ActiveSelection) {
+    if (clonedObj instanceof annotation.ActiveSelection) {
         clonedObj.canvas = fabricCanvas;
         clonedObj.forEachObject((obj) => {
             fabricCanvas.add(obj);
@@ -3733,22 +3947,25 @@ const allColorFormat: colorFormat[] = [
 
 const 工具栏跟随 = store.get("工具栏跟随");
 const 四角坐标 = store.get("显示四角坐标");
-const 遮罩颜色 = store.get("框选.颜色.遮罩") || "#0008";
-const 取色器默认格式 = store.get("取色器.默认格式");
+const 框选设置 = store.get("框选");
+const 取色器 = store.get("取色器");
+const 工具栏 = store.get("工具栏");
+const 遮罩颜色 = 框选设置.颜色.遮罩 || "#0008";
+const 取色器默认格式 = 取色器.默认格式;
 const 取色器格式位置 = allColorFormat.indexOf(取色器默认格式);
-const 取色器显示 = store.get("取色器.显示");
-const colorSize = store.get("取色器.大小");
-const colorISize = store.get("取色器.像素大小");
-const 记忆框选 = store.get("框选.记忆.开启");
-const 记忆框选值 = store.get("框选.记忆.rects") as {
+const 取色器显示 = 取色器.显示;
+const colorSize = 取色器.大小;
+const colorISize = 取色器.像素大小;
+const 记忆框选 = 框选设置.记忆.开启;
+const 记忆框选值 = 框选设置.记忆.rects as {
     [id: string]: rect;
 };
-const 识别窗口 = store.get("框选.识别窗口");
-const bSize = store.get("工具栏.按钮大小");
+const 识别窗口 = 框选设置.识别窗口;
+const bSize = 工具栏.按钮大小;
 
-const g光标参考线 = store.get("框选.参考线.光标");
-const x选区参考线 = store.get("框选.参考线.选区");
-const c参考线颜色 = store.get("框选.颜色");
+const g光标参考线 = 框选设置.参考线.光标;
+const x选区参考线 = 框选设置.参考线.选区;
+const c参考线颜色 = 框选设置.颜色;
 
 const 全局缩放 = store.get("全局.缩放") || 1.0;
 let ratio = 1;
@@ -3878,18 +4095,16 @@ toolsX.translate.el.on("change", () => {
 });
 
 toolBarEl.style({
-    left: store
-        .get("工具栏.初始位置.left")
-        .replace(
-            /^calc\(100vw - 10px - ([\d.]+) \* 2 - 8px\)$/,
-            "calc(100vw - var(--bar-size) * 2 - 18px)",
-        ),
-    top: store.get("工具栏.初始位置.top"),
+    left: 工具栏.初始位置.left.replace(
+        /^calc\(100vw - 10px - ([\d.]+) \* 2 - 8px\)$/,
+        "calc(100vw - var(--bar-size) * 2 - 18px)",
+    ),
+    top: 工具栏.初始位置.top,
 });
 
 const layout = toolbarLayout(
-    store.get("工具栏.布局"),
-    store.get("工具栏.功能"),
+    工具栏.布局,
+    工具栏.功能,
     store.get("图像编辑.编辑栏.功能"),
     tools,
     clipDrawTools.map((tool) => tool.key),
@@ -4213,12 +4428,22 @@ const colorGrid = view().style({
     width: "100%",
     gridTemplateColumns: "repeat(5, 1fr)",
 });
-const inlinePicker = colorPicker({
-    inline: true,
-    live: true,
-    alpha: true,
-    width: "100%",
-});
+let inlinePicker: ReturnType<typeof colorPicker> | undefined;
+
+function getInlinePicker() {
+    if (!inlinePicker) {
+        const picker = annotation.colorPicker({
+            inline: true,
+            live: true,
+            alpha: true,
+            width: "100%",
+        });
+        picker.on("input", () => applyPopoverColor(picker.gv, true));
+        colorPopover.add(picker);
+        inlinePicker = picker;
+    }
+    return inlinePicker;
+}
 const colorTabGrid = button(t("色盘"))
     .class("color_tab")
     .style({ padding: "1px 6px", fontSize: "11px" })
@@ -4228,13 +4453,12 @@ const colorTabPicker = button(t("取色器"))
     .style({ padding: "1px 6px", fontSize: "11px" })
     .on("click", () => setColorTab("picker"));
 colorTabs.add([colorTabGrid, colorTabPicker]);
-colorPopover.add([colorTabs, colorGrid, inlinePicker]).addInto();
-inlinePicker.el.style.display = "none";
+colorPopover.add([colorTabs, colorGrid]).addInto();
 
 function setColorTab(tab: "grid" | "picker") {
     colorPopoverTab = tab;
     colorGrid.style({ display: tab === "grid" ? "grid" : "none" });
-    inlinePicker.style({ display: tab === "picker" ? "flex" : "none" });
+    inlinePicker?.style({ display: tab === "picker" ? "flex" : "none" });
     colorTabGrid.style({
         background: tab === "grid" ? "var(--bar-focus-color)" : "transparent",
     });
@@ -4298,14 +4522,10 @@ function renderColorGrid(hue?: number, gray = false) {
 function applyPopoverColor(v: string, fromPicker: boolean) {
     try {
         const c = chroma(v);
-        if (!fromPicker) inlinePicker.sv(c.css());
+        if (!fromPicker) inlinePicker?.sv(c.css());
         colorPopoverTarget?.(c.css());
     } catch {}
 }
-
-inlinePicker.on("input", () => {
-    applyPopoverColor(inlinePicker.gv, true);
-});
 
 function positionColorPopover() {
     if (!colorPopoverOpen || !colorPopoverAnchor) return;
@@ -4377,7 +4597,7 @@ function openColorPopover(
         document.addEventListener("scroll", positionColorPopover, true);
     }
     const color = get();
-    inlinePicker.sv(color);
+    getInlinePicker().sv(color);
     renderColorGrid();
     setColorTab(colorPopoverTab);
     positionColorPopover();
@@ -4433,20 +4653,25 @@ const saveType = view()
     .attr({ id: "save_type" })
     .addInto(centerBarEl)
     .add(view().add(t("保存文件格式为")));
-const saveTypeList: (typeof type)[] = ["png", "jpg", "webp", "bmp"];
-if (await isImageFormatSupported("avif")) saveTypeList.push("avif");
-saveTypeList.push("svg");
-const suffixList = saveTypeList.map((i) =>
-    view()
-        .data({ value: i })
-        .add(i)
-        .on("click", () => {
-            type = i;
-            showSaveBar(false);
-            save(() => renderSendSync("clip_save", [i]));
-        }),
-);
-view().attr({ id: "suffix" }).add(suffixList).addInto(saveType);
+let saveOptions: ReturnType<typeof buildSaveOptions> | undefined;
+async function buildSaveOptions() {
+    const { isImageFormatSupported } = await import("../lib/imageExport");
+    const saveTypeList: (typeof type)[] = ["png", "jpg", "webp", "bmp"];
+    if (await isImageFormatSupported("avif")) saveTypeList.push("avif");
+    saveTypeList.push("svg");
+    const suffixList = saveTypeList.map((i) =>
+        view()
+            .data({ value: i })
+            .add(i)
+            .on("click", () => {
+                type = i;
+                showSaveBar(false);
+                save(() => renderSendSync("clip_save", [i]));
+            }),
+    );
+    view().attr({ id: "suffix" }).add(suffixList).addInto(saveType);
+    return { suffixList, saveTypeList };
+}
 
 const editor = view().attr({ id: "editor" }).addInto();
 const mainCanvas = ele("canvas").attr({ id: "main_photo" }).el;
@@ -4498,12 +4723,8 @@ clipLineLayer.add([
 ]);
 
 editor.style({ width: `${window.screen.width / 全局缩放}px` });
-// 第一次截的一定是桌面,所以可提前定义
-mainCanvas.width = drawCanvas.width =
-    window.screen.width * window.devicePixelRatio;
-mainCanvas.height = drawCanvas.height =
-    window.screen.height * window.devicePixelRatio;
-setClipSize(mainCanvas.width, mainCanvas.height);
+mainCanvas.width = mainCanvas.height = 1;
+drawCanvas.width = drawCanvas.height = 1;
 let zoomW = 0;
 type rect = [number, number, number, number];
 type point = { x: number; y: number };
@@ -4516,9 +4737,10 @@ const drawBar = drawBarEl.el;
 let nowScreenId = 0;
 
 let allScreens: Awaited<ReturnType<typeof screenShots>>["screen"];
-let windows: Awaited<ReturnType<typeof screenShots>>["window"];
+let windowRects: Awaited<ReturnType<typeof screenShots>>["windowRects"] = [];
 /** 当前截屏会话的显示器信息 */
 let currentDisplays: Electron.Display[] = [];
+let importedImage = false;
 /** 主进程 pid，用于排除应用自身窗口 */
 let mainPid = 0;
 /** 窗口视频源的请求回调 */
@@ -4579,6 +4801,8 @@ type hotkeyScope = "normal" | "c_bar" | "drawing";
 const hotkeyScopes: hotkeyScope[] = [];
 
 const drawHotKey = store.get("截屏编辑快捷键");
+const whHotkey = store.get("大小栏快捷键");
+const otherHotkeys = store.get("其他快捷键");
 
 type hotkeyTip = { name: string; keys: string[] }[];
 const hotkeyTipX: { name: string; hotkey: hotkeyTip }[] = [
@@ -4596,12 +4820,12 @@ const hotkeyTipX: { name: string; hotkey: hotkeyTip }[] = [
             { name: "移动和调节", keys: [t("按住+方向键")] },
             { name: "×5", keys: ["+Control+"] },
             { name: "×10", keys: ["+Shift+"] },
-            { name: "左上x", keys: [store.get("大小栏快捷键.左上x")] },
-            { name: "左上y", keys: [store.get("大小栏快捷键.左上y")] },
-            { name: "右下x", keys: [store.get("大小栏快捷键.右下x")] },
-            { name: "右下y", keys: [store.get("大小栏快捷键.右下y")] },
-            { name: "宽", keys: [store.get("大小栏快捷键.宽")] },
-            { name: "高", keys: [store.get("大小栏快捷键.高")] },
+            { name: "左上x", keys: [whHotkey.左上x] },
+            { name: "左上y", keys: [whHotkey.左上y] },
+            { name: "右下x", keys: [whHotkey.右下x] },
+            { name: "右下y", keys: [whHotkey.右下y] },
+            { name: "宽", keys: [whHotkey.宽] },
+            { name: "高", keys: [whHotkey.高] },
             { name: "自动框选", keys: ["S"] },
             { name: "匹配自动框选", keys: [`Shift ${t("框选")}`] },
         ],
@@ -4618,7 +4842,7 @@ const hotkeyTipX: { name: string; hotkey: hotkeyTip }[] = [
         name: "取色器",
         hotkey: [
             { name: "展示所有颜色格式", keys: ["RightKey"] },
-            { name: "复制颜色", keys: [store.get("其他快捷键.复制颜色")] },
+            { name: "复制颜色", keys: [otherHotkeys.复制颜色] },
         ],
     },
     { name: "快捷键", hotkey: [{ name: "展示", keys: ["Alt"] }] },
@@ -4720,7 +4944,7 @@ let selectEditType: EditType["select"] =
 
 let willShowITime: NodeJS.Timeout;
 
-let isShowBars = !store.get("工具栏.稍后出现") as boolean;
+let isShowBars = !工具栏.稍后出现 as boolean;
 
 let mode: EditType["draw"];
 
@@ -4772,61 +4996,61 @@ const filtetMap: {
 } = {
     pixelate: {
         value: { min: 1, value: 16, max: 200, text: "px" },
-        fun: (v) => new Filters.Pixelate({ blocksize: v }),
+        fun: (v) => new annotation.filters.Pixelate({ blocksize: v }),
     },
     blur: {
         value: { value: 1, max: 5, step: 0.01 },
-        fun: (v) => new Filters.Blur({ blur: v }),
+        fun: (v) => new annotation.filters.Blur({ blur: v }),
     },
     brightness: {
         value: { min: -1, value: 0, max: 1, step: 0.01 },
-        fun: (v) => new Filters.Brightness({ brightness: v }),
+        fun: (v) => new annotation.filters.Brightness({ brightness: v }),
     },
     contrast: {
         value: { min: -1, value: 0, max: 1, step: 0.01 },
-        fun: (v) => new Filters.Contrast({ contrast: v }),
+        fun: (v) => new annotation.filters.Contrast({ contrast: v }),
     },
     saturation: {
         value: { min: -1, value: 0, max: 1, step: 0.01 },
-        fun: (v) => new Filters.Saturation({ saturation: v }),
+        fun: (v) => new annotation.filters.Saturation({ saturation: v }),
     },
     hue: {
         value: { min: -1, value: 0, max: 1, step: 0.01 },
-        fun: (v) => new Filters.HueRotation({ rotation: v }),
+        fun: (v) => new annotation.filters.HueRotation({ rotation: v }),
     },
     noise: {
         value: { value: 0, max: 1000 },
-        fun: (v) => new Filters.Noise({ value: v }),
+        fun: (v) => new annotation.filters.Noise({ value: v }),
     },
-    invert: { fun: () => new Filters.Invert() },
-    sepia: { fun: () => new Filters.Sepia() },
-    bw: { fun: () => new Filters.BlackWhite() },
-    brownie: { fun: () => new Filters.Brownie() },
-    vintage: { fun: () => new Filters.Vintage() },
-    koda: { fun: () => new Filters.Kodachrome() },
-    techni: { fun: () => new Filters.Technicolor() },
-    polaroid: { fun: () => new Filters.Polaroid() },
+    invert: { fun: () => new annotation.filters.Invert() },
+    sepia: { fun: () => new annotation.filters.Sepia() },
+    bw: { fun: () => new annotation.filters.BlackWhite() },
+    brownie: { fun: () => new annotation.filters.Brownie() },
+    vintage: { fun: () => new annotation.filters.Vintage() },
+    koda: { fun: () => new annotation.filters.Kodachrome() },
+    techni: { fun: () => new annotation.filters.Technicolor() },
+    polaroid: { fun: () => new annotation.filters.Polaroid() },
     gray_average: {
         fun: () =>
-            new Filters.Grayscale({
+            new annotation.filters.Grayscale({
                 mode: "average",
             }),
     },
     gray_lightness: {
         fun: () =>
-            new Filters.Grayscale({
+            new annotation.filters.Grayscale({
                 mode: "lightness",
             }),
     },
     gray_luminosity: {
         fun: () =>
-            new Filters.Grayscale({
+            new annotation.filters.Grayscale({
                 mode: "luminosity",
             }),
     },
     gamma: {
         fun: (v) =>
-            new Filters.Gamma({
+            new annotation.filters.Gamma({
                 gamma: v as unknown as [number, number, number],
             }),
         value: { value: [1, 1, 1], min: 0.01, max: 2.2, step: 0.01 },
@@ -4853,20 +5077,27 @@ async function initCapture(
     mainid: number,
     act?: SelectionAction,
     pid?: number,
+    trace?: CaptureTiming,
+    excludeWindowId?: number,
 ) {
+    markCapture(trace, "rendererReceived");
     console.log("clip_init displays:", _displays);
     currentDisplays = _displays;
+    importedImage = !!imgBuffer;
     mainPid = pid ?? 0;
-    const wx = await screenShots(_displays, imgBuffer); // 只是截屏 也可能是小图片
+    const wx = await screenShots(
+        _displays,
+        imgBuffer,
+        识别窗口,
+        excludeWindowId,
+    );
+    markCapture(trace, "enumerated");
     allScreens = wx.screen;
     const mainId = mainid;
     const i = getNowScreen(mainId);
-    windows = wx.window.map((w) => {
-        w.rect.x -= i.bounds?.x ?? 0;
-        w.rect.y -= i.bounds?.y ?? 0;
-        return w;
-    });
-    await setScreen(i);
+    windowRects = wx.windowRects;
+    await setScreen(i, trace);
+    markCapture(trace, "canvasReady");
     const nowScreen = _displays.find((i) => i.id === mainId) || _displays[0]; // 非截屏，是屏幕
     const xy = { x: 0, y: 0 };
     if (wx.type === "normal") {
@@ -4897,12 +5128,13 @@ async function initCapture(
     setEditorP(1 / ratio, 0, 0);
     undoStack.reset({
         rect: finalRect,
-        canvas: fabricCanvas.toJSON(),
+        canvas: fabricCanvas?.toJSON() ?? { objects: [] },
     });
 
     document.body.style.opacity = "";
 
-    renderSend("clip_show", []);
+    markCapture(trace, "showRequested");
+    renderSend("clip_show", [trace]);
     const screensEl = toolsX.screens.el;
     if (allScreens.length > 1) {
         screensEl.el.style.display = layout.hidden.includes("screens")
@@ -4960,10 +5192,9 @@ async function initCapture(
             "select",
             selectEditType === "draw" ? "rect" : selectEditType,
         );
+    else if (selectEditType === "draw") setEditType("select", "draw");
     forceImageTranslation = act === "translate";
     setDefaultAction(act ?? store.get("框选后默认操作"));
-
-    getWin();
 
     drawClipRect();
     setTimeout(() => {
@@ -5074,8 +5305,9 @@ hotkeys.filter = (event) => {
 };
 
 toHotkeyScope("normal");
+const toolHotkeys = store.get("工具快捷键");
 for (const k of tools) {
-    let key = store.get(`工具快捷键.${k}`) as string;
+    let key = toolHotkeys[k];
     if (["esc", "escape"].includes(key.toLowerCase()))
         hotkeys(key, "normal", toolsX[k].f);
     else if (key.toLowerCase() === "enter") hotkeys(key, "normal", toolsX[k].f);
@@ -5408,11 +5640,50 @@ clipEl.onmousedown = (e) => {
     down = true;
 };
 
-document.onmouseup = (e) => {
+function releaseClipPointer() {
+    toolBar.style.pointerEvents =
+        drawBar.style.pointerEvents =
+        whEl.el.style.pointerEvents =
+            "auto";
+
+    down = false;
+    moved = false;
+}
+
+for (const event of ["mousedown", "keydown", "wheel", "blur", "pagehide"]) {
+    window.addEventListener(event, () => clickRevision++, {
+        capture: true,
+        passive: true,
+    });
+}
+
+document.onmouseup = async (e) => {
     let action: SelectionAction | undefined;
     if (e.button === 0) {
         if (selecting) {
-            clipEnd(e);
+            const end = src2cXY(e2srcPoint(e));
+            const tap =
+                isRect &&
+                !rectSelect &&
+                !moved &&
+                down &&
+                rectStartE?.x === end.x &&
+                rectStartE.y === end.y;
+            if (tap) {
+                const point = src2pXYdb(e2srcPoint(e));
+                if (edgeState === "idle" && store.get("框选.自动框选.图像识别"))
+                    ensureImageEdge();
+                if (edgeScale !== undefined && !inDetailTile(point)) {
+                    // A quick click may precede the hover result. Only clicks wait; dragging stays synchronous.
+                    const revision = clickRevision;
+                    selecting = false;
+                    releaseClipPointer();
+                    await requestEdgeDetail(point, revision);
+                    if (revision !== clickRevision) return;
+                }
+                inEdge(point);
+            }
+            clipEnd(e, tap);
             // 抬起鼠标后工具栏跟随
             followBar({ x: e.clientX, y: e.clientY });
             if (autoDo !== "no") action = autoDo;
@@ -5426,13 +5697,7 @@ document.onmouseup = (e) => {
             hisPush();
         }
     }
-    toolBar.style.pointerEvents =
-        drawBar.style.pointerEvents =
-        whEl.el.style.pointerEvents =
-            "auto";
-
-    down = false;
-    moved = false;
+    releaseClipPointer();
     if (!action) return;
     if (isDrawingAction(action)) {
         const tool = drawToolEntryMap.get(action);
@@ -5461,7 +5726,6 @@ const whHotKeyMap = {
     高: whH,
 };
 
-const whHotkey = store.get("大小栏快捷键");
 for (const [i] of typedEntries(whHotkey)) {
     if (whHotkey[i])
         hotkeys(whHotkey[i], { keyup: true, keydown: false }, () => {
@@ -5552,7 +5816,7 @@ mouseBarXy.on("click", () => {
 
 changeRightBar(false);
 
-hotkeys(store.get("其他快捷键.复制颜色"), () => {
+hotkeys(otherHotkeys.复制颜色, () => {
     copy(getColorFormatEl());
 });
 
@@ -5672,12 +5936,122 @@ drawSide操作.删除.on("click", () => {
     fabricDelete();
 });
 
-const Filters = filters;
+type Annotations = ReturnType<typeof import("./annotations").createAnnotations>;
+let annotation: Annotations;
+let fabricCanvas: Canvas;
+let annotationImport: Promise<typeof import("./annotations")> | undefined;
+let pendingTool: AbortController | undefined;
 
-const fabricCanvas = new Canvas("draw_photo", {
-    enableRetinaScaling: false,
-});
-fabricCanvas.setTargetFindTolerance(5);
+window.addEventListener(
+    "pagehide",
+    () => {
+        pendingTool?.abort();
+        screenShotCache.clear();
+        mainCanvas.width = mainCanvas.height = 1;
+        if (fabricCanvas) {
+            fabricCanvas.cancelRequestedRender();
+            void fabricCanvas.dispose();
+        }
+    },
+    { once: true },
+);
+
+function bindAnnotationEvents(fabricCanvas: Canvas) {
+    fabricCanvas.on("selection:created", refreshPropertyPanel);
+    fabricCanvas.on("selection:updated", refreshPropertyPanel);
+    fabricCanvas.on("selection:cleared", refreshPropertyPanel);
+    fabricCanvas.on("object:moving", scheduleElementBarPosition);
+    fabricCanvas.on("object:scaling", scheduleElementBarPosition);
+    fabricCanvas.on("object:rotating", scheduleElementBarPosition);
+    fabricCanvas.on("object:modified", refreshPropertyPanel);
+    fabricCanvas.on("mouse:down", (options) => {
+        if (
+            shape !== "" &&
+            (shape === "number" || unnormalShapes.includes(shape)) &&
+            (options.e as MouseEvent).detail > 1
+        ) {
+            return;
+        }
+        // 非常规状态下点击
+        if (shape !== "" && !options.target) {
+            drawingShape = true;
+            fabricCanvas.selection = false;
+            const x = options.viewportPoint.x;
+            const y = options.viewportPoint.y;
+            if (shape === "number") {
+                drawNumber({ x, y });
+            } else if (!unnormalShapes.includes(shape)) {
+                drawOP = [x, y];
+                draw(shape, "start", drawOP[0], drawOP[1], x, y);
+            } else {
+                // 定义最后一个点,双击,点重复,结束
+                const polyOPL = polyOP.at(-1);
+                if (!(x === polyOPL?.x && y === polyOPL?.y)) {
+                    polyOP.push({ x: x, y: y });
+                    drawPoly(shape);
+                } else {
+                    if (previewShape)
+                        fabricCanvas.setActiveObject(previewShape);
+                    hisPush();
+                    polyOP = [];
+                    previewShape = null;
+                }
+            }
+        }
+
+        if (newFilterSelecting) {
+            newFilterO = fabricCanvas.getViewportPoint(options.e);
+        }
+    });
+    fabricCanvas.on("mouse:move", (options) => {
+        if (drawingShape) {
+            if (!unnormalShapes.includes(shape)) {
+                if (shape !== "")
+                    draw(
+                        shape,
+                        "move",
+                        drawOP[0],
+                        drawOP[1],
+                        options.viewportPoint.x,
+                        options.viewportPoint.y,
+                    );
+            }
+        }
+    });
+    fabricCanvas.on("mouse:up", (options) => {
+        drawingShape = false;
+        if (!unnormalShapes.includes(shape)) {
+            if (shape !== "") {
+                if (previewShape) fabricCanvas.setActiveObject(previewShape);
+                previewShape = null;
+                hisPush();
+            }
+        }
+
+        getFilters();
+
+        if (newFilterSelecting && newFilterO) {
+            newFilterSelect(newFilterO, fabricCanvas.getScenePoint(options.e));
+            getFilters();
+            hisPush();
+
+            if (willFilter) {
+                const i = filtetMap[
+                    willFilter
+                ] as (typeof filtetMap)["pixelate"];
+                const index = Object.keys(filtetMap).indexOf(willFilter);
+                const filter = i.fun((i.value?.value ?? 1) as number);
+                applyFilter(index, filter);
+                getFilters();
+                refreshPropertyPanel();
+            }
+        }
+
+        if (fabricCanvas.isDrawingMode) {
+            hisPush();
+        }
+    });
+}
 
 hisPush();
 
@@ -6336,7 +6710,9 @@ function toggleButton(
 function lineEndpoint(o: Polyline, index: "start" | "end") {
     const point =
         index === "start" ? o.points[0] : o.points[o.points.length - 1];
-    return new Point(point).subtract(o.pathOffset).transform(o.calcOwnMatrix());
+    return new annotation.Point(point)
+        .subtract(o.pathOffset)
+        .transform(o.calcOwnMatrix());
 }
 
 function setLineEndpoint(
@@ -6348,16 +6724,16 @@ function setLineEndpoint(
     const pointIndex = index === "start" ? 0 : o.points.length - 1;
     const anchorIndex = pointIndex === 0 ? o.points.length - 1 : 0;
     const matrix = o.calcOwnMatrix();
-    const anchorBefore = new Point(o.points[anchorIndex])
+    const anchorBefore = new annotation.Point(o.points[anchorIndex])
         .subtract(o.pathOffset)
         .transform(matrix);
     const point = lineEndpoint(o, index);
     point[axis] = value;
-    o.points[pointIndex] = util
+    o.points[pointIndex] = annotation.util
         .sendPointToPlane(point, undefined, matrix)
         .add(o.pathOffset);
     o.setDimensions();
-    const anchorAfter = new Point(o.points[anchorIndex])
+    const anchorAfter = new annotation.Point(o.points[anchorIndex])
         .subtract(o.pathOffset)
         .transform(o.calcOwnMatrix());
     const diff = anchorAfter.subtract(anchorBefore);
@@ -7062,7 +7438,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 ),
             ]);
         } else if (kind === "number") {
-            const n = o as xnumber;
+            const n = o as InstanceType<Annotations["xnumber"]>;
             elementBarBody.add([
                 propertyNumber(
                     "数值",
@@ -7093,7 +7469,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 ),
             ]);
         } else if (kind === "arrow") {
-            const a = o as arrow;
+            const a = o as InstanceType<Annotations["arrow"]>;
             elementBarBody.add([
                 propertyNumber(
                     "头宽",
@@ -7149,7 +7525,9 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                 elementBarBody.add(
                     propertyNumber(
                         "羽化",
-                        () => (o as mask).feather ?? 0,
+                        () =>
+                            (o as InstanceType<Annotations["mask"]>).feather ??
+                            0,
                         (v) =>
                             applyActiveRemember(
                                 kind,
@@ -7182,7 +7560,7 @@ function renderElementPropertyPanel(objects: FabricObject[]) {
                             (v) => {
                                 applyFilter(
                                     index,
-                                    new Filters.Gamma({ gamma: v }),
+                                    new annotation.filters.Gamma({ gamma: v }),
                                 );
                                 setShapeDefault(filterKey, "value", v);
                                 schedulePropertyHistory();
@@ -7320,13 +7698,6 @@ function positionElementBar() {
     elementBar.el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0)`;
 }
 
-fabricCanvas.on("selection:created", refreshPropertyPanel);
-fabricCanvas.on("selection:updated", refreshPropertyPanel);
-fabricCanvas.on("selection:cleared", refreshPropertyPanel);
-fabricCanvas.on("object:moving", scheduleElementBarPosition);
-fabricCanvas.on("object:scaling", scheduleElementBarPosition);
-fabricCanvas.on("object:rotating", scheduleElementBarPosition);
-fabricCanvas.on("object:modified", refreshPropertyPanel);
 new ResizeObserver(scheduleElementBarPosition).observe(elementBar.el);
 window.addEventListener("resize", scheduleElementBarPosition);
 
@@ -7383,7 +7754,7 @@ for (const el of drawBarSideElChildren) {
 
 showBars(isShowBars);
 
-hotkeys(store.get("其他快捷键.隐藏或显示栏"), () => {
+hotkeys(otherHotkeys.隐藏或显示栏, () => {
     isShowBars = !isShowBars;
     showBars(isShowBars);
 });
@@ -7403,401 +7774,24 @@ for (const [k, el] of Object.entries(drawSideShapes)) {
 }
 // 层叠位置
 drawSidePosition.front.on("click", () => {
-    const activeObject = fabricCanvas.getActiveObject();
+    const activeObject = fabricCanvas?.getActiveObject();
     if (activeObject) fabricCanvas.bringObjectToFront(activeObject);
 });
 drawSidePosition.forwards.on("click", () => {
-    const activeObject = fabricCanvas.getActiveObject();
+    const activeObject = fabricCanvas?.getActiveObject();
     if (activeObject) fabricCanvas.bringObjectForward(activeObject);
 });
 drawSidePosition.backwards.on("click", () => {
-    const activeObject = fabricCanvas.getActiveObject();
+    const activeObject = fabricCanvas?.getActiveObject();
     if (activeObject) fabricCanvas.sendObjectBackwards(activeObject);
 });
 drawSidePosition.back.on("click", () => {
-    const activeObject = fabricCanvas.getActiveObject();
+    const activeObject = fabricCanvas?.getActiveObject();
     if (activeObject) fabricCanvas.sendObjectToBack(activeObject);
 });
 
 // 删除快捷键
 hotkeys("delete", fabricDelete);
-
-fabricCanvas.on("mouse:down", (options) => {
-    if (
-        shape !== "" &&
-        (shape === "number" || unnormalShapes.includes(shape)) &&
-        (options.e as MouseEvent).detail > 1
-    ) {
-        return;
-    }
-    // 非常规状态下点击
-    if (shape !== "" && !options.target) {
-        drawingShape = true;
-        fabricCanvas.selection = false;
-        const x = options.viewportPoint.x;
-        const y = options.viewportPoint.y;
-        if (shape === "number") {
-            drawNumber({ x, y });
-        } else if (!unnormalShapes.includes(shape)) {
-            drawOP = [x, y];
-            draw(shape, "start", drawOP[0], drawOP[1], x, y);
-        } else {
-            // 定义最后一个点,双击,点重复,结束
-            const polyOPL = polyOP.at(-1);
-            if (!(x === polyOPL?.x && y === polyOPL?.y)) {
-                polyOP.push({ x: x, y: y });
-                drawPoly(shape);
-            } else {
-                if (previewShape) fabricCanvas.setActiveObject(previewShape);
-                hisPush();
-                polyOP = [];
-                previewShape = null;
-            }
-        }
-    }
-
-    if (newFilterSelecting) {
-        newFilterO = fabricCanvas.getViewportPoint(options.e);
-    }
-});
-fabricCanvas.on("mouse:move", (options) => {
-    if (drawingShape) {
-        if (!unnormalShapes.includes(shape)) {
-            if (shape !== "")
-                draw(
-                    shape,
-                    "move",
-                    drawOP[0],
-                    drawOP[1],
-                    options.viewportPoint.x,
-                    options.viewportPoint.y,
-                );
-        }
-    }
-});
-fabricCanvas.on("mouse:up", (options) => {
-    drawingShape = false;
-    if (!unnormalShapes.includes(shape)) {
-        if (shape !== "") {
-            if (previewShape) fabricCanvas.setActiveObject(previewShape);
-            previewShape = null;
-            hisPush();
-        }
-    }
-
-    getFilters();
-
-    if (newFilterSelecting && newFilterO) {
-        newFilterSelect(newFilterO, fabricCanvas.getScenePoint(options.e));
-        getFilters();
-        hisPush();
-
-        if (willFilter) {
-            const i = filtetMap[willFilter] as (typeof filtetMap)["pixelate"];
-            const index = Object.keys(filtetMap).indexOf(willFilter);
-            const filter = i.fun((i.value?.value ?? 1) as number);
-            applyFilter(index, filter);
-            getFilters();
-            refreshPropertyPanel();
-        }
-    }
-
-    if (fabricCanvas.isDrawingMode) {
-        hisPush();
-    }
-});
-
-class mask extends Rect {
-    static type = "mask";
-    static customProperties = ["形状", "canChangeFill", "feather"];
-    /** 羽化半径，单位为对象坐标 */
-    declare feather?: number;
-    private bandCanvas?: HTMLCanvasElement;
-
-    render(ctx: CanvasRenderingContext2D): void {
-        const canvas = this.canvas;
-        if (!canvas) return;
-
-        const feather = Math.max(0, this.feather ?? 0);
-        const radius = Math.min(this.rx || 0, this.width / 2, this.height / 2);
-        const fill = this.fill?.toString() || "";
-
-        if (feather <= 0) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, canvas.width, canvas.height);
-            this.transform(ctx);
-            ctx.roundRect(
-                -this.width / 2,
-                -this.height / 2,
-                this.width,
-                this.height,
-                radius,
-            );
-            ctx.fillStyle = fill;
-            ctx.fill("evenodd");
-            ctx.restore();
-            return;
-        }
-
-        // 只在洞口附近做模糊，避免整幅画布参与滤镜计算
-        const center = this.getCenterPoint();
-        const matrix = this.calcTransformMatrix();
-        const scale = util.qrDecompose(matrix);
-        const factor = (Math.abs(scale.scaleX) + Math.abs(scale.scaleY)) / 2;
-        const blur = feather * factor;
-        const size =
-            Math.hypot(this.width * scale.scaleX, this.height * scale.scaleY) +
-            blur * 6;
-        const left = Math.max(0, Math.round(center.x - size / 2));
-        const top = Math.max(0, Math.round(center.y - size / 2));
-        const right = Math.min(canvas.width, Math.round(center.x + size / 2));
-        const bottom = Math.min(canvas.height, Math.round(center.y + size / 2));
-        const width = right - left;
-        const height = bottom - top;
-        if (width <= 0 || height <= 0) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = fill;
-            ctx.fill();
-            ctx.restore();
-            return;
-        }
-
-        const band = this.getBandCanvas(width, height);
-        const bctx = band.getContext("2d")!;
-        bctx.setTransform(1, 0, 0, 1, 0, 0);
-        bctx.filter = "none";
-        bctx.globalCompositeOperation = "source-over";
-        bctx.clearRect(0, 0, width, height);
-        bctx.fillStyle = fill;
-        bctx.fillRect(0, 0, width, height);
-        bctx.globalCompositeOperation = "destination-out";
-        bctx.translate(-left, -top);
-        bctx.transform(...matrix);
-        bctx.beginPath();
-        bctx.roundRect(
-            -this.width / 2,
-            -this.height / 2,
-            this.width,
-            this.height,
-            radius,
-        );
-        bctx.filter = `blur(${blur}px)`;
-        bctx.fillStyle = "#000";
-        bctx.fill();
-
-        // 洞外区域平铺，和羽化区域按整数像素拼接，避免接缝
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, canvas.width, canvas.height);
-        ctx.rect(left, top, width, height);
-        ctx.fillStyle = fill;
-        ctx.fill("evenodd");
-        ctx.restore();
-        ctx.drawImage(band, left, top);
-    }
-
-    private getBandCanvas(width: number, height: number) {
-        if (
-            !this.bandCanvas ||
-            this.bandCanvas.width !== width ||
-            this.bandCanvas.height !== height
-        ) {
-            this.bandCanvas = document.createElement("canvas");
-            this.bandCanvas.width = width;
-            this.bandCanvas.height = height;
-        }
-        return this.bandCanvas;
-    }
-}
-
-classRegistry.setClass(mask);
-classRegistry.setSVGClass(mask);
-
-class Frame extends Rect {
-    static type = "frame";
-    static customProperties = ["形状"];
-    constructor(options?: ConstructorParameters<typeof Rect>[0]) {
-        super(options);
-        this.set({ fill: null });
-        if (this.strokeWidth < 1) this.set("strokeWidth", 1);
-    }
-}
-
-classRegistry.setClass(Frame);
-
-class xnumber extends Circle {
-    static type = "number";
-    static customProperties = ["text", "fontSize", "canChangeFill", "形状"];
-    declare fontSize: number;
-    declare text: string;
-    constructor(
-        options?: Partial<CircleProps & { fontSize: number; text: string }>,
-    ) {
-        super();
-        this.setOptions(options);
-    }
-    _render(ctx: CanvasRenderingContext2D): void {
-        super._render(ctx);
-        ctx.save();
-
-        const x = 0;
-        const y = 5;
-
-        // 绘制数字
-        ctx.fillStyle = this.stroke?.toString() || "#000";
-        ctx.font = `${this.fontSize}px ${字体.等宽字体 || "Arial"}`;
-        ctx.textAlign = "center";
-        ctx.fillText(String(this.text), x, y);
-        ctx.restore();
-    }
-}
-
-classRegistry.setClass(xnumber);
-classRegistry.setSVGClass(xnumber);
-
-const lineHitWidth = 12;
-
-class line extends Polyline {
-    static type = "line";
-    static customProperties = ["形状"];
-    constructor(
-        points?: ConstructorParameters<typeof Polyline>[0],
-        options?: ConstructorParameters<typeof Polyline>[1],
-    ) {
-        super(points, options);
-        this.controls = controlsUtils.createPolyControls(this.points.length, {
-            cursorStyle: "crosshair",
-        });
-        this.hasBorders = false;
-    }
-    getLocalPoints() {
-        const { pathOffset } = this;
-        return [
-            new Point(this.points[0]).subtract(pathOffset),
-            new Point(this.points[this.points.length - 1]).subtract(pathOffset),
-        ];
-    }
-    getHitWidth() {
-        const scale = Math.max(Math.abs(this.scaleX), Math.abs(this.scaleY));
-        const zoom = this.canvas?.getZoom() ?? 1;
-        return Math.max(
-            (this.strokeWidth * scale) / 2,
-            lineHitWidth / 2 / zoom,
-        );
-    }
-    calcACoords() {
-        const matrix = this.calcOwnMatrix();
-        const [start, end] = this.getLocalPoints().map((p) =>
-            p.transform(matrix),
-        );
-        const dx = end.x - start.x;
-        const dy = end.y - start.y;
-        const length = Math.hypot(dx, dy);
-        if (!length) return super.calcACoords();
-        const half = this.getHitWidth();
-        const nx = (-dy / length) * half;
-        const ny = (dx / length) * half;
-        return {
-            tl: new Point(start.x + nx, start.y + ny),
-            tr: new Point(end.x + nx, end.y + ny),
-            br: new Point(end.x - nx, end.y - ny),
-            bl: new Point(start.x - nx, start.y - ny),
-        };
-    }
-}
-
-classRegistry.setClass(line);
-
-class arrow extends line {
-    static type = "arrow";
-    static customProperties = ["arrowW", "arrowH", "arrowType", "形状"];
-    declare arrowW: number;
-    declare arrowH: number;
-    declare arrowType: "fill" | "stroke";
-    constructor(
-        points?: ConstructorParameters<typeof Polyline>[0],
-        options?: ConstructorParameters<typeof Polyline>[1] & {
-            arrowW?: number;
-            arrowH?: number;
-            arrowType?: "fill" | "stroke";
-        },
-    ) {
-        super(points, options);
-    }
-    getHitWidth() {
-        const scale = Math.max(Math.abs(this.scaleX), Math.abs(this.scaleY));
-        return Math.max(
-            super.getHitWidth(),
-            ((this.arrowW ?? getArrowPro().arrowW) / 2) * scale,
-        );
-    }
-    _render(ctx: CanvasRenderingContext2D): void {
-        super._render(ctx);
-
-        const [start, end] = this.getLocalPoints();
-        const angle =
-            Math.atan2(end.y - start.y, end.x - start.x) + Math.PI / 2;
-        const pro = getArrowPro();
-        const w = this.arrowW ?? pro.arrowW;
-        const h = this.arrowH ?? pro.arrowH;
-        const type = this.arrowType ?? pro.arrowType;
-
-        const [x3, y3] = rotate(-w / 2, h, angle);
-        const [x4, y4] = rotate(w / 2, h, angle);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(end.x, end.y);
-        ctx.lineTo(end.x + x3, end.y + y3);
-        if (type === "stroke") {
-            ctx.moveTo(end.x, end.y);
-            ctx.lineTo(end.x + x4, end.y + y4);
-        } else {
-            ctx.lineTo(end.x + x4, end.y + y4);
-            ctx.closePath();
-        }
-
-        ctx.fillStyle = this.stroke?.toString() || "";
-        ctx.lineWidth = this.strokeWidth || 1;
-        ctx.strokeStyle = this.stroke?.toString() || "";
-        if (type !== "stroke") ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-    }
-}
-
-classRegistry.setClass(arrow);
-classRegistry.setSVGClass(arrow);
-
-class polyline extends Polyline {
-    constructor(
-        points?: ConstructorParameters<typeof Polyline>[0],
-        options?: ConstructorParameters<typeof Polyline>[1],
-    ) {
-        super(points, options);
-        this.controls = controlsUtils.createPolyControls(this.points.length);
-        this.hasBorders = false;
-        this.perPixelTargetFind = true;
-    }
-}
-
-class polygon extends Polygon {
-    constructor(
-        points?: ConstructorParameters<typeof Polygon>[0],
-        options?: ConstructorParameters<typeof Polygon>[1],
-    ) {
-        super(points, options);
-        this.controls = controlsUtils.createPolyControls(this.points.length);
-        this.hasBorders = false;
-        this.perPixelTargetFind = true;
-    }
-}
-
-classRegistry.setClass(polyline);
-classRegistry.setClass(polygon);
 
 // 滤镜
 
@@ -7836,4 +7830,4 @@ hotkeys("Ctrl+v", () => {
     fabricCopy();
 });
 
-setEditType("select", selectEditType);
+if (selectEditType !== "draw") setEditType("select", selectEditType);

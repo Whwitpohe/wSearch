@@ -1,4 +1,5 @@
 import { addClass, addStyle, ele, image, initDKH, noI18n, view } from "dkh-ui";
+import { renderOn } from "../../../lib/ipc";
 import { lan, t } from "../../../lib/translate/translate";
 import type { RawIconType } from "../../iconTypes";
 import brandIcon from "../assets/icon.svg";
@@ -10,7 +11,12 @@ const path = require("node:path") as typeof import("node:path");
 function initStyle(
     store: typeof import("../../../lib/store/renderStore")["default"],
 ) {
-    if (!store.get("dev")) addStyle({ "[data-dev]": { display: "none" } });
+    addStyle({ "html:not(.dev-mode) [data-dev]": { display: "none" } });
+    document.documentElement.classList.toggle("dev-mode", store.get("dev"));
+    renderOn("developerMode", ([enabled]) =>
+        document.documentElement.classList.toggle("dev-mode", enabled),
+    );
+    renderOn("uiLanguage", ([language]) => lan(language));
     function setCSSVar(name: string, value: string) {
         if (value) document.documentElement.style.setProperty(name, value);
     }
@@ -91,6 +97,14 @@ function initStyle(
         clearTimeout(tipTimer);
         tipTimer = undefined;
         if (topTip.el.matches(":popover-open")) topTip.el.hidePopover();
+        if (tipEl) {
+            const ids = (tipEl.getAttribute("aria-describedby") || "")
+                .split(/\s+/)
+                .filter((id) => id && id !== topTip.el.id);
+            if (ids.length)
+                tipEl.setAttribute("aria-describedby", ids.join(" "));
+            else tipEl.removeAttribute("aria-describedby");
+        }
         tipEl = null;
     }
 
@@ -105,6 +119,13 @@ function initStyle(
         if (topTip.el.parentElement !== host) host.append(topTip.el);
         topTip.el.textContent = title;
         topTip.el.showPopover();
+        const ids = new Set(
+            (el.getAttribute("aria-describedby") || "")
+                .split(/\s+/)
+                .filter(Boolean),
+        );
+        ids.add(topTip.el.id);
+        el.setAttribute("aria-describedby", Array.from(ids).join(" "));
         const rect = el.getBoundingClientRect();
         const tw = topTip.el.offsetWidth;
         const th = topTip.el.offsetHeight;
@@ -167,8 +188,13 @@ function initStyle(
     });
 }
 
+const iconUrls = import.meta.glob<string>("../assets/icons/*.svg", {
+    eager: true,
+    import: "default",
+    query: "?inline",
+});
 function getImgUrl(name: RawIconType) {
-    return new URL(`../assets/icons/${name}`, import.meta.url).href;
+    return iconUrls[`../assets/icons/${name}`];
 }
 
 function setTitle(t: string) {

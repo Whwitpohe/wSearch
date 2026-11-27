@@ -2,4 +2,5 @@ onlyBuiltDependencies:
   - onnxruntime-node
 
 patchedDependencies:
+  esearch-ocr@8.5.2: patches/esearch-ocr@8.5.2.patch
   xtimelog@1.0.5: patches/xtimelog@1.0.5.patch

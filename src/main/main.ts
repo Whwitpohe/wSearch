@@ -15,7 +15,7 @@ import {
     writeFile,
     writeFileSync,
 } from "node:fs";
-import { writeFile as writeFileAsync } from "node:fs/promises";
+import { appendFile, writeFile as writeFileAsync } from "node:fs/promises";
 import { homedir, release, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import url from "node:url";
@@ -51,8 +51,13 @@ import {
     releasePage,
     releasePath,
 } from "../../lib/appRelease";
+import {
+    type CaptureEntry,
+    type CaptureTiming,
+    markCapture,
+} from "../../lib/captureTiming";
 import { githubMirrorList } from "../../lib/github_mirror";
-import type { RecordRect } from "../../lib/ipc";
+import type { RecordRect, SettingsLanguageView } from "../../lib/ipc";
 import { mainOn, mainOnReflect, mainSend } from "../../lib/ipc";
 import { selectionShortcuts } from "../../lib/selectionShortcuts";
 import type { SettingPath } from "../../lib/store/renderStore";
@@ -73,6 +78,7 @@ import type {
     MainWinType,
     SelectionAction,
     setting,
+    TranslationResultView,
     translateWinType,
     功能,
 } from "../ShareTypes";
@@ -80,8 +86,17 @@ import { initBergamot } from "./bergamot";
 import defaultSetting, { matchBestLan } from "./defaultSetting";
 import { initPinPanels } from "./pinPanel";
 import { registerScreenshotTranslation } from "./screenshotTranslation";
+import { translationResultLayout } from "./translationResultLayout";
 
 const runPath = join(resolve(__dirname, ""), "../../");
+const captureTracePath = process.env.WSEARCH_CAPTURE_TRACE;
+let captureSequence = 0;
+function startCaptureTiming(source: CaptureEntry) {
+    if (!captureTracePath) return;
+    const trace: CaptureTiming = { id: ++captureSequence, source, stages: {} };
+    markCapture(trace, "entry");
+    return trace;
+}
 const tmpDir = join(tmpdir(), "wSearch");
 const clipboardDir = join(tmpDir, "clipboard");
 
@@ -184,21 +199,17 @@ ipcMain.on("store", (e, x) => {
     }
 });
 
-let /** 是否开启开发模式 */ dev: boolean;
-// 自动开启开发者模式
-if (
+let forcedDev = Boolean(
     process.argv.includes("-d") ||
-    import.meta.env.DEV ||
-    process.env.ESEARCH_DEV ||
-    store.get("dev")
-) {
-    dev = true;
-} else {
-    dev = false;
-}
-
-if (dev) {
-    setInterval(() => {
+        import.meta.env.DEV ||
+        process.env.ESEARCH_DEV,
+);
+let dev = forcedDev || store.get("dev");
+let memoryTimer: NodeJS.Timeout | undefined;
+function updateMemoryLogging() {
+    clearInterval(memoryTimer);
+    if (!dev) return;
+    memoryTimer = setInterval(() => {
         const usage = process.memoryUsage();
         const main = usage.rss / 1024 / 1024;
         let rander = 0;
@@ -211,6 +222,8 @@ if (dev) {
         );
     }, 1500);
 }
+
+updateMemoryLogging();
 
 const logs: {
     from: "screenShot" | "ding" | "mainWindow" | "translator";
@@ -233,12 +246,6 @@ function getScreenShots() {
         store.get("使用XDGDesktopPortal"),
     );
 }
-
-const startupSettings = {
-    "语言.语言": store.get("语言.语言"),
-    dev: store.get("dev"),
-    硬件加速: store.get("硬件加速"),
-};
 
 function mainUrl(fileName: string) {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -490,6 +497,7 @@ function sleep(time: number) {
  */
 async function argRun(c: string[], first?: boolean) {
     const argv = minimist(c.slice(1)) as Argv;
+    const commandTrace = argv.c ? startCaptureTiming("command") : undefined;
 
     const ocrE = store
         .get("离线OCR")
@@ -506,7 +514,8 @@ async function argRun(c: string[], first?: boolean) {
     }
 
     if (argv.dev) {
-        dev = true;
+        forcedDev = true;
+        applySettingChange("dev");
     }
 
     if (argv.v || argv.version) {
@@ -689,7 +698,7 @@ async function argRun(c: string[], first?: boolean) {
             mode: textMode,
         });
     } else if (argv.c) {
-        showPhoto();
+        void sendCaptureEvent(undefined, undefined, commandTrace);
     } else if (argv.setting) {
         createSettingWindow();
     } else {
@@ -733,13 +742,19 @@ function runShortcut(key: string, run: () => void) {
     }
     run();
 }
-const postSelectionKeys = selectionShortcuts(globalShortcut, (action, key) =>
-    runShortcut(key, () => void sendCaptureEvent(undefined, action)),
-);
+const postSelectionKeys = selectionShortcuts(globalShortcut, (action, key) => {
+    const trace = startCaptureTiming("shortcut");
+    runShortcut(key, () => void sendCaptureEvent(undefined, action, trace));
+});
 const activeHotkeys = new Map<string, string>();
 const 快捷键函数: Record<keyof setting["快捷键"], () => void> = {
     自动识别: autoOpen,
-    截屏搜索: showPhoto,
+    截屏搜索: () =>
+        void sendCaptureEvent(
+            undefined,
+            undefined,
+            startCaptureTiming("shortcut"),
+        ),
     选中搜索: openSelection,
     剪贴板搜索: openClipBoard,
     快速截屏: quickClip,
@@ -900,7 +915,12 @@ function updateTray(rebuildMenu = false) {
             }
             tray.setToolTip(app.getName());
             tray.on("click", () => {
-                if (store.get("点击托盘自动截图")) showPhoto();
+                if (store.get("点击托盘自动截图"))
+                    void sendCaptureEvent(
+                        undefined,
+                        undefined,
+                        startCaptureTiming("tray"),
+                    );
             });
             tray.on("right-click", () => {
                 if (store.get("点击托盘自动截图") && contextMenu)
@@ -923,8 +943,9 @@ function updateTray(rebuildMenu = false) {
             {
                 label: t("截屏搜索"),
                 click: () => {
+                    const trace = startCaptureTiming("tray");
                     setTimeout(() => {
-                        showPhoto();
+                        void sendCaptureEvent(undefined, undefined, trace);
                     }, store.get("主搜索功能.截屏搜索延迟"));
                 },
             },
@@ -1054,14 +1075,13 @@ function updateTray(rebuildMenu = false) {
             {
                 type: "separator",
             },
-            ...(dev
+            ...(dev && !forcedDev
                 ? [
                       {
                           label: t("退出开发者模式"),
                           click: () => {
                               store.set("dev", false);
-                              app.relaunch();
-                              app.exit(0);
+                              applySettingChange("dev");
                           },
                       },
                   ]
@@ -1352,22 +1372,30 @@ function pushLog(op: (typeof logs)[0]) {
 // 截屏窗口
 let clipWindow: BrowserWindow | null = null;
 let clipReady: Promise<void>;
+let clipLoaded = false;
+let presentingDisplay: number | undefined;
 let clipPreloadTimer: NodeJS.Timeout | undefined;
 // 紧凑长截屏和保存对话框都会临时隐藏正在使用的截屏窗口。
 let clipInUse = false;
 
 function prepareClipWindow() {
     const win = clipWindow ?? createClipWindow();
+    clipLoaded = false;
     if (clipWindow) win.webContents.setZoomFactor(store.get("全局.缩放") || 1);
     const load = clipWindow
         ? rendererPath2(win.webContents, "capture.html", {})
         : rendererPath(win, "capture.html");
     clipWindow = win;
-    const ready: Promise<void> = load.catch((error) => {
-        if (win.isDestroyed() || ready !== clipReady) return;
-        console.error(error);
-        win.destroy();
-    });
+    const ready: Promise<void> = load.then(
+        () => {
+            if (win === clipWindow && ready === clipReady) clipLoaded = true;
+        },
+        (error) => {
+            if (win.isDestroyed() || ready !== clipReady) return;
+            console.error(error);
+            win.destroy();
+        },
+    );
     clipReady = ready;
     return win;
 }
@@ -1428,6 +1456,8 @@ function createClipWindow() {
     _clipWindow.on("closed", () => {
         if (clipWindow !== _clipWindow) return;
         clipWindow = null;
+        clipLoaded = false;
+        presentingDisplay = undefined;
         clipInUse = false;
         closeLongControl();
     });
@@ -1879,8 +1909,15 @@ mainOn("long_compact_end", () => {
     fullScreen(displayId);
 });
 
-mainOn("clip_show", () => {
+mainOn("clip_show", ([trace], event) => {
+    markCapture(trace, "mainShow");
     fullScreen();
+    if (trace && captureTracePath && event.sender === clipWindow?.webContents) {
+        markCapture(trace, "shown");
+        void appendFile(captureTracePath, `${JSON.stringify(trace)}\n`).catch(
+            console.error,
+        );
+    }
 });
 mainOn("clip_close", () => {
     exitFullScreen();
@@ -1919,8 +1956,10 @@ mainOn("clip_save", async ([type]) => {
     }
     return x.filePath;
 });
-mainOn("clip_ding", ([img, type, rect]) => {
-    createDingWindow(rect.x, rect.y, rect.w, rect.h, img, type);
+mainOn("clip_ding", ([img, type, rect, keepSource]) => {
+    if (type === "translate")
+        createTranslationResult(++dingId, img, rect, undefined, keepSource);
+    else createDingWindow(rect.x, rect.y, rect.w, rect.h, img);
 });
 mainOn("copy_image", async ([buffer, type]) => {
     await clipboard.write([
@@ -1975,7 +2014,14 @@ function showPhoto(imgPath?: string) {
     }
 }
 
-function fullScreen(displayId?: number) {
+function finishClipPresentation(win: BrowserWindow) {
+    if (presentingDisplay === undefined) return;
+    presentingDisplay = undefined;
+    win.setOpacity(1);
+    win.setIgnoreMouseEvents(false);
+}
+
+function fullScreen(displayId = presentingDisplay) {
     const win = clipWindow;
     if (!win || !clipInUse) return;
     const nearestScreen =
@@ -1989,21 +2035,60 @@ function fullScreen(displayId?: number) {
     });
     win.show();
     win.setSimpleFullScreen(true);
+    finishClipPresentation(win);
     win.focus();
 }
 
-async function sendCaptureEvent(data?: Buffer, type?: SelectionAction) {
+async function sendCaptureEvent(
+    data?: Buffer,
+    type?: SelectionAction,
+    trace = startCaptureTiming("capture"),
+) {
+    markCapture(trace, "waitStart");
+    if (trace)
+        trace.windowState = !clipWindow
+            ? "new"
+            : clipLoaded
+              ? "ready"
+              : "loading";
     const win = clipWindow ?? prepareClipWindow();
+    const fresh = !clipInUse;
     clipInUse = true;
     const ready = clipReady;
-    await ready;
-    if (win !== clipWindow || ready !== clipReady || !clipInUse) return;
+    // 全局快捷键回调中，即使等待已完成的 Promise 也会推迟发出截屏请求。
+    if (!clipLoaded) await ready;
+    if (win !== clipWindow || ready !== clipReady || !clipInUse || !clipLoaded)
+        return;
+    markCapture(trace, "windowReady");
+    const displays = screen.getAllDisplays();
+    const display = screen.getDisplayNearestPoint(
+        screen.getCursorScreenPoint(),
+    );
+    let excludeWindowId: number | undefined;
+    if (
+        process.platform === "win32" &&
+        fresh &&
+        !win.isVisible() &&
+        !data &&
+        !store.get("额外截屏器.命令")
+    ) {
+        // 提前准备窗口，实际取屏时窗口仍完全透明、鼠标穿透且不抢焦点。
+        presentingDisplay = display.id;
+        win.setOpacity(0);
+        win.setIgnoreMouseEvents(true);
+        win.setBounds({ x: display.bounds.x, y: display.bounds.y });
+        win.showInactive();
+        excludeWindowId = win.getNativeWindowHandle().readUInt32LE(0);
+    }
+    markCapture(trace, "ipcSend");
     mainSend(win.webContents, "clip_init", [
-        screen.getAllDisplays(),
+        displays,
         data,
-        screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id,
+        display.id,
         type,
         process.pid,
+        trace,
+        excludeWindowId,
     ]);
 }
 
@@ -2014,6 +2099,7 @@ function exitFullScreen() {
     clipInUse = false;
     if (store.get("保留截屏窗口")) {
         hideClip();
+        finishClipPresentation(clipWindow);
         prepareClipWindow();
     } else {
         clipWindow.destroy();
@@ -2166,6 +2252,7 @@ function createSuperRecorderWindow(fixed?: RecordRect) {
     });
 }
 const cachedClipSettings: SettingPath[] = [
+    "语言.语言",
     "工具栏跟随",
     "工具栏",
     "图像编辑.编辑栏",
@@ -2204,9 +2291,38 @@ function applySettingChange(path?: SettingPath) {
         path === key ||
         path.startsWith(`${key}.`) ||
         key.startsWith(`${path}.`);
+    if (affects("语言.语言")) {
+        const language = store.get("语言.语言") ?? "";
+        lan(language);
+        setMenu();
+        for (const win of BrowserWindow.getAllWindows()) {
+            mainSend(win.webContents, "uiLanguage", [language]);
+        }
+    }
+    if (affects("dev")) {
+        const next = forcedDev || store.get("dev");
+        if (next !== dev) {
+            dev = next;
+            updateMemoryLogging();
+            clipWindow?.setAlwaysOnTop(!dev, "screen-saver");
+            longControlWindow?.setAlwaysOnTop(
+                true,
+                dev ? "floating" : "screen-saver",
+            );
+            for (const win of BrowserWindow.getAllWindows()) {
+                mainSend(win.webContents, "developerMode", [dev]);
+                if (!dev && win.webContents.isDevToolsOpened())
+                    win.webContents.closeDevTools();
+            }
+            if (dev && settingWindow && !settingWindow.isDestroyed())
+                settingWindow.webContents.openDevTools();
+        }
+    }
     if (affects("全局.深色模式"))
         nativeTheme.themeSource = store.get("全局.深色模式");
     if (
+        affects("语言.语言") ||
+        affects("dev") ||
         affects("点击托盘自动截图") ||
         affects("浏览器中打开") ||
         affects("主页面.模式") ||
@@ -2228,7 +2344,6 @@ function applySettingChange(path?: SettingPath) {
     }
 }
 
-mainOn("getStartupSettings", () => startupSettings);
 mainOn("getDefaultSetting", async () => {
     return defaultSetting;
 });
@@ -2404,16 +2519,28 @@ const isPinSender = (id: number, sender: Electron.WebContents) =>
         dingOverlayList
             .entries()
             .some(([, entry]) => entry.win.webContents === sender));
-const closePinPanel = initPinPanels(
-    isPinSender,
-    (win) => rendererPath(win, "dingPanel.html"),
-    (message) => tray?.setToolTip(message || app.name),
-);
+const translationResultWindows = new Map<
+    number,
+    {
+        win: BrowserWindow;
+        rect: TranslationResultView["rect"];
+        hovered?: boolean;
+    }
+>();
+const { close: closePinPanel, containsPointer: pointerInPinPanel } =
+    initPinPanels(
+        (id, sender) =>
+            isPinSender(id, sender) ||
+            translationResultWindows.get(id)?.win.webContents === sender,
+        (win) => rendererPath(win, "dingPanel.html"),
+        (message) => tray?.setToolTip(message || app.name),
+    );
 const screenshotTranslations = registerScreenshotTranslation(
     store,
     (id, event) =>
         event.senderFrame === event.sender.mainFrame &&
-        isPinSender(id, event.sender),
+        (translationResultWindows.get(id)?.win.webContents === event.sender ||
+            isPinSender(id, event.sender)),
 );
 const pendingLivePicks = new Map<
     number,
@@ -2668,13 +2795,166 @@ function createDingSingle(
     win.setAspectRatio(w / h);
 }
 
+function createTranslationResult(
+    id: number,
+    url: string,
+    rect: TranslationResultView["rect"],
+    completed?: TranslationResultView["completed"],
+    keepSource = false,
+) {
+    const display = screen.getDisplayNearestPoint({
+        x: Math.round(rect.x + rect.w / 2),
+        y: Math.round(rect.y + rect.h / 2),
+    });
+    const preferences = store.get("屏幕翻译.截图偏好");
+    const layout = translationResultLayout(
+        rect,
+        !!completed || preferences.并排对照,
+        1,
+        display.workArea,
+    );
+    const win = new BrowserWindow({
+        ...dingWindowOptions(),
+        ...layout.bounds,
+        show: false,
+        resizable: false,
+        thickFrame: false,
+        roundedCorners: false,
+        backgroundColor: "#00000000",
+    });
+    translationResultWindows.set(id, { win, rect });
+    win.setAlwaysOnTop(true, "screen-saver");
+    const vision = screenshotTranslations.register(id, url);
+    win.setMenu(null);
+    win.on("closed", () => {
+        translationResultWindows.delete(id);
+        closePinPanel(id);
+        screenshotTranslations.close(id);
+    });
+    win.webContents.on("before-input-event", (event, input) => {
+        if (
+            input.type === "keyDown" &&
+            input.key === "Escape" &&
+            !input.isComposing
+        ) {
+            event.preventDefault();
+            win.close();
+        }
+    });
+    win.webContents.once("did-finish-load", () => {
+        mainSend(win.webContents, "translationResultInit", [
+            { id, url, rect, vision, completed, keepSource, preferences },
+        ]);
+        win.show();
+        win.focus();
+        if (!dingTickRunning) {
+            dingTickRunning = true;
+            dingTick();
+        }
+    });
+    rendererPath(win, "ding.html", { query: { mode: "translation" } });
+}
+
+mainOn("copyTranslationText", async ([id, text], event) => {
+    if (
+        event.sender === translationResultWindows.get(id)?.win.webContents &&
+        event.senderFrame === event.sender.mainFrame &&
+        typeof text === "string" &&
+        text
+    )
+        await clipboard.writeText(text);
+});
+
+mainOn("translationResultLayout", ([id, compare, zoom, remember], event) => {
+    const result = translationResultWindows.get(id);
+    if (
+        !result ||
+        result.win.webContents !== event.sender ||
+        event.senderFrame !== event.sender.mainFrame ||
+        !Number.isFinite(zoom)
+    )
+        return null;
+    if (remember && store.get("屏幕翻译.截图偏好.并排对照") !== compare)
+        store.set("屏幕翻译.截图偏好.并排对照", compare);
+    const { win, rect } = result;
+    const display = screen.getDisplayNearestPoint({
+        x: Math.round(rect.x + rect.w / 2),
+        y: Math.round(rect.y + rect.h / 2),
+    });
+    const { bounds, originalOnRight, scale } = translationResultLayout(
+        rect,
+        compare,
+        Math.max(0.05, Math.min(20, zoom)),
+        display.workArea,
+    );
+    win.setBounds(bounds);
+    return { originalOnRight, scale };
+});
+
+mainOn("rememberTranslationLanguage", ([id, language], event) => {
+    if (
+        translationResultWindows.get(id)?.win.webContents !== event.sender ||
+        event.senderFrame !== event.sender.mainFrame ||
+        typeof language !== "string" ||
+        !language
+    )
+        return null;
+    const previous = store.get("屏幕翻译.截图偏好");
+    const old = previous.最近语言;
+    const sameLanguage = (code: string) =>
+        code === language ||
+        ((language === "zh" || language === "zh-Hans") &&
+            (code === "zh" || code === "zh-Hans"));
+    const recent =
+        language === "auto"
+            ? old
+            : [language, ...old.filter((code) => !sameLanguage(code))].slice(
+                  0,
+                  4,
+              );
+    if (
+        language !== previous.译文语言 ||
+        (language !== "auto" && old[0] !== language)
+    )
+        store.set("屏幕翻译.截图偏好", {
+            ...previous,
+            译文语言: language,
+            最近语言: recent,
+        });
+    return recent;
+});
+
+mainOn("comparePinTranslation", ([id, url, completed, rect], event) => {
+    if (
+        event.senderFrame !== event.sender.mainFrame ||
+        !isPinSender(id, event.sender)
+    )
+        return;
+    const owner = BrowserWindow.fromWebContents(event.sender);
+    if (!owner) return;
+    const origin = owner.getContentBounds();
+    const zoom = event.sender.getZoomFactor();
+    if (!store.get("屏幕翻译.截图偏好.并排对照"))
+        store.set("屏幕翻译.截图偏好.并排对照", true);
+    createTranslationResult(
+        ++dingId,
+        url,
+        {
+            x: origin.x + rect.x * zoom,
+            y: origin.y + rect.y * zoom,
+            w: rect.w * zoom,
+            h: rect.h * zoom,
+        },
+        completed,
+    );
+});
+
 function createDingWindow(
     x: number,
     y: number,
     w: number,
     h: number,
     img: string,
-    type: "translate" | "ding" = "ding",
     live?: LiveDingData,
 ) {
     const id = ++dingId;
@@ -2695,17 +2975,11 @@ function createDingWindow(
             y: Math.round(y + h / 2),
         }).id;
     }
-    const mode =
-        type === "translate" &&
-        !live &&
-        screenshotTranslations.register(id, img)
-            ? "vision-translate"
-            : type;
     activeDingIds.add(id);
     if (store.get("贴图.窗口.独立窗口")) {
-        createDingSingle(id, x, y, w, h, img, mode, live);
+        createDingSingle(id, x, y, w, h, img, "ding", live);
     } else {
-        createDingOverlay(id, x, y, w, h, img, mode, live, displayId);
+        createDingOverlay(id, x, y, w, h, img, "ding", live, displayId);
     }
     forceDingThrogh();
     if (!dingTickRunning) {
@@ -2718,7 +2992,11 @@ function createDingWindow(
 function dingTick() {
     const overlays = dingOverlayList.entries();
     const singles = Array.from(dingSingleList.values());
-    if (overlays.length === 0 && singles.length === 0) {
+    if (
+        overlays.length === 0 &&
+        singles.length === 0 &&
+        !translationResultWindows.size
+    ) {
         dingTickRunning = false;
         return;
     }
@@ -2735,7 +3013,24 @@ function dingTick() {
     };
     for (const [_, { win }] of overlays) send(win);
     for (const win of singles) send(win);
-    setTimeout(dingTick, 10);
+    // 透明像素可能不会收到 DOM 指针事件；以屏幕坐标判定是否悬停在译图区。
+    for (const [id, result] of translationResultWindows) {
+        if (!result.win.isVisible()) continue;
+        const b = result.win.getContentBounds();
+        const hovered =
+            (p.x >= b.x &&
+                p.x < b.x + b.width &&
+                p.y >= b.y &&
+                p.y < b.y + b.height) ||
+            pointerInPinPanel(id, p);
+        if (result.hovered !== hovered) {
+            result.hovered = hovered;
+            mainSend(result.win.webContents, "translationResultHover", [
+                hovered,
+            ]);
+        }
+    }
+    setTimeout(dingTick, overlays.length || singles.length ? 10 : 80);
 }
 
 mainOn("dingIgnore", ([v]) => {
@@ -2814,7 +3109,6 @@ mainOn("clip_ding_live", ([data]) => {
         data.rect.w,
         data.rect.h,
         data.poster,
-        "ding",
         {
             sourceId: data.target.sourceId,
             windowId: data.target.windowId,
@@ -2858,7 +3152,6 @@ mainOn("dingLivePick", ([data], e) => {
             data.rect.w,
             data.rect.h,
             data.poster,
-            "ding",
             {
                 sourceId: data.sourceId,
                 windowId: Number(data.sourceId.split(":")[1]) || undefined,
@@ -2967,6 +3260,16 @@ function createTranslator(op: Omit<translateWinType, "type">) {
         height: h,
     });
 
+    win.webContents.on("before-input-event", (event, input) => {
+        if (
+            input.type === "keyDown" &&
+            input.key === "Escape" &&
+            !input.isComposing
+        ) {
+            event.preventDefault();
+            win.close();
+        }
+    });
     rendererPath(win, "translator.html");
     if (dev) win.webContents.openDevTools();
     win.webContents.on("did-finish-load", () => {
@@ -3117,27 +3420,53 @@ async function createMainWindow(op: MainWinType) {
 }
 
 let settingWindow: BrowserWindow | null = null;
+let settingsLanguageView: SettingsLanguageView | null = null;
+function isSettingsFrame(event: Electron.IpcMainEvent) {
+    return (
+        event.sender === settingWindow?.webContents &&
+        event.senderFrame === event.sender.mainFrame
+    );
+}
+mainOn("refreshSettingsLanguage", ([view], event) => {
+    if (!isSettingsFrame(event)) return;
+    settingsLanguageView = view;
+    event.sender.reload();
+});
+mainOn("takeSettingsLanguageView", (_, event) => {
+    if (!isSettingsFrame(event)) return null;
+    const view = settingsLanguageView;
+    settingsLanguageView = null;
+    return view;
+});
 
 async function createSettingWindow() {
+    function show(win: BrowserWindow) {
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+    }
     if (settingWindow && !settingWindow.isDestroyed()) {
-        settingWindow.focus();
+        show(settingWindow);
         return;
     }
-    settingWindow = createWorkspaceWindow({
+    const win = createWorkspaceWindow({
+        show: false,
         minWidth: 600,
         width: 900,
         height: 700,
     });
-
-    rendererPath(settingWindow, "setting.html", workspaceQuery());
-
-    await settingWindow.webContents.session.setProxy(store.get("代理"));
-
-    if (dev) settingWindow.webContents.openDevTools();
-
-    settingWindow.webContents.on("did-finish-load", () => {
-        settingWindow?.webContents.setZoomFactor(store.get("全局.缩放") || 1.0);
+    settingWindow = win;
+    win.once("ready-to-show", () => show(win));
+    win.once("closed", () => {
+        settingWindow = null;
+        settingsLanguageView = null;
     });
+    win.webContents.on("did-finish-load", () => {
+        win.webContents.setZoomFactor(store.get("全局.缩放") || 1.0);
+    });
+    rendererPath(win, "setting.html", workspaceQuery());
+    await win.webContents.session.setProxy(store.get("代理"));
+    if (dev && !win.isDestroyed()) win.webContents.openDevTools();
 }
 
 async function createHelpWindow() {

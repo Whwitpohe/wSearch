@@ -63,6 +63,7 @@ module.exports = {
     框选: {
         自动框选: {
             图像识别: true,
+            算法: "lightweight",
             最小阈值: 50,
             最大阈值: 150,
         },

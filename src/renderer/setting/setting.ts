@@ -110,12 +110,11 @@ import {
 } from "../../../lib/key.js";
 import { xget, xset } from "../../../lib/store/parse";
 import time_format from "../../../lib/time_format";
-import { safeJSONParse, tryD, tryx, typedEntries } from "../../../lib/utils";
+import { safeJSONParse, tryD, tryx } from "../../../lib/utils";
 import type { IconType, RawIconType } from "../../iconTypes";
 import { runAI } from "../lib/ai";
 import { isDeepStrictEqual } from "../lib/isDeepStrictEqual";
-import { defaultOcrId } from "../ocr/ocr";
-import { ocrList } from "../ocr/ocr_omni";
+import { defaultOcrId, ocrList } from "../ocr/ocrList";
 
 let yauzl: typeof import("yauzl") | null = null;
 
@@ -152,15 +151,25 @@ function button(content?: Parameters<typeof dkhButton>[0]) {
     return dkhButton(content).class("settings-btn");
 }
 
-const oldStore = store.getAll();
-const nowStore = structuredClone(oldStore);
-const nowStoreK = new Set<SettingPath>();
+const languageView = renderSendSync("takeSettingsLanguageView", []);
+const nowStore = store.getAll();
+const oldStore = languageView?.original ?? structuredClone(nowStore);
+const nowStoreK = new Set(
+    languageView?.changed.filter(
+        (key) =>
+            !isSettingItemSame(
+                getFromStore(oldStore, key),
+                getFromStore(nowStore, key),
+            ),
+    ),
+);
 
 let defaultSetting: null | setting = null;
 
 const settingMemKey = "设置记忆";
 
 const mainLan = getSet("语言.语言");
+lan(mainLan);
 const displayLan = new Intl.DisplayNames(mainLan, {
     type: "language",
 });
@@ -196,11 +205,14 @@ function drawingShortcutKeys(group: "draw" | "shape" | "filter") {
 
 const s: Partial<settingItem<SettingPath>> = {
     工具栏跟随: {
-        name: "工具栏跟随",
+        name: "截图工具栏位置",
         el: (v) =>
             xSelect<typeof v>(
-                [{ value: "展示内容优先" }, { value: "效率优先" }],
-                "工具栏跟随",
+                [
+                    { value: "展示内容优先", name: "尽量不挡选区" },
+                    { value: "效率优先", name: "尽量靠近鼠标" },
+                ],
+                "截图工具栏位置",
             ),
     },
     "工具栏.按钮大小": {
@@ -392,6 +404,18 @@ const s: Partial<settingItem<SettingPath>> = {
         name: "框选图像识别",
         desc: "使用算法自动识别边缘轮廓",
         el: () => xSwitch(),
+    },
+    "框选.自动框选.算法": {
+        name: "自动框选算法",
+        desc: "RGB 差分更容易贴住清晰的细边框，Canny 会先平滑噪点，再吸附较连续的轮廓。",
+        el: (v) =>
+            xSelect<typeof v>(
+                [
+                    { value: "lightweight", name: "RGB 差分（轻量）" },
+                    { value: "classic", name: "Canny 边缘检测（经典）" },
+                ],
+                "自动框选算法",
+            ),
     },
     "框选.自动框选.最小阈值": {
         name: "最小阈值",
@@ -1667,6 +1691,7 @@ const s: Partial<settingItem<SettingPath>> = {
     },
     硬件加速: {
         name: "硬件加速",
+        desc: "下次启动时生效",
         el: () => xSwitch(),
     },
     "额外截屏器.命令": {
@@ -2038,6 +2063,7 @@ const xs: Record<
 
 const main: {
     pageName: string;
+    navName?: string;
     icon: IconType;
     about?: boolean;
     settings?: KeyPath[];
@@ -2086,6 +2112,7 @@ const main: {
                     "框选后默认操作",
                     "框选.识别窗口",
                     "框选.自动框选.图像识别",
+                    "框选.自动框选.算法",
                     "框选.自动框选.最小阈值",
                     "框选.自动框选.最大阈值",
                     "框选.记忆.开启",
@@ -2127,6 +2154,7 @@ const main: {
     },
     {
         pageName: "文字识别（OCR）",
+        navName: "文字识别",
         icon: "ocr",
         settings: [
             "OCR.类型",
@@ -2295,6 +2323,7 @@ const main: {
     },
     {
         pageName: "搜索与浏览",
+        navName: "搜索浏览",
         icon: "browser",
         items: [
             {
@@ -2641,7 +2670,6 @@ function setSet<t extends SettingPath>(
     xset(nowStore as unknown as Record<string, unknown>, k, v);
     if (k !== "全局工具快捷键") store.set(k, v);
     bindRun(k, v);
-    if (Object.hasOwn(startupSettings, k)) updateRestartPrompt();
     if (k === "OCR.类型" || k === "AI.在线模型")
         document
             .getElementById("ocr-engine-panel")
@@ -2672,13 +2700,6 @@ function bindRun<t extends SettingPath>(k?: t, v?: GetValue<setting, t>) {
             if (v !== undefined) f?.(v);
         }
     }
-}
-
-function updateRestartPrompt() {
-    const changed = typedEntries(startupSettings).some(
-        ([key, value]) => getSet(key) !== value,
-    );
-    reloadEl.style({ display: changed ? "" : "none" });
 }
 
 const editedItem = addClass(
@@ -7327,10 +7348,17 @@ ele("style")
     line-height: 1.42;
 }
 .settings-sidebar label > img {
+    flex: none;
     width: 16px;
     height: 16px;
     filter:var(--icon-color);
     opacity: 0.88;
+}
+.settings-sidebar .nav-label {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 .settings-sidebar label:hover {
     background: var(--fluent-fill);
@@ -7505,6 +7533,14 @@ ele("style")
 }
 .settings-row .row-caption p + p {
     margin-top: 3px;
+}
+.settings-row[data-name="框选.自动框选.算法"] .row-caption {
+    display: contents;
+}
+.settings-row[data-name="框选.自动框选.算法"] .row-caption p + p {
+    order: 1;
+    flex-basis: 100%;
+    margin: 0;
 }
 .settings-row > :last-child {
     min-width: 0;
@@ -7906,7 +7942,11 @@ appNav.add(txt("偏好设置").class("nav-heading"));
 for (const [i, page] of main.entries()) {
     const label = sideBarG
         .new(String(i), image(getImgUrl(`${page.icon}.svg`), noI18n("")))
-        .add(txt(page.pageName, true));
+        .add(
+            txt(page.navName ? t(page.navName) : page.pageName, true).class(
+                "nav-label",
+            ),
+        );
     label.on("click", () => {
         if (searchI.gv && sideBarG.get() === String(i)) {
             searchI.sv("");
@@ -7948,18 +7988,23 @@ sideBar.class(
     ),
 );
 
-const startupSettings = renderSendSync("getStartupSettings", []);
-const reloadEl = view()
-    .add(button("重启软件以生效").on("click", () => renderSend("reload", [])))
-    .addInto(sideBar);
-updateRestartPrompt();
+renderOn("uiLanguage", ([language]) => {
+    if (language === mainLan || store.get("语言.语言") !== language) return;
+    renderSend("refreshSettingsLanguage", [
+        {
+            original: oldStore,
+            page: Number(sideBarG.get()),
+            changed: Array.from(nowStoreK),
+        },
+    ]);
+});
 
 const historyEl = view("y")
     .class("change-actions")
     .attr({ role: "group", ariaLabel: t("更改的设置") });
-historyEl.el.hidden = true;
+historyEl.el.hidden = nowStoreK.size === 0;
 sideBar.el.insertBefore(historyEl.el, navFooter.el);
-const changeCount = txt("", true).class("change-count");
+const changeCount = txt(String(nowStoreK.size), true).class("change-count");
 const reviewChanges = button()
     .class("review-changes")
     .add([
@@ -7988,7 +8033,9 @@ historyEl.add([reviewChanges, undoChanges]);
 
 bindRun();
 
-showPage(main[0]);
+const initialPage = languageView?.page ?? 0;
+if (languageView) sideBarG.set(String(initialPage));
+showPage(main[initialPage] ?? main[0]);
 
 document.body.onclick = (e) => {
     const el = (e.target as HTMLElement)?.closest("a") as HTMLAnchorElement;

@@ -128,6 +128,7 @@ export interface setting {
     框选: {
         自动框选: {
             图像识别: boolean;
+            算法: "lightweight" | "classic";
             最小阈值: number;
             最大阈值: number;
         };
@@ -358,6 +359,7 @@ export interface setting {
         };
     };
     屏幕翻译: {
+        截图偏好: { 并排对照: boolean; 译文语言: string; 最近语言: string[] };
         type: translateWinType["type"];
         dTime: number;
         color: {
@@ -649,6 +651,7 @@ export type LongControlInit = {
 
 export type DingMode = "ding" | "translate" | "vision-translate";
 export type ScreenshotRegion = {
+    source: string;
     box: [number, number, number, number];
     text: string;
 };
@@ -656,20 +659,75 @@ export type ScreenshotTranslation =
     | { regions: ScreenshotRegion[] }
     | { error: string };
 
+export type TranslationResultView = {
+    preferences: setting["屏幕翻译"]["截图偏好"];
+    id: number;
+    url: string;
+    rect: { x: number; y: number; w: number; h: number };
+    vision: boolean;
+    keepSource?: boolean;
+    completed?: {
+        image: string;
+        layer: string;
+        sourceLines: string[];
+        lines: string[];
+        target?: string;
+    };
+};
+
+export type TranslationCopyKind =
+    | "source"
+    | "translation"
+    | "originalImage"
+    | "image"
+    | "comparison";
+
+export type PinPanelPlacement = {
+    above: boolean;
+    extraHeight: number;
+    barShift: number;
+    height: number;
+};
+
 export type PinPanelState = {
     id: number;
     rect: { x: number; y: number; width: number; height: number };
     compact: boolean;
+    hoverOnly?: boolean;
     hovered: boolean;
     status: string;
-    buttons: { label: string; icon: string; index: number }[];
+    buttons: {
+        label: string;
+        icon: string;
+        index: number;
+        pressed?: boolean;
+        disabled?: boolean;
+        copies?: {
+            value: TranslationCopyKind;
+            label: string;
+            disabled: boolean;
+        }[];
+    }[];
     zoom: number;
     opacity: number;
+    language?: {
+        value: string;
+        label: string;
+        locale: string;
+        codes: string[];
+        quick: { value: string; label: string }[];
+        defaultTarget: string;
+        searchLabel: string;
+        emptyLabel: string;
+    };
     zoomLabel: string;
     opacityLabel: string;
     closeLabel: string;
 };
-export type PinPanelAction = {
-    type: "button" | "zoom" | "opacity" | "dismiss";
-    value: number;
-};
+export type PinPanelAction =
+    | {
+          type: "button" | "zoom" | "opacity" | "dismiss" | "close";
+          value: number;
+      }
+    | { type: "language"; value: string }
+    | { type: "copy"; value: TranslationCopyKind };

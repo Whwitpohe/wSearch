@@ -1,4 +1,4 @@
-import xtranslator from "xtranslator";
+import xtranslator, { matchFitLan } from "xtranslator";
 import { renderInvoke } from "../../../lib/ipc";
 import { generateText, type Model } from "../../../lib/modelApi";
 import type { setting } from "../../ShareTypes";
@@ -110,6 +110,7 @@ export class BergamotTranslator implements TranslatorLike {
 
 export function loadTranslator(
     store: typeof import("../../../lib/store/renderStore")["default"],
+    target?: string,
 ) {
     const transE = store.get("翻译.翻译器");
 
@@ -118,7 +119,9 @@ export function loadTranslator(
         const e = getTranslators(store, x);
         if (e) {
             const lan = store.get("屏幕翻译.语言");
-            const to = lan.to || store.get("语言.语言") || "zh-Hans";
+            const to = target
+                ? (matchFitLan(target, e.targetLan) ?? target)
+                : lan.to || store.get("语言.语言") || "zh-Hans";
             return (input: string[]) => e.run(input, lan.from || "auto", to);
         }
     }
@@ -186,6 +189,17 @@ export function getTranslators(
         return e as unknown as TranslatorLike;
     }
     return undefined;
+}
+
+export function screenshotLanguageCodes(
+    vision: boolean,
+    translatorType?: string,
+): string[] {
+    const codes =
+        vision || translatorType === "llm"
+            ? xtranslator.languages.normal
+            : (getEngineLans(translatorType ?? "")?.targetLan ?? []);
+    return [...new Set(codes)].filter((code) => code !== "auto");
 }
 
 export function getEngineLans(type: string) {

@@ -8,12 +8,7 @@ import {
     txt,
     view,
 } from "dkh-ui";
-import {
-    renderInvoke,
-    renderOn,
-    renderSend,
-    renderSendSync,
-} from "../../../lib/ipc";
+import { renderOn, renderSend, renderSendSync } from "../../../lib/ipc";
 import store from "../../../lib/store/renderStore";
 import { t } from "../../../lib/translate/translate";
 import type { IconType } from "../../iconTypes";
@@ -33,13 +28,8 @@ import {
 } from "../lib/imageExport";
 import { Class, getImgUrl } from "../root/root";
 import { dxdy, type Frame } from "./layout";
-import {
-    drawTranslation,
-    loadImage,
-    preTranAndOcr,
-    UnConfigTranslateError,
-} from "./ocr";
-import { paintScreenshotTranslation } from "./translationOverlay";
+import { UnConfigTranslateError } from "./ocr";
+import { translateImage } from "./translateImage";
 
 const fs = require("node:fs") as typeof import("fs");
 
@@ -734,7 +724,7 @@ export function createDingItem(opts: DingItemOptions): DingItem {
             }),
             zoom: Number(sizeInput.gv) || 100,
             opacity: Math.round(Number(imageP.el.style.opacity || 1) * 100),
-            zoomLabel: t("大小"),
+            zoomLabel: t("缩放"),
             opacityLabel: t("不透明度"),
             closeLabel: t("关闭"),
         };
@@ -765,47 +755,41 @@ export function createDingItem(opts: DingItemOptions): DingItem {
     }
     let translating = false;
     let attempted = false;
+    let translatedLines: string[] = [];
+    let sourceLines: string[] = [];
+    let translatedTarget: string | undefined;
+    let translatedLayer: HTMLCanvasElement | undefined;
     async function translate() {
         if (translating) return;
         translating = true;
 
         try {
-            if (opts.visionTranslation && !data.live) {
-                showStatus(t("正在翻译..."));
-                const reply = await renderInvoke("translateScreenshotImage", [
-                    Number(wid),
-                    attempted,
-                ]);
-                attempted = true;
-                if (destroyed || data.live) return;
-                if ("error" in reply) throw Error(reply.error);
-                const source = await loadImage(data.url);
-                if (destroyed || data.live) return;
-                const canvas = paintScreenshotTranslation(
-                    source,
-                    reply.regions,
-                );
-                const translated = canvas.toDataURL("image/png");
-                imageP.el.appendChild(canvas);
-                data.translation = translated;
-                data.isTranslate = true;
-                if (!reply.regions.length) {
-                    showStatus(t("图中没有需要翻译的文字"), 2600);
-                    return;
-                }
-            } else {
-                showStatus(t("正在OCR识别..."));
-                const shot = snapshot();
-                const p = await preTranAndOcr(shot);
-                showStatus(t("正在翻译..."));
-                await drawTranslation(
-                    imageP,
-                    data,
-                    p,
-                    shot === data.url ? void 0 : shot,
-                );
-            }
-            showStatus();
+            const live = data.live;
+            const shot = live ? snapshot() : data.url;
+            const retry = attempted;
+            attempted = true;
+            const result = await translateImage(
+                Number(wid),
+                shot,
+                opts.visionTranslation && !live,
+                retry,
+                showStatus,
+            );
+            if (destroyed || data.live !== live) return;
+            translatedLayer = result.layer;
+            translatedLines = result.lines;
+            sourceLines = result.sourceLines;
+            translatedTarget = result.target;
+            data.translation = result.composite.toDataURL("image/png");
+            data.isTranslate = true;
+            result.composite.style.position = "absolute";
+            result.composite.style.pointerEvents = "none";
+            imageP.el.querySelector("canvas")?.remove();
+            imageP.el.append(result.composite);
+            showStatus(
+                result.lines.length ? "" : t("图中没有需要翻译的文字"),
+                result.lines.length ? undefined : 2600,
+            );
         } catch (error) {
             data.isTranslate = false;
             imageP.el.querySelector("canvas")?.remove();
@@ -818,6 +802,9 @@ export function createDingItem(opts: DingItemOptions): DingItem {
             showStatus(`${message} · ${t("点击翻译重试")}`);
         } finally {
             translating = false;
+            compareButton.el.style.display =
+                data.translation && !data.live ? "" : "none";
+            updatePanel();
         }
     }
     const transB = button(iconEl("translate"))
@@ -959,6 +946,8 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         liveFps = live.fps || 30;
         data.isTranslate = false;
         data.translation = "";
+        translatedLayer = undefined;
+        compareButton.el.style.display = "none";
         div.query("canvas")?.remove();
         img.el.src = poster;
         liveSourceId = live.sourceId;
@@ -979,10 +968,35 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         void startLive();
     }
 
+    const compareButton = button(iconEl("compare"))
+        .attr({ title: "并排对照" })
+        .style({ display: "none" })
+        .on("click", () => {
+            if (!data.translation || !translatedLayer) return;
+            const b = div.el.getBoundingClientRect();
+            renderSend("comparePinTranslation", [
+                Number(wid),
+                data.url,
+                {
+                    image: data.translation,
+                    layer: translatedLayer.toDataURL("image/png"),
+                    lines: translatedLines,
+                    sourceLines,
+                    target: translatedTarget,
+                },
+                {
+                    x: b.x,
+                    y: b.y,
+                    w: b.width,
+                    h: b.height,
+                },
+            ]);
+        });
     const exportImage = () =>
         opts.visionTranslation && !data.live ? getUrl(data) : snapshot();
     const toolButtons = [
         transB,
+        compareButton,
         button(iconEl("free_draw"))
             .attr({ title: "编辑" })
             .on("click", () => editDing(data, exportImage())),
@@ -1077,7 +1091,8 @@ export function createDingItem(opts: DingItemOptions): DingItem {
         updatePanel();
     };
     panelActions.set(Number(wid), (action) => {
-        if (action.type === "dismiss") showStatus();
+        if (action.type === "close") opts.close();
+        else if (action.type === "dismiss") showStatus();
         else if (action.type === "zoom" && Number.isFinite(action.value))
             opts.zoom(
                 Math.max(0.05, Math.min(20, action.value / 100)),

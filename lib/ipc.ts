@@ -20,13 +20,23 @@ import type {
     MainWinType,
     NormRect,
     PinPanelAction,
+    PinPanelPlacement,
     PinPanelState,
     ScreenshotTranslation,
     SelectionAction,
     setting,
+    TranslationResultView,
     translateWinType,
     功能,
 } from "../src/ShareTypes";
+import type { CaptureTiming } from "./captureTiming";
+import type { SettingPath } from "./store/renderStore";
+
+export type SettingsLanguageView = {
+    original: setting;
+    page: number;
+    changed: SettingPath[];
+};
 
 type Equals<X, Y> =
     (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
@@ -52,7 +62,7 @@ export type RecordRect = {
 };
 
 type Message = {
-    clip_show: () => void;
+    clip_show: (trace?: CaptureTiming) => void;
     clip_close: () => void;
     copy_image: (buffer: ArrayBuffer, type: string) => void;
     copy_image_file: (buffer: ArrayBuffer, type: string) => void;
@@ -65,6 +75,7 @@ type Message = {
         img: string,
         type: "translate" | "ding",
         rect: { w: number; h: number; x: number; y: number },
+        keepSource?: boolean,
     ) => void;
     clip_mac_app: () => { canceled: boolean; filePaths: string[] };
     getMousePos: () => {
@@ -113,6 +124,8 @@ type Message = {
         mainid: number,
         act: SelectionAction | undefined,
         mainPid?: number,
+        trace?: CaptureTiming,
+        excludeWindowId?: number,
     ) => void;
     open_this_browser: (window_name: number, url: string) => void;
     edit_pic: (img: Buffer<ArrayBufferLike>) => void;
@@ -157,11 +170,10 @@ type Message = {
               key: string,
           ) => boolean)
         | ((type: "快捷键2", name: 功能, key: string) => boolean);
-    getStartupSettings: () => {
-        "语言.语言": setting["语言"]["语言"];
-        dev: boolean;
-        硬件加速: boolean;
-    };
+    takeSettingsLanguageView: () => SettingsLanguageView | null;
+    refreshSettingsLanguage: (view: SettingsLanguageView) => void;
+    uiLanguage: (language: string) => void;
+    developerMode: (enabled: boolean) => void;
     getDefaultSetting: () => setting;
     reload: () => void;
     exit: () => void;
@@ -223,13 +235,36 @@ type Message = {
         tools: boolean,
         maxWidth: number,
         revision: number,
+        maxHeight?: number,
+    ) => void;
+    pinPanelPlacement: (placement: PinPanelPlacement) => void;
+    translationResultHover: (hovered: boolean) => void;
+    translationResultLayout: (
+        id: number,
+        compare: boolean,
+        zoom: number,
+        remember?: boolean,
+    ) => { originalOnRight: boolean; scale: number } | null;
+    rememberTranslationLanguage: (
+        id: number,
+        language: string,
+    ) => string[] | null;
+    copyTranslationText: (id: number, text: string) => void;
+    translationResultInit: (data: TranslationResultView) => void;
+    comparePinTranslation: (
+        id: number,
+        url: string,
+        completed: NonNullable<TranslationResultView["completed"]>,
+        rect: TranslationResultView["rect"],
     ) => void;
     pinPanelSize: (
         id: number,
         revision: number,
         width: number,
         height: number,
-    ) => void;
+        editing?: boolean,
+        toolbar?: { width: number; height: number },
+    ) => PinPanelPlacement | null;
     pinPanelAction: (id: number, action: PinPanelAction) => void;
     pinPanelDispatch: (id: number, action: PinPanelAction) => void;
     dingSetBounds: (x: number, y: number, w: number, h: number) => void;
@@ -287,6 +322,7 @@ type Message = {
     translateScreenshotImage: (
         id: number,
         retry: boolean,
+        target?: string,
     ) => ScreenshotTranslation;
     bergamot_translate: (data: {
         texts: string[];

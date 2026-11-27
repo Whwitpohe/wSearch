@@ -68,8 +68,8 @@ import closeSvg from "../assets/icons/close.svg";
 import reloadSvg from "../assets/icons/reload.svg";
 import { runAI } from "../lib/ai";
 import { defaultOcrId, loadOCR } from "../ocr/ocr";
-import { ocrList } from "../ocr/ocr_omni";
 import { ocrOnline } from "../ocr/ocr_online";
+import { ocrList } from "../ocr/ocrList";
 
 type SpellItem = {
     index: number;
