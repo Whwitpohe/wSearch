@@ -2049,10 +2049,7 @@ function fullScreen(displayId = presentingDisplay) {
             ? screen.getAllDisplays().find((d) => d.id === displayId)
             : undefined) ??
         screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-    win.setBounds({
-        x: nearestScreen.bounds.x,
-        y: nearestScreen.bounds.y,
-    });
+    win.setBounds(nearestScreen.bounds);
     win.show();
     win.setSimpleFullScreen(true);
     finishClipPresentation(win);
@@ -2108,7 +2105,7 @@ async function sendCaptureEvent(
         presentingDisplay = display.id;
         win.setOpacity(0);
         win.setIgnoreMouseEvents(true);
-        win.setBounds({ x: display.bounds.x, y: display.bounds.y });
+        win.setBounds(display.bounds);
         win.showInactive();
         excludeWindowId = win.getNativeWindowHandle().readUInt32LE(0);
     }
